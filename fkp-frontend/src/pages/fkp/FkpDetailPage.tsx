@@ -803,7 +803,7 @@ export function FkpDetailPage() {
               onChange={(v) => setApsmReviews((p) => ({ ...p, [item.id]: v }))}
             />
           ))}
-          <Textarea label="Catatan APSM (opsional)" value={catatan}
+          <Textarea label="Catatan Tambahan APSM (opsional)" value={catatan}
             onChange={(e) => setCatatan(e.target.value)} rows={3} />
           <ModalFooter onCancel={closeModal} onConfirm={handleConfirm}
             isLoading={isConfirming} confirmLabel="Teruskan ke Admin HO" />
@@ -826,7 +826,7 @@ export function FkpDetailPage() {
               onChange={(v) => setAdminHoReviews((p) => ({ ...p, [item.id]: v }))}
             />
           ))}
-          <Textarea label="Catatan Admin HO (opsional)" value={catatan}
+          <Textarea label="Catatan Tambahan Admin HO (opsional)" value={catatan}
             onChange={(e) => setCatatan(e.target.value)} rows={3} />
           <ModalFooter onCancel={closeModal} onConfirm={handleConfirm}
             isLoading={isConfirming} confirmLabel="Teruskan ke RSM (Investigasi)" />
