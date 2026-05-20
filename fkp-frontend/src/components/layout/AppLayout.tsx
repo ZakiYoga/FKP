@@ -55,7 +55,7 @@ export function AppLayout() {
           pageTitle={currentTitle}
         />
 
-        <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-screen-2xl mx-auto w-full">
+        <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-(--breakpoint-2xl) mx-auto w-full">
           <Outlet />
         </main>
 

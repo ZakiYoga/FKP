@@ -26,7 +26,7 @@ function FkpItemCard({ item, idx, canDelete, onDelete, attachments, products }: 
     : null
 
   return (
-    <div className="p-4 rounded-xl border border-gray-100 bg-white shadow-xs space-y-3">
+    <div className="p-4 rounded-xl border border-gray-100 bg-white shadow-2xs space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <div className="w-7 h-7 rounded-full bg-brand-100 text-brand-700 text-xs font-bold
@@ -55,7 +55,7 @@ function FkpItemCard({ item, idx, canDelete, onDelete, attachments, products }: 
       </dl>
 
       {item.deskripsi_keluhan && (
-        <div className="flex flex-col gap-1 bg-gray-50 rounded p-3 border border-gray-100">
+        <div className="flex flex-col gap-1 bg-gray-50 rounded-sm p-3 border border-gray-100">
           <h1 className="text-xs font-medium text-gray-800">Deskripsi Keluhan : </h1>
           <p className="text-xs italic capitalize">{item.deskripsi_keluhan}</p>
         </div>
@@ -92,7 +92,7 @@ function FkpItemCard({ item, idx, canDelete, onDelete, attachments, products }: 
               </div>
             )}
             {item.catatan_apsm && (
-              <p className="text-xs text-gray-500 bg-gray-50 rounded px-2 py-1 mt-1">
+              <p className="text-xs text-gray-500 bg-gray-50 rounded-sm px-2 py-1 mt-1">
                 {item.catatan_apsm}
               </p>
             )}
@@ -131,7 +131,7 @@ function FkpItemCard({ item, idx, canDelete, onDelete, attachments, products }: 
               </div>
             )}
             {item.catatan_admin_ho && (
-              <p className="text-xs text-gray-500 bg-gray-50 rounded px-2 py-1 mt-1">
+              <p className="text-xs text-gray-500 bg-gray-50 rounded-sm px-2 py-1 mt-1">
                 {item.catatan_admin_ho}
               </p>
             )}
@@ -156,12 +156,12 @@ function FkpItemCard({ item, idx, canDelete, onDelete, attachments, products }: 
             </span>
           </div>
           {item.alasan_penolakan && (
-            <p className="text-xs text-red-600 bg-red-50 rounded px-2 py-1">
+            <p className="text-xs text-red-600 bg-red-50 rounded-sm px-2 py-1">
               {item.alasan_penolakan}
             </p>
           )}
           {item.catatan_qc && (
-            <p className="text-xs text-gray-500 bg-gray-50 rounded px-2 py-1">
+            <p className="text-xs text-gray-500 bg-gray-50 rounded-sm px-2 py-1">
               {item.catatan_qc}
             </p>
           )}
@@ -176,7 +176,7 @@ function FkpItemCard({ item, idx, canDelete, onDelete, attachments, products }: 
       )}
 
       {item.status_item === 'ditolak' && item.alasan_penolakan && (
-        <p className="text-xs text-red-600 bg-red-50 rounded px-2 py-1.5">
+        <p className="text-xs text-red-600 bg-red-50 rounded-sm px-2 py-1.5">
           ❌ Ditolak QC: {item.alasan_penolakan}
         </p>
       )}

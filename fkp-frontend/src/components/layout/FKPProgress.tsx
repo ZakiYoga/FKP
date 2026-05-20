@@ -134,7 +134,7 @@ function TimelineLine({
       />
       {isActive && (
         <motion.div
-          className="absolute left-0 right-0 h-6 bg-gradient-to-b from-amber-400/60 to-transparent"
+          className="absolute left-0 right-0 h-6 bg-linear-to-b from-amber-400/60 to-transparent"
           initial={{ top: '-20%' }}
           animate={{ top: '120%' }}
           transition={{
@@ -175,11 +175,11 @@ function FKPStepItem({
       transition={{ duration: 0.4, delay: index * 0.08 }}
     >
       {/* Timeline spine */}
-      <div className="flex flex-col items-center w-8 flex-shrink-0">
+      <div className="flex flex-col items-center w-8 shrink-0">
 
         {/* Dot */}
         <motion.div
-          className={`w-7 h-7 rounded-full border flex items-center justify-center flex-shrink-0 text-white ${cfg.dotClass}`}
+          className={`w-7 h-7 rounded-full border flex items-center justify-center shrink-0 text-white ${cfg.dotClass}`}
           animate={isActive ? { scale: [1, 1.12, 1] } : { scale: 1 }}
           transition={isActive
             ? { duration: 1.2, repeat: Infinity, ease: 'easeInOut' }

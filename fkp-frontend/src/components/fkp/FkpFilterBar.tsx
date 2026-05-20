@@ -57,7 +57,7 @@ export function FkpFilterBar({
           value={statusFilter}
           onChange={(e) => onStatusChange(e.target.value)}
           className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white
-                     text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-500/20
+                     text-gray-700 focus:outline-hidden focus:ring-2 focus:ring-brand-500/20
                      focus:border-brand-400 cursor-pointer"
         >
           <option value="">Semua Status</option>
@@ -73,7 +73,7 @@ export function FkpFilterBar({
           value={prioritasFilter}
           onChange={(e) => onPrioritasChange(e.target.value)}
           className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white
-                     text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-500/20
+                     text-gray-700 focus:outline-hidden focus:ring-2 focus:ring-brand-500/20
                      focus:border-brand-400 cursor-pointer"
         >
           <option value="">Semua Prioritas</option>

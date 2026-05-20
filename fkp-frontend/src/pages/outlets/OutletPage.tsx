@@ -138,7 +138,7 @@ export function OutletPage() {
           value={distFilter}
           onChange={(e) => setDistFilter(e.target.value)}
           className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
-                     focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400"
+                     focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400"
         >
           <option value="">Semua Distributor</option>
           {distributors.map((d) => (
@@ -174,7 +174,7 @@ export function OutletPage() {
 
                 <div className="mt-3 space-y-1">
                   <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                    <span className="bg-gray-100 text-gray-600 rounded px-1.5 py-0.5 capitalize">
+                    <span className="bg-gray-100 text-gray-600 rounded-sm px-1.5 py-0.5 capitalize">
                       {o.tipe_toko}
                     </span>
                   </div>

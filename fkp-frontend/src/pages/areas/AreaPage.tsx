@@ -114,7 +114,7 @@ export function AreaPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <p className="font-semibold text-gray-900">{area.nama_area}</p>
-                    <span className="text-xs font-mono text-gray-400 bg-gray-100 px-2 py-0.5 rounded">
+                    <span className="text-xs font-mono text-gray-400 bg-gray-100 px-2 py-0.5 rounded-sm">
                       {area.kode_area}
                     </span>
                     <StatusToggleBadge status={area.status} />
@@ -205,7 +205,7 @@ export function AreaPage() {
                       type="checkbox"
                       checked={selectedProvinsiIds?.includes(p.id) ?? false}
                       onChange={() => toggleProvinsi(p.id)}
-                      className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                      className="rounded-sm border-gray-300 text-brand-600 focus:ring-brand-500"
                     />
                     {p.nama_provinsi}
                   </label>

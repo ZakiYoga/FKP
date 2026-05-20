@@ -129,7 +129,7 @@ export function ProductPage() {
           value={kemasanFilter}
           onChange={(e) => setKemasanFilter(e.target.value)}
           className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
-                     focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                     focus:outline-hidden focus:ring-2 focus:ring-brand-500/20"
         >
           <option value="">Semua Kemasan</option>
           <option value="zak">Zak</option>
@@ -144,7 +144,7 @@ export function ProductPage() {
               type="checkbox"
               checked={showInactive}
               onChange={(e) => setShowInactive(e.target.checked)}
-              className="rounded border-gray-300 text-brand-600"
+              className="rounded-sm border-gray-300 text-brand-600"
             />
             Tampilkan nonaktif
           </label>

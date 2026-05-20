@@ -376,7 +376,7 @@ export function FkpItemFormModal({
                                             className="absolute top-1 right-1 bg-red-500 text-white rounded-lg h-4 px-2 py-1 flex items-center justify-center gap-1 transition-all duration-200"
                                         >
                                             <Trash className="w-2.5 h-2.5" />
-                                            <span className="text-xs text-[10px] max-w-0 overflow-hidden opacity-0 group-hover:max-w-[3rem] group-hover:opacity-100 transition-all duration-200">
+                                            <span className="text-xs text-[10px] max-w-0 overflow-hidden opacity-0 group-hover:max-w-12 group-hover:opacity-100 transition-all duration-200">
                                                 delete
                                             </span>
                                         </button>
@@ -387,7 +387,7 @@ export function FkpItemFormModal({
                                         <select
                                             value={f.tipe_dokumen}
                                             onChange={(e) => updateMeta(idx, 'tipe_dokumen', e.target.value)}
-                                            className="w-full text-[10px] border border-gray-200 rounded-md px-1.5 py-1 bg-gray-50 text-gray-700 focus:outline-none focus:border-brand-400"
+                                            className="w-full text-[10px] border border-gray-200 rounded-md px-1.5 py-1 bg-gray-50 text-gray-700 focus:outline-hidden focus:border-brand-400"
                                         >
                                             {TIPE_DOKUMEN_OPTIONS.map((opt) => (
                                                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -398,7 +398,7 @@ export function FkpItemFormModal({
                                             value={f.keterangan}
                                             onChange={(e) => updateMeta(idx, 'keterangan', e.target.value)}
                                             placeholder="Ket. (exp / kode prod / ...)"
-                                            className="w-full text-[10px] border border-gray-200 rounded-md px-1.5 py-1 bg-white text-gray-700 placeholder-gray-300 focus:outline-none focus:border-brand-400"
+                                            className="w-full text-[10px] border border-gray-200 rounded-md px-1.5 py-1 bg-white text-gray-700 placeholder-gray-300 focus:outline-hidden focus:border-brand-400"
                                         />
                                     </div>
                                 </div>

@@ -158,7 +158,7 @@ function DetailModal({
           ].map(([label, val]) => (
             <div key={label}>
               <p className="text-xs text-gray-400 mb-0.5">{label}</p>
-              <p className="font-medium text-gray-800 break-words">{val}</p>
+              <p className="font-medium text-gray-800 wrap-break-word">{val}</p>
             </div>
           ))}
         </div>
@@ -325,7 +325,7 @@ export function OutletRegistrationsPage() {
                       </td>
                       {/* Kode */}
                       <td className="px-4 py-3.5">
-                        <span className="font-mono text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                        <span className="font-mono text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-sm">
                           {item.kode_outlet}
                         </span>
                       </td>

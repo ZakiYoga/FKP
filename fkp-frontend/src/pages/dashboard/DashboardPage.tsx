@@ -94,7 +94,7 @@ export function DashboardPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* ── Welcome banner ─────────────────────────────────── */}
-      <div className="rounded-2xl bg-gradient-to-r from-brand-700 to-brand-600 p-6 text-white">
+      <div className="rounded-2xl bg-linear-to-r from-brand-700 to-brand-600 p-6 text-white">
         <p className="text-brand-200 text-sm font-medium">Selamat datang kembali 👋</p>
         <h1 className="text-2xl font-bold mt-1">{user?.nama}</h1>
         <div className="flex items-center gap-1.5 mt-2 bg-white/15 rounded-full px-3 py-1 w-fit text-xs font-semibold">

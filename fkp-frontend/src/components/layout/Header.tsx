@@ -13,7 +13,7 @@ export function Header({ sidebarOpen, onToggleSidebar, pageTitle }: HeaderProps)
   const unreadCount = data?.unread_count ?? 0
 
   return (
-    <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-sm border-b border-gray-100 shadow-sm">
+    <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-xs border-b border-gray-100 shadow-xs">
       <div className="flex items-center justify-between h-16 px-4 md:px-6">
         <div className="flex items-center gap-4">
           <button onClick={onToggleSidebar}

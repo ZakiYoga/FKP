@@ -113,7 +113,7 @@ export function UserPage() {
             className="input-base pl-9 py-2" />
         </div>
         <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}
-          className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20">
+          className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-hidden focus:ring-2 focus:ring-brand-500/20">
           <option value="">Semua Role</option>
           {roles.map((r) => <option key={r.id} value={r.kode_role}>{r.nama_role}</option>)}
         </select>
@@ -219,7 +219,7 @@ export function UserPage() {
           <Input label="No. Telepon" {...updateForm.register('no_telepon')} />
           <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
             <input type="checkbox" {...updateForm.register('is_active')}
-              className="rounded border-gray-300 text-brand-600" />
+              className="rounded-sm border-gray-300 text-brand-600" />
             User aktif
           </label>
           <div className="flex justify-end gap-2 pt-2">

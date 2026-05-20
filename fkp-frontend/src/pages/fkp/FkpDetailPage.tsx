@@ -764,7 +764,7 @@ export function FkpDetailPage() {
                         </span>
                       </p>
                       {log.catatan && (
-                        <p className="text-xs text-gray-500 mt-1 bg-gray-50 rounded px-2 py-1">{log.catatan}</p>
+                        <p className="text-xs text-gray-500 mt-1 bg-gray-50 rounded-sm px-2 py-1">{log.catatan}</p>
                       )}
                     </li>
                   ))}

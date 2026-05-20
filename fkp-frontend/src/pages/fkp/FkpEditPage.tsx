@@ -446,7 +446,7 @@ export function FkpEditPage() {
                           onChange={(e) => updatePendingMeta(idx, 'tipe_dokumen', e.target.value)}
                           className="w-full text-[10px] border border-gray-200 rounded-md
                              px-1.5 py-1 bg-white text-gray-700
-                             focus:outline-none focus:border-brand-400"
+                             focus:outline-hidden focus:border-brand-400"
                         >
                           {TIPE_DOKUMEN_OPTIONS.map((opt) => (
                             <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -459,7 +459,7 @@ export function FkpEditPage() {
                           placeholder="Keterangan (opsional)"
                           className="w-full text-[10px] border border-gray-200 rounded-md
                              px-1.5 py-1 bg-white text-gray-700 placeholder-gray-300
-                             focus:outline-none focus:border-brand-400"
+                             focus:outline-hidden focus:border-brand-400"
                         />
                       </div>
                     </div>

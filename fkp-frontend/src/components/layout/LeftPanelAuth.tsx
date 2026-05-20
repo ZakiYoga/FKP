@@ -44,7 +44,7 @@ interface FeatureItemProps {
 function FeatureItem({ icon, title, description }: FeatureItemProps) {
   return (
     <motion.div variants={fadeUp} className="flex items-start gap-3">
-      <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-lg">
+      <div className="shrink-0 w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-lg">
         {icon}
       </div>
       <div>
@@ -74,8 +74,8 @@ function LeftPanelBackground() {
         </defs>
         <rect width="100%" height="100%" fill="url(#grid)" />
       </svg>
-      <div className="absolute bottom-[-5rem] right-[-5rem] w-80 h-80 rounded-full border border-white/30 pointer-events-none" />
-      <div className="absolute bottom-[-7rem] right-[-7rem] w-[28rem] h-[28rem] rounded-full border border-white/20 pointer-events-none" />
+      <div className="absolute -bottom-20 -right-20 w-80 h-80 rounded-full border border-white/30 pointer-events-none" />
+      <div className="absolute -bottom-28 -right-28 w-md h-112 rounded-full border border-white/20 pointer-events-none" />
     </>
   )
 }
@@ -93,7 +93,7 @@ export function LeftPanel() {
       <LeftPanelBackground />
 
       {/* Gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/50 to-black/70" />
+      <div className="absolute inset-0 bg-linear-to-b from-black/40 via-black/50 to-black/70" />
 
       {/* All content above overlay */}
       <div className="relative z-10 flex flex-col h-full">

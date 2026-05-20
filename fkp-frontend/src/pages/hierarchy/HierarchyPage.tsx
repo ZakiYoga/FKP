@@ -80,7 +80,7 @@ export function HierarchyPage() {
             value={selectedRsmId}
             onChange={(e) => setSelectedRsmId(e.target.value)}
             className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
-                       focus:outline-none focus:ring-2 focus:ring-brand-500/20 min-w-[220px]"
+                       focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 min-w-[220px]"
           >
             <option value="">— Pilih RSM —</option>
             {rsmList.map((u) => <option key={u.id} value={u.id}>{u.nama}</option>)}

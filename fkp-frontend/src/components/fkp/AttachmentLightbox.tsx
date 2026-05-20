@@ -129,7 +129,7 @@ export function AttachmentLightbox({ attachments, initialIndex = 0, isOpen, onCl
     >
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/80 backdrop-blur-xs"
         onClick={onClose}
       />
 
@@ -179,7 +179,7 @@ export function AttachmentLightbox({ attachments, initialIndex = 0, isOpen, onCl
               onClick={(e) => { e.stopPropagation(); goPrev() }}
               className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full
                          bg-black/40 hover:bg-black/70 text-white flex items-center justify-center
-                         transition-all hover:scale-110 focus:outline-none focus:ring-2 focus:ring-white/50"
+                         transition-all hover:scale-110 focus:outline-hidden focus:ring-2 focus:ring-white/50"
               aria-label="Sebelumnya"
             >
               <ChevronLeft className="w-5 h-5" />
@@ -193,7 +193,7 @@ export function AttachmentLightbox({ attachments, initialIndex = 0, isOpen, onCl
               onClick={(e) => { e.stopPropagation(); goNext() }}
               className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full
                          bg-black/40 hover:bg-black/70 text-white flex items-center justify-center
-                         transition-all hover:scale-110 focus:outline-none focus:ring-2 focus:ring-white/50"
+                         transition-all hover:scale-110 focus:outline-hidden focus:ring-2 focus:ring-white/50"
               aria-label="Selanjutnya"
             >
               <ChevronRight className="w-5 h-5" />
@@ -328,7 +328,7 @@ export function AttachmentLightbox({ attachments, initialIndex = 0, isOpen, onCl
                     key={att.id}
                     type="button"
                     onClick={() => goTo(idx)}
-                    className={`w-10 h-10 rounded-lg overflow-hidden border-2 transition-all flex-shrink-0
+                    className={`w-10 h-10 rounded-lg overflow-hidden border-2 transition-all shrink-0
                                 ${idx === currentIndex
                                   ? 'border-brand-500 ring-2 ring-brand-200'
                                   : 'border-transparent hover:border-gray-300 opacity-60 hover:opacity-100'}`}
@@ -387,7 +387,7 @@ export function AttachmentGrid({ attachments, cols = 4 }: AttachmentGridProps) {
             key={att.id}
             type="button"
             onClick={() => openAt(idx)}
-            className="group flex flex-col gap-1 text-left focus:outline-none
+            className="group flex flex-col gap-1 text-left focus:outline-hidden
                        focus-visible:ring-2 focus-visible:ring-brand-500 rounded-lg"
             title={getTipeLabel(att.tipe_dokumen)}
           >
