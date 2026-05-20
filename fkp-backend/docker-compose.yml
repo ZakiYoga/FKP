@@ -1,0 +1,33 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: fkp_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fkp_sakti
+      POSTGRES_PASSWORD: Sakt1!
+      POSTGRES_DB: fkp_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - fkp_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fkp_user -d fkp_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: fkp_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - fkp_redis_data:/data
+
+volumes:
+  fkp_postgres_data:
+  fkp_redis_data:

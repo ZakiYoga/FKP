@@ -1,0 +1,16 @@
+2026-05-11 10:19:56 [INFO] START | dry_run=False resume=False filter=None
+2026-05-11 10:19:56 [INFO] [0] Memeriksa koneksi database
+2026-05-11 10:19:56 [INFO] Terhubung ke 'fkp_db' @ localhost:5432
+2026-05-11 10:19:56 [INFO] Semua tabel ditemukan: provinsi, kabupaten_kota, kecamatan, kelurahan
+2026-05-11 10:19:56 [INFO] [0b] Memeriksa koneksi API
+2026-05-11 10:19:57 [INFO] API OK — 38 provinsi tersedia
+2026-05-11 10:19:57 [INFO] [1] Membuka koneksi PostgreSQL
+2026-05-11 10:19:57 [INFO] Koneksi berhasil
+2026-05-11 10:19:57 [INFO] [2] Membersihkan tabel
+2026-05-11 10:19:57 [INFO] Semua tabel dikosongkan
+2026-05-11 10:19:57 [INFO] [3] Memulai proses (38 provinsi)
+2026-05-11 10:19:57 [INFO] PROVINSI [11] Aceh
+2026-05-11 10:19:59 [INFO]   KAB [1101] Kabupaten Aceh Selatan
+2026-05-11 10:20:00 [INFO]     KEC [110101] Bakongan
+2026-05-11 10:20:01 [INFO]       7 kelurahan di Bakongan
+2026-05-11 10:20:01 [INFO]     KEC [110102] Kluet Utara
