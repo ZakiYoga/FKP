@@ -19,16 +19,24 @@ import { RegisterOutletPage } from './pages/auth/RegisterOutletPage'
 import { OutletRegistrationsPage } from './pages/outlets/OutletRegistrationPage'
 import { LoginPage } from './pages/auth/LoginPage'
 import { AuthLayout } from './components/layout/AuthLayout'
+import { FkpTrackPage } from './pages/public/FkpTrackPage'
+import { TestimoniPage } from './pages/testimoni/TestimoniPage'
+import { PublicLayout } from './components/layout/PublicLayout'
 
 export function AppRouter() {
   return (
     <Routes>
-      {/* Publik */}
-      <Route path="/403" element={<ForbiddenPage />} />
+      {/* Publik */}'
+      <Route element={<PublicLayout />}>
+        <Route path="/403" element={<ForbiddenPage />} />
+        <Route path="/track" element={<FkpTrackPage />} />
+        <Route path="/track/:fkpId" element={<FkpTrackPage />} />
+      </Route>
+
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
       <Route element={<AuthLayout />}>
-        <Route path="/login"           element={<LoginPage />} />
+        <Route path="/login" element={<LoginPage />} />
         <Route path="/register/outlet" element={<RegisterOutletPage />} />
       </Route>
 
@@ -67,6 +75,11 @@ export function AppRouter() {
 
           {/* Notifikasi */}
           <Route path="/notifications" element={<NotificationPage />} />
+
+          <Route element={<ProtectedRoute allowedRoles={['distributor', 'outlet', 'sc_spv']} />}>
+            <Route path="/testimoni" element={<TestimoniPage />} />
+          </Route>
+
         </Route>
       </Route>
 
@@ -74,4 +87,3 @@ export function AppRouter() {
     </Routes>
   )
 }
-

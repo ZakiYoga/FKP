@@ -3,8 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, FileText, Clock, CheckCircle2, Loader2, Send,
   AlertTriangle, ShieldCheck, XCircle, Edit2, Plus, Package,
+  QrCode, Download, Copy, Check, ExternalLink,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useRef, useCallback } from 'react'
+import { QRCodeCanvas } from 'qrcode.react'
 import { useFkpDetail, useSubmitFkp, useProducts, useAddFkpItem, useDeleteFkpItem } from '@/hooks/useFkp'
 import { StatusBadge, PriorittasBadge } from '@/components/ui/Badge'
 import { PageLoader } from '@/components/ui/Spinner'
@@ -17,7 +19,7 @@ import { FkpItemReviewForm, type ApsmReviewState, type AdminHoReviewState, APSM_
 import { formatDateTime, formatRupiah } from '@/lib/utils'
 import { useKodeRole } from '@/store/authStore'
 import { FKP_STATUS_LABEL, METODE_PENANGANAN_LABEL, TIPE_RESOLUSI_LABEL } from '@/types'
-import type { FkpStatusKey, FkpAttachment as FkpAttType, FkpItemCreatePayload, TipeResolusi, MetodePenangananFisik, RekomendasiPenanganan, RekomendasiKompensasi } from '@/types'
+import type { FkpStatusKey, FkpItemCreatePayload, TipeResolusi, MetodePenangananFisik, RekomendasiPenanganan, RekomendasiKompensasi } from '@/types'
 import { fkpApi } from '@/api/fkp'
 import { useQueryClient } from '@tanstack/react-query'
 import { fkpKeys } from '@/hooks/useFkp'
@@ -39,8 +41,7 @@ type ModalTipe =
   | 'proses_pengiriman'
   | 'revision' | 'reject' | 'close'
   | 'add_item'
-
-// ── Tipe state QC ─────────────────────────────────────────────────────────────
+  | 'qr_code'          // ← TAMBAH
 
 type QcItemResult = {
   status_item: string
@@ -48,7 +49,229 @@ type QcItemResult = {
   alasan_penolakan: string
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+
+// ─── QR Code Modal Content ────────────────────────────────────────────────────
+
+function QrCodeModalContent({
+  fkpId,
+  nomorFkp,
+}: {
+  fkpId: string
+  nomorFkp: string
+}) {
+  const canvasRef = useRef<HTMLDivElement>(null)
+  const [copied, setCopied] = useState(false)
+
+  const trackingUrl = `${window.location.origin}/track/${fkpId}`
+
+  const handleDownload = useCallback(() => {
+    const canvas = canvasRef.current?.querySelector('canvas')
+    if (!canvas) return
+
+    // Buat canvas baru dengan padding + label nomor FKP di bawah
+    const padding = 24
+    const labelH  = 44
+    const off     = document.createElement('canvas')
+    off.width  = canvas.width  + padding * 2
+    off.height = canvas.height + padding * 2 + labelH
+    const ctx  = off.getContext('2d')!
+
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, off.width, off.height)
+    ctx.drawImage(canvas, padding, padding)
+
+    // Nomor FKP
+    ctx.fillStyle = '#374151'
+    ctx.font = 'bold 13px monospace'
+    ctx.textAlign = 'center'
+    ctx.fillText(nomorFkp, off.width / 2, canvas.height + padding + 22)
+
+    // URL kecil di bawah nomor
+    ctx.fillStyle = '#9ca3af'
+    ctx.font = '10px monospace'
+    ctx.fillText(trackingUrl, off.width / 2, canvas.height + padding + 38)
+
+    const link     = document.createElement('a')
+    link.download  = `QR-FKP-${nomorFkp.replace(/\//g, '-')}.png`
+    link.href      = off.toDataURL('image/png')
+    link.click()
+    toast.success('QR Code berhasil didownload.')
+  }, [nomorFkp, trackingUrl])
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(trackingUrl)
+    } catch {
+      const ta = document.createElement('textarea')
+      ta.value = trackingUrl
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+    }
+    setCopied(true)
+    toast.success('URL tracking disalin ke clipboard.')
+    setTimeout(() => setCopied(false), 2500)
+  }, [trackingUrl])
+
+  return (
+    <div className="flex flex-col items-center gap-5">
+      {/* Info */}
+      <p className="text-sm text-gray-500 text-center max-w-xs">
+        Scan QR Code ini untuk memantau progres keluhan tanpa perlu login ke aplikasi.
+      </p>
+
+      {/* QR Canvas — bisa diklik untuk buka tracking di tab baru */}
+      <a
+        href={trackingUrl}
+        target="_blank"
+        rel="noreferrer"
+        title="Buka halaman tracking publik"
+        className="group relative block"
+      >
+        <div
+          ref={canvasRef}
+          className="p-4 bg-white border-2 border-gray-200 rounded-2xl shadow-sm
+                     group-hover:border-brand-400 group-hover:shadow-md transition-all"
+        >
+          <QRCodeCanvas
+            value={trackingUrl}
+            size={220}
+            level="M"
+            includeMargin={false}
+          />
+        </div>
+        {/* Hover overlay */}
+        <div className="absolute inset-0 flex items-center justify-center
+                        opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl
+                        bg-brand-500/10">
+          <span className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 text-white
+                           text-xs font-medium rounded-full shadow">
+            <ExternalLink className="w-3.5 h-3.5" />
+            Buka Tracking
+          </span>
+        </div>
+      </a>
+
+      {/* Label nomor FKP */}
+      <p className="text-xs font-mono text-gray-400">{nomorFkp}</p>
+
+      {/* URL preview */}
+      <div className="w-full px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
+        <p className="text-[11px] font-mono text-gray-500 break-all text-center">{trackingUrl}</p>
+      </div>
+
+      {/* Action buttons */}
+      <div className="flex gap-3 w-full">
+        <button
+          onClick={handleDownload}
+          className="flex-1 flex items-center justify-center gap-2
+                     py-2.5 rounded-xl border border-gray-200 bg-white text-sm text-gray-700
+                     hover:bg-gray-50 hover:border-gray-300 transition-all font-medium"
+        >
+          <Download className="w-4 h-4 text-gray-500" />
+          Download PNG
+        </button>
+        <button
+          onClick={handleCopy}
+          className={`
+            flex-1 flex items-center justify-center gap-2
+            py-2.5 rounded-xl border text-sm font-medium transition-all
+            ${copied
+              ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+              : 'border-brand-300 bg-brand-50 text-brand-700 hover:bg-brand-100'
+            }
+          `}
+        >
+          {copied
+            ? <><Check className="w-4 h-4" /> Tersalin!</>
+            : <><Copy className="w-4 h-4" /> Salin URL</>
+          }
+        </button>
+      </div>
+
+      <p className="text-[11px] text-gray-400 text-center">
+        Klik gambar QR untuk membuka halaman tracking publik di tab baru
+      </p>
+    </div>
+  )
+}
+
+
+// ─── QR Trigger Button — tampil di sidebar ────────────────────────────────────
+
+function QrTriggerCard({
+  fkpId,
+  nomorFkp,
+  onClick,
+}: {
+  fkpId: string
+  nomorFkp: string
+  onClick: () => void
+}) {
+  const canvasRef = useRef<HTMLDivElement>(null)
+  const trackingUrl = `${window.location.origin}/track/${fkpId}`
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+          <QrCode className="w-4 h-4 text-brand-500" />
+          QR Tracking
+        </h2>
+      </div>
+      <div className="card-body flex flex-col items-center gap-3">
+        {/* QR preview kecil — klik buka modal */}
+        <button
+          onClick={onClick}
+          className="group relative p-2.5 bg-white border border-gray-200 rounded-xl
+                     hover:border-brand-400 hover:shadow-md transition-all"
+          title="Klik untuk memperbesar"
+        >
+          {/* Canvas tersembunyi untuk referensi download di modal */}
+          <div ref={canvasRef}>
+            <QRCodeCanvas
+              value={trackingUrl}
+              size={120}
+              level="M"
+              includeMargin={false}
+            />
+          </div>
+          {/* Hover overlay */}
+          <div className="absolute inset-0 flex items-center justify-center rounded-xl
+                          bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
+            <span className="text-white text-xs font-semibold">Lihat QR</span>
+          </div>
+        </button>
+
+        <p className="text-xs font-mono text-gray-400 text-center">{nomorFkp}</p>
+
+        {/* Tombol Download & Buka — langsung dari card kecil */}
+        <div className="flex gap-2 w-full">
+          <button
+            onClick={onClick}
+            className="flex-1 btn-secondary btn-sm flex items-center justify-center gap-1.5 text-xs"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Download
+          </button>
+          <a
+            href={trackingUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="flex-1 btn-secondary btn-sm flex items-center justify-center gap-1.5 text-xs"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            Tracking
+          </a>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export function FkpDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -65,11 +288,10 @@ export function FkpDetailPage() {
   const [isSavingItem, setIsSavingItem] = useState(false)
   const [itemResetKey, setItemResetKey] = useState(0)
 
-  // ── State review per-item ─────────────────────────────────────────────────
-  const [apsmReviews, setApsmReviews] = useState<Record<string, ApsmReviewState>>({})
+  const [apsmReviews, setApsmReviews]       = useState<Record<string, ApsmReviewState>>({})
   const [adminHoReviews, setAdminHoReviews] = useState<Record<string, AdminHoReviewState>>({})
-  const [qcResults, setQcResults] = useState<Record<string, QcItemResult>>({})
-  const [sumber, setSumber] = useState<'internal' | 'pelanggan'>('internal')
+  const [qcResults, setQcResults]           = useState<Record<string, QcItemResult>>({})
+  const [sumber, setSumber]                 = useState<'internal' | 'pelanggan'>('internal')
 
   const [tipeResolusi, setTipeResolusi] = useState('tukar_barang')
   const [resolusiForm, setResolusiForm] = useState({
@@ -78,37 +300,21 @@ export function FkpDetailPage() {
     tanggal_pemusnahan: '', lokasi_pemusnahan: '',
     metode_penanganan_fisik: 'dimusnahkan' as MetodePenangananFisik,
     detail_penanganan: '',
-    persentase_kompensasi_disetujui: '',  // ← TAMBAH
+    persentase_kompensasi_disetujui: '',
   })
 
-  const [pengirimanForm, setPengirimanForm] = useState({
-    nomor_do: '', ekspedisi: '', resi_pengiriman: '',
-    nomor_surat_jalan: '', catatan: '',
-  })
-
-  // ← UBAH: nilai_cashback → nilai_nota_penjualan, tambah item_qty_disetujui
   const [detailForm, setDetailForm] = useState({
-    // tukar_barang
-    nomor_do: '',
-    ekspedisi: '',
-    resi_pengiriman: '',
-    nomor_surat_jalan: '',
-    // potong_tagihan
-    nilai_nota_penjualan: '',  // ← UBAH: ganti nilai_cashback
-    nama_bank: '',
-    nomor_rekening: '',
-    atas_nama: '',
-    nomor_nota_retur: '',
-    // shared
-    keterangan: '',
+    nomor_do: '', ekspedisi: '', resi_pengiriman: '',
+    nomor_surat_jalan: '', nilai_nota_penjualan: '',
+    nama_bank: '', nomor_rekening: '', atas_nama: '',
+    nomor_nota_retur: '', keterangan: '',
   })
 
-  // ← TAMBAH: state per-item qty_disetujui untuk tukar_barang
   const [itemQtyDisetujui, setItemQtyDisetujui] = useState<Record<string, string>>({})
 
   const { mutate: submit, isPending: isSubmitting } = useSubmitFkp(id ?? '')
-  const { mutateAsync: addItem } = useAddFkpItem(id ?? '')
-  const { mutate: deleteItem } = useDeleteFkpItem(id ?? '')
+  const { mutateAsync: addItem }  = useAddFkpItem(id ?? '')
+  const { mutate: deleteItem }    = useDeleteFkpItem(id ?? '')
 
   const closeModal = () => { setModal(null); setCatatan('') }
 
@@ -128,7 +334,6 @@ export function FkpDetailPage() {
     }
   }
 
-  // ── Buka modal resolusi (pre-fill jika sudah ada) ─────────────────────────
   const openResolusiModal = () => {
     if (fkp?.resolution) {
       const r = fkp.resolution
@@ -144,9 +349,8 @@ export function FkpDetailPage() {
         lokasi_pemusnahan: r.lokasi_pemusnahan ?? '',
         metode_penanganan_fisik: r.metode_penanganan_fisik ?? 'dimusnahkan',
         detail_penanganan: r.detail_penanganan ?? '',
-        persentase_kompensasi_disetujui: r.persentase_kompensasi_disetujui  // ← TAMBAH prefill
-          ? String(r.persentase_kompensasi_disetujui)
-          : '',
+        persentase_kompensasi_disetujui: r.persentase_kompensasi_disetujui
+          ? String(r.persentase_kompensasi_disetujui) : '',
       })
     } else {
       setTipeResolusi('tukar_barang')
@@ -155,8 +359,7 @@ export function FkpDetailPage() {
         atas_nama: '', nomor_nota_retur: '', keterangan: '',
         tanggal_pemusnahan: '', lokasi_pemusnahan: '',
         metode_penanganan_fisik: 'dimusnahkan',
-        detail_penanganan: '',
-        persentase_kompensasi_disetujui: '',  // ← TAMBAH
+        detail_penanganan: '', persentase_kompensasi_disetujui: '',
       })
     }
     setModal('buat_resolusi')
@@ -169,14 +372,13 @@ export function FkpDetailPage() {
       ekspedisi: r?.ekspedisi ?? '',
       resi_pengiriman: r?.resi_pengiriman ?? '',
       nomor_surat_jalan: fkp?.nomor_surat_jalan ?? '',
-      nilai_nota_penjualan: r?.nilai_nota_penjualan ? String(r.nilai_nota_penjualan) : '',  // ← UBAH
+      nilai_nota_penjualan: r?.nilai_nota_penjualan ? String(r.nilai_nota_penjualan) : '',
       nama_bank: r?.nama_bank ?? '',
       nomor_rekening: r?.nomor_rekening ?? '',
       atas_nama: r?.atas_nama ?? '',
       nomor_nota_retur: r?.nomor_nota_retur ?? '',
       keterangan: '',
     })
-    // ← TAMBAH: pre-fill qty_disetujui dari item yang sudah ada
     const initialQty: Record<string, string> = {}
     fkp?.items
       .filter((item) => item.status_item === 'diterima')
@@ -187,7 +389,6 @@ export function FkpDetailPage() {
     setModal('proses_pengiriman')
   }
 
-  // ── handleAddItem ─────────────────────────────────────────────────────────
   const handleAddItem = async (payload: FkpItemCreatePayload, files: FileWithMeta[]) => {
     setIsSavingItem(true)
     try {
@@ -212,12 +413,10 @@ export function FkpDetailPage() {
     }
   }
 
-  // ── handleConfirm ─────────────────────────────────────────────────────────
   const handleConfirm = () => {
     if (!id) return
     switch (modal) {
 
-      // ── APSM review ──────────────────────────────────────────────────────
       case 'apsm_review':
         return runAction(() => fkpApi.apsmReview(id, {
           catatan_apsm: catatan || null,
@@ -225,21 +424,14 @@ export function FkpDetailPage() {
             const r: ApsmReviewState = apsmReviews[item.id] ?? APSM_REVIEW_BLANK
             return {
               item_id: item.id,
-              rekomendasi_penanganan_apsm: r.rekomendasi_penanganan_apsm
-                ? r.rekomendasi_penanganan_apsm as RekomendasiPenanganan
-                : null,
-              rekomendasi_kompensasi_apsm: r.rekomendasi_kompensasi_apsm
-                ? r.rekomendasi_kompensasi_apsm as RekomendasiKompensasi
-                : null,
+              rekomendasi_penanganan_apsm: r.rekomendasi_penanganan_apsm ? r.rekomendasi_penanganan_apsm as RekomendasiPenanganan : null,
+              rekomendasi_kompensasi_apsm: r.rekomendasi_kompensasi_apsm ? r.rekomendasi_kompensasi_apsm as RekomendasiKompensasi : null,
               catatan_apsm: r.catatan_apsm || null,
-              persentase_disetujui_apsm: r.persentase_disetujui_apsm
-                ? Number(r.persentase_disetujui_apsm)
-                : null,
+              persentase_disetujui_apsm: r.persentase_disetujui_apsm ? Number(r.persentase_disetujui_apsm) : null,
             }
           }) ?? null,
         }))
 
-      // ── Admin HO review ──────────────────────────────────────────────────
       case 'admin_ho_review':
         return runAction(() => fkpApi.adminHoReview(id, {
           catatan_admin: catatan || null,
@@ -247,16 +439,10 @@ export function FkpDetailPage() {
             const r: AdminHoReviewState = adminHoReviews[item.id] ?? ADMIN_HO_REVIEW_BLANK
             return {
               item_id: item.id,
-              rekomendasi_penanganan_admin_ho: r.rekomendasi_penanganan_admin_ho
-                ? r.rekomendasi_penanganan_admin_ho as RekomendasiPenanganan
-                : null,
-              rekomendasi_kompensasi_admin_ho: r.rekomendasi_kompensasi_admin_ho
-                ? r.rekomendasi_kompensasi_admin_ho as RekomendasiKompensasi
-                : null,
+              rekomendasi_penanganan_admin_ho: r.rekomendasi_penanganan_admin_ho ? r.rekomendasi_penanganan_admin_ho as RekomendasiPenanganan : null,
+              rekomendasi_kompensasi_admin_ho: r.rekomendasi_kompensasi_admin_ho ? r.rekomendasi_kompensasi_admin_ho as RekomendasiKompensasi : null,
               catatan_admin_ho: r.catatan_admin_ho || null,
-              persentase_disetujui_admin_ho: r.persentase_disetujui_admin_ho
-                ? Number(r.persentase_disetujui_admin_ho)
-                : null,
+              persentase_disetujui_admin_ho: r.persentase_disetujui_admin_ho ? Number(r.persentase_disetujui_admin_ho) : null,
             }
           }) ?? null,
         }))
@@ -282,7 +468,6 @@ export function FkpDetailPage() {
           }),
         }))
 
-      // ← TAMBAH: sertakan persentase_kompensasi_disetujui untuk potong_tagihan
       case 'buat_resolusi':
         return runAction(() => fkpApi.createResolusi(id, {
           tipe_resolusi: tipeResolusi,
@@ -291,7 +476,7 @@ export function FkpDetailPage() {
           lokasi_pemusnahan: resolusiForm.lokasi_pemusnahan || null,
           tanggal_pemusnahan: resolusiForm.tanggal_pemusnahan || null,
           keterangan: resolusiForm.keterangan || null,
-          persentase_kompensasi_disetujui:  // ← TAMBAH
+          persentase_kompensasi_disetujui:
             tipeResolusi === 'potong_tagihan' && resolusiForm.persentase_kompensasi_disetujui
               ? Number(resolusiForm.persentase_kompensasi_disetujui)
               : null,
@@ -310,27 +495,20 @@ export function FkpDetailPage() {
         if (!catatan.trim()) { toast.error('Alasan wajib diisi.'); return }
         return runAction(() => fkpApi.direkturApprove(id, { disetujui: false, catatan }))
 
-      // ← UBAH: kirim nilai_nota_penjualan dan item_qty_disetujui
       case 'proses_pengiriman':
         return runAction(() => fkpApi.updateDetailResolusi(id, {
-          // tukar_barang
           nomor_do: detailForm.nomor_do || null,
           ekspedisi: detailForm.ekspedisi || null,
           resi_pengiriman: detailForm.resi_pengiriman || null,
           nomor_surat_jalan: detailForm.nomor_surat_jalan || null,
-          // ← TAMBAH: qty disetujui per item untuk tukar_barang
           item_qty_disetujui: fkp?.resolution?.tipe_resolusi === 'tukar_barang'
-            ? fkp.items
-                .filter((item) => item.status_item === 'diterima')
+            ? fkp.items.filter((item) => item.status_item === 'diterima')
                 .map((item) => ({
                   item_id: item.id,
                   qty_disetujui: Number(itemQtyDisetujui[item.id] ?? item.qty),
                 }))
             : null,
-          // potong_tagihan — ← UBAH: nilai_nota_penjualan, bukan nilai_cashback
-          nilai_nota_penjualan: detailForm.nilai_nota_penjualan
-            ? Number(detailForm.nilai_nota_penjualan)
-            : null,
+          nilai_nota_penjualan: detailForm.nilai_nota_penjualan ? Number(detailForm.nilai_nota_penjualan) : null,
           nama_bank: detailForm.nama_bank || null,
           nomor_rekening: detailForm.nomor_rekening || null,
           atas_nama: detailForm.atas_nama || null,
@@ -360,19 +538,11 @@ export function FkpDetailPage() {
     </div>
   )
 
-  const canEdit = fkp.status === 'draft' || fkp.status === 'need_revision'
-  const hasResolusi = !!fkp.resolution
-  const canCreateResolusi = kodeRole === 'admin_ho'
-    && fkp.status === 'investigated'
-    && !fkp.resolution
-
-  const canEditResolusi = kodeRole === 'admin_ho'
-    && ['investigated', 'rsm_approval_resolusi'].includes(fkp.status)
-    && !!fkp.resolution
-
-  const resolusiTerkunci = !!fkp.resolution
-    && ['direktur_approval', 'accepted', 'in_process', 'closed', 'rejected']
-      .includes(fkp.status)
+  const canEdit            = fkp.status === 'draft' || fkp.status === 'need_revision'
+  const hasResolusi        = !!fkp.resolution
+  const canCreateResolusi  = kodeRole === 'admin_ho' && fkp.status === 'investigated' && !fkp.resolution
+  const canEditResolusi    = kodeRole === 'admin_ho' && ['investigated', 'rsm_approval_resolusi'].includes(fkp.status) && !!fkp.resolution
+  const resolusiTerkunci   = !!fkp.resolution && ['direktur_approval', 'accepted', 'in_process', 'closed', 'rejected'].includes(fkp.status)
 
   const hasAnyAction =
     canEdit ||
@@ -389,7 +559,7 @@ export function FkpDetailPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
 
-      {/* ── Page Header ─────────────────────────────────────────────────── */}
+      {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate('/fkp')} className="btn-ghost btn-sm p-2">
@@ -420,7 +590,7 @@ export function FkpDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {/* ── Kiri ──────────────────────────────────────────────────────── */}
-        <div className="lg:col-span-2 space-y-5">
+        <div className="lg:col-span-2 space-y-5 order-2 lg:order-1">
 
           {/* Info FKP */}
           <div className="card">
@@ -466,10 +636,7 @@ export function FkpDetailPage() {
                 ? <p className="text-sm text-gray-400 text-center py-4">Belum ada item.</p>
                 : fkp.items.map((item, idx) => (
                   <FkpItemCard
-                    key={item.id}
-                    item={item}
-                    idx={idx}
-                    products={products}
+                    key={item.id} item={item} idx={idx} products={products}
                     canDelete={canEdit && fkp.items.length > 1}
                     onDelete={() => deleteItem(item.id)}
                     attachments={fkp.attachments.filter((a) => a.fkp_item_id === item.id)}
@@ -482,19 +649,19 @@ export function FkpDetailPage() {
           {(fkp.catatan_sc_spv || fkp.catatan_apsm || fkp.catatan_admin ||
             fkp.catatan_qc || fkp.catatan_rsm_investigasi ||
             fkp.catatan_rsm_resolusi || fkp.catatan_direktur) && (
-              <div className="card">
-                <div className="card-header"><h2 className="font-semibold text-gray-900">Catatan Proses</h2></div>
-                <div className="card-body space-y-3">
-                  <CatatanItem label="SC / SPV" value={fkp.catatan_sc_spv} />
-                  <CatatanItem label="APSM" value={fkp.catatan_apsm} />
-                  <CatatanItem label="Admin HO" value={fkp.catatan_admin} />
-                  <CatatanItem label="QC" value={fkp.catatan_qc} />
-                  <CatatanItem label="RSM (Investigasi)" value={fkp.catatan_rsm_investigasi} />
-                  <CatatanItem label="RSM (Resolusi)" value={fkp.catatan_rsm_resolusi} />
-                  <CatatanItem label="Direktur" value={fkp.catatan_direktur} />
-                </div>
+            <div className="card">
+              <div className="card-header"><h2 className="font-semibold text-gray-900">Catatan Proses</h2></div>
+              <div className="card-body space-y-3">
+                <CatatanItem label="SC / SPV"         value={fkp.catatan_sc_spv} />
+                <CatatanItem label="APSM"             value={fkp.catatan_apsm} />
+                <CatatanItem label="Admin HO"         value={fkp.catatan_admin} />
+                <CatatanItem label="QC"               value={fkp.catatan_qc} />
+                <CatatanItem label="RSM (Investigasi)"value={fkp.catatan_rsm_investigasi} />
+                <CatatanItem label="RSM (Resolusi)"   value={fkp.catatan_rsm_resolusi} />
+                <CatatanItem label="Direktur"         value={fkp.catatan_direktur} />
               </div>
-            )}
+            </div>
+          )}
 
           {/* Resolusi */}
           {fkp.resolution && (
@@ -519,29 +686,16 @@ export function FkpDetailPage() {
               </div>
               <div className="card-body">
                 <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
-                  <InfoRow label="Tipe Kompensasi"
-                    value={TIPE_RESOLUSI_LABEL[fkp.resolution.tipe_resolusi] ?? fkp.resolution.tipe_resolusi} />
+                  <InfoRow label="Tipe Kompensasi" value={TIPE_RESOLUSI_LABEL[fkp.resolution.tipe_resolusi] ?? fkp.resolution.tipe_resolusi} />
                   {fkp.resolution.metode_penanganan_fisik && (
-                    <InfoRow label="Penanganan Fisik"
-                      value={METODE_PENANGANAN_LABEL[fkp.resolution.metode_penanganan_fisik]
-                        ?? fkp.resolution.metode_penanganan_fisik} />
+                    <InfoRow label="Penanganan Fisik" value={METODE_PENANGANAN_LABEL[fkp.resolution.metode_penanganan_fisik] ?? fkp.resolution.metode_penanganan_fisik} />
                   )}
-                  {fkp.resolution.detail_penanganan && (
-                    <InfoRow label="Detail Penanganan" value={fkp.resolution.detail_penanganan} />
-                  )}
-                  {/* ← TAMBAH: tampilkan persentase_kompensasi_disetujui */}
+                  {fkp.resolution.detail_penanganan && <InfoRow label="Detail Penanganan" value={fkp.resolution.detail_penanganan} />}
                   {fkp.resolution.persentase_kompensasi_disetujui != null && (
-                    <InfoRow
-                      label="Persentase Kompensasi"
-                      value={`${fkp.resolution.persentase_kompensasi_disetujui}%`}
-                    />
+                    <InfoRow label="Persentase Kompensasi" value={`${fkp.resolution.persentase_kompensasi_disetujui}%`} />
                   )}
-                  {/* ← TAMBAH: tampilkan nilai_nota_penjualan */}
                   {fkp.resolution.nilai_nota_penjualan != null && (
-                    <InfoRow
-                      label="Nilai Nota Penjualan"
-                      value={formatRupiah(fkp.resolution.nilai_nota_penjualan)}
-                    />
+                    <InfoRow label="Nilai Nota Penjualan" value={formatRupiah(fkp.resolution.nilai_nota_penjualan)} />
                   )}
                   {fkp.resolution.nilai_cashback && <InfoRow label="Nilai Cashback" value={formatRupiah(fkp.resolution.nilai_cashback)} />}
                   {fkp.resolution.nama_bank && <InfoRow label="Bank" value={fkp.resolution.nama_bank} />}
@@ -584,8 +738,10 @@ export function FkpDetailPage() {
           )}
         </div>
 
-        {/* ── Kanan: Aksi + Riwayat ─────────────────────────────────────── */}
-        <div className="space-y-5">
+        {/* ── Kanan: Aksi + QR + Riwayat ───────────────────────────────── */}
+        <div className="space-y-5 order-1 lg:order-2">
+
+          {/* Card Aksi */}
           {hasAnyAction && (
             <div className="card">
               <div className="card-header"><h2 className="font-semibold text-gray-900">Aksi</h2></div>
@@ -651,7 +807,6 @@ export function FkpDetailPage() {
                         </button>
                       </>
                     )}
-
                     {hasResolusi && (
                       <>
                         <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-700">
@@ -716,11 +871,13 @@ export function FkpDetailPage() {
                   </button>
                 )}
 
-
                 {canEdit && (
                   <>
                     <button onClick={() => submit()} disabled={isSubmitting} className="btn-primary w-full">
-                      {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Memproses...</> : <><Send className="w-4 h-4" /> Submit FKP</>}
+                      {isSubmitting
+                        ? <><Loader2 className="w-4 h-4 animate-spin" /> Memproses...</>
+                        : <><Send className="w-4 h-4" /> Submit FKP</>
+                      }
                     </button>
                     <button onClick={() => navigate(`/fkp/${fkp.id}/edit`)} className="btn-secondary w-full">
                       <Edit2 className="w-4 h-4" /> Edit FKP
@@ -733,10 +890,16 @@ export function FkpDetailPage() {
                     FKP sudah {fkp.status === 'closed' ? 'ditutup' : 'ditolak'}.
                   </p>
                 )}
-                
               </div>
             </div>
           )}
+
+          {/* ── QR Code Card ─────────────────────────────────────────────── */}
+          <QrTriggerCard
+            fkpId={fkp.id}
+            nomorFkp={fkp.nomor_fkp}
+            onClick={() => setModal('qr_code')}
+          />
 
           {/* Riwayat Status */}
           <div className="card">
@@ -777,6 +940,16 @@ export function FkpDetailPage() {
 
       {/* ══════════════ MODALS ══════════════════════════════════════════════ */}
 
+      {/* QR Code Modal — ukuran besar, konten download & copy */}
+      <Modal
+        isOpen={modal === 'qr_code'}
+        onClose={closeModal}
+        title="QR Code Tracking FKP"
+        size="sm"
+      >
+        <QrCodeModalContent fkpId={fkp.id} nomorFkp={fkp.nomor_fkp} />
+      </Modal>
+
       {/* Tambah Item */}
       <FkpItemFormModal
         isOpen={modal === 'add_item'}
@@ -790,15 +963,10 @@ export function FkpDetailPage() {
       {/* APSM review */}
       <Modal isOpen={modal === 'apsm_review'} onClose={closeModal} title="Review APSM" size="lg">
         <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-          <p className="text-sm text-gray-600">
-            Isi rekomendasi per item (opsional), lalu teruskan ke Admin HO.
-          </p>
+          <p className="text-sm text-gray-600">Isi rekomendasi per item (opsional), lalu teruskan ke Admin HO.</p>
           {fkp?.items.map((item) => (
             <FkpItemReviewForm
-              key={item.id}
-              prefix="apsm"
-              item={item}
-              products={products}
+              key={item.id} prefix="apsm" item={item} products={products}
               value={apsmReviews[item.id] ?? APSM_REVIEW_BLANK}
               onChange={(v) => setApsmReviews((p) => ({ ...p, [item.id]: v }))}
             />
@@ -813,15 +981,10 @@ export function FkpDetailPage() {
       {/* Admin HO review */}
       <Modal isOpen={modal === 'admin_ho_review'} onClose={closeModal} title="Review Admin HO" size="lg">
         <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-          <p className="text-sm text-gray-600">
-            Isi rekomendasi Admin HO per item, lalu teruskan ke RSM (Investigasi).
-          </p>
+          <p className="text-sm text-gray-600">Isi rekomendasi Admin HO per item, lalu teruskan ke RSM (Investigasi).</p>
           {fkp?.items.map((item) => (
             <FkpItemReviewForm
-              key={item.id}
-              prefix="admin_ho"
-              item={item}
-              products={products}
+              key={item.id} prefix="admin_ho" item={item} products={products}
               value={adminHoReviews[item.id] ?? ADMIN_HO_REVIEW_BLANK}
               onChange={(v) => setAdminHoReviews((p) => ({ ...p, [item.id]: v }))}
             />
@@ -834,8 +997,7 @@ export function FkpDetailPage() {
       </Modal>
 
       {/* QC investigasi */}
-      <Modal isOpen={modal === 'qc_investigasi'} onClose={closeModal}
-        title="Selesaikan Investigasi QC" size="md">
+      <Modal isOpen={modal === 'qc_investigasi'} onClose={closeModal} title="Selesaikan Investigasi QC" size="md">
         <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
           <Select label="Sumber Ketidaksesuaian" required value={sumber}
             onChange={(e) => setSumber(e.target.value as 'internal' | 'pelanggan')}>
@@ -875,26 +1037,20 @@ export function FkpDetailPage() {
         title={hasResolusi ? 'Edit Resolusi' : 'Buat Resolusi'} size="md">
         <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
           <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
-            💡 Isi <strong>metode penanganan fisik</strong> (apa yang dilakukan ke barang) dan{' '}
-            <strong>tipe resolusi</strong> (siapa menanggung kerugian). Keduanya bisa berbeda.
+            💡 Isi <strong>metode penanganan fisik</strong> dan <strong>tipe resolusi</strong>. Keduanya bisa berbeda.
           </div>
-
           <Select label="Metode Penanganan Fisik Barang" required
             value={resolusiForm.metode_penanganan_fisik}
-            onChange={(e) => setResolusiForm(p => ({
-              ...p, metode_penanganan_fisik: e.target.value as MetodePenangananFisik,
-            }))}>
+            onChange={(e) => setResolusiForm(p => ({ ...p, metode_penanganan_fisik: e.target.value as MetodePenangananFisik }))}>
             <option value="dimusnahkan">Dimusnahkan</option>
             <option value="dijual_pakan_ternak">Dijual sebagai pakan ternak</option>
             <option value="dikirim_ke_ho">Dikirim kembali ke Head Office</option>
             <option value="disimpan_distributor">Disimpan sementara oleh distributor</option>
             <option value="di_repack_oleh_pihak_internal">Di Repack oleh pihak internal</option>
           </Select>
-
           {resolusiForm.metode_penanganan_fisik === 'dimusnahkan' && (
             <>
-              <Input label="Lokasi Pemusnahan" required
-                placeholder="Gudang distributor Surakarta / TPA / Insinerator..."
+              <Input label="Lokasi Pemusnahan" required placeholder="Gudang distributor / TPA / Insinerator..."
                 value={resolusiForm.lokasi_pemusnahan}
                 onChange={(e) => setResolusiForm(p => ({ ...p, lokasi_pemusnahan: e.target.value }))} />
               <Input label="Tanggal Pemusnahan" type="date"
@@ -902,59 +1058,40 @@ export function FkpDetailPage() {
                 onChange={(e) => setResolusiForm(p => ({ ...p, tanggal_pemusnahan: e.target.value }))} />
             </>
           )}
-
-          <Input label="Detail Penanganan (opsional)"
-            placeholder="Contoh: dibakar di lokasi distributor, dijual ke peternak Pak Budi..."
+          <Input label="Detail Penanganan (opsional)" placeholder="Contoh: dibakar di lokasi distributor..."
             value={resolusiForm.detail_penanganan}
             onChange={(e) => setResolusiForm(p => ({ ...p, detail_penanganan: e.target.value }))} />
-
-          <Select label="Tipe Kompensasi / Resolusi" required
-            value={tipeResolusi}
+          <Select label="Tipe Kompensasi / Resolusi" required value={tipeResolusi}
             onChange={(e) => setTipeResolusi(e.target.value)}>
             <option value="tukar_barang">Tukar Barang — kirim barang pengganti</option>
             <option value="potong_tagihan">Potong Tagihan / Cashback</option>
             <option value="tidak_ada_kompensasi">Tanpa Kompensasi</option>
           </Select>
-
-          {/* ← TAMBAH: input persentase_kompensasi_disetujui untuk potong_tagihan */}
           {tipeResolusi === 'potong_tagihan' && (
             <>
-              <Input
-                label="Persentase Kompensasi Disetujui (%)"
-                required
-                type="number"
+              <Input label="Persentase Kompensasi Disetujui (%)" required type="number"
                 placeholder="Contoh: 80 (artinya 80% dari nilai nota)"
                 value={resolusiForm.persentase_kompensasi_disetujui}
-                onChange={(e) => setResolusiForm(p => ({
-                  ...p,
-                  persentase_kompensasi_disetujui: e.target.value,
-                }))}
-              />
+                onChange={(e) => setResolusiForm(p => ({ ...p, persentase_kompensasi_disetujui: e.target.value }))} />
               <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-500">
-                📋 Detail rekening dan nilai nota penjualan diisi setelah Direktur menyetujui,
-                di tahap "Mulai Proses".
+                📋 Detail rekening dan nilai nota penjualan diisi setelah Direktur menyetujui.
               </div>
             </>
           )}
-
           {tipeResolusi === 'tukar_barang' && (
             <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-500">
-              📋 Nomor DO, ekspedisi, resi pengiriman, dan qty disetujui per item diisi setelah
-              Direktur menyetujui, di tahap "Mulai Proses".
+              📋 Nomor DO, ekspedisi, resi pengiriman, dan qty disetujui per item diisi setelah Direktur menyetujui.
             </div>
           )}
-
           <Textarea label="Keterangan Tambahan" value={resolusiForm.keterangan}
             onChange={(e) => setResolusiForm(p => ({ ...p, keterangan: e.target.value }))} rows={3} />
-
           <ModalFooter onCancel={closeModal} onConfirm={handleConfirm} isLoading={isConfirming}
             confirmLabel={hasResolusi ? 'Update Resolusi' : 'Simpan Resolusi'} />
         </div>
       </Modal>
 
       {/* Request resolusi approval */}
-      <Modal isOpen={modal === 'request_resolusi_approval'} onClose={closeModal}
-        title="Ajukan Resolusi ke RSM" size="sm">
+      <Modal isOpen={modal === 'request_resolusi_approval'} onClose={closeModal} title="Ajukan Resolusi ke RSM" size="sm">
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
             Resolusi <strong>{fkp.resolution?.tipe_resolusi.replace(/_/g, ' ')}</strong> akan diajukan ke RSM.
@@ -966,11 +1103,9 @@ export function FkpDetailPage() {
         </div>
       </Modal>
 
-      {/* Proses pengiriman — fase 2 */}
-      <Modal isOpen={modal === 'proses_pengiriman'} onClose={closeModal}
-        title="Isi Detail Eksekusi & Mulai Proses" size="md">
+      {/* Proses pengiriman */}
+      <Modal isOpen={modal === 'proses_pengiriman'} onClose={closeModal} title="Isi Detail Eksekusi & Mulai Proses" size="md">
         <div className="space-y-4">
-
           <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-700">
             ✅ Direktur telah menyetujui. Lengkapi detail di bawah untuk memulai proses.
           </div>
@@ -978,8 +1113,6 @@ export function FkpDetailPage() {
             <p><strong>Tipe kompensasi:</strong> {TIPE_RESOLUSI_LABEL[fkp.resolution?.tipe_resolusi as TipeResolusi]}</p>
             <p><strong>Penanganan fisik:</strong> {METODE_PENANGANAN_LABEL[fkp.resolution?.metode_penanganan_fisik as MetodePenangananFisik]}</p>
           </div>
-
-          {/* Tukar barang */}
           {fkp.resolution?.tipe_resolusi === 'tukar_barang' && (
             <>
               <Input label="Nomor DO" required value={detailForm.nomor_do}
@@ -992,60 +1125,39 @@ export function FkpDetailPage() {
               </div>
               <Input label="Nomor Surat Jalan" value={detailForm.nomor_surat_jalan}
                 onChange={(e) => setDetailForm(p => ({ ...p, nomor_surat_jalan: e.target.value }))} />
-
-              {/* ← TAMBAH: qty disetujui per item */}
               {fkp.items.filter((item) => item.status_item === 'diterima').length > 0 && (
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-gray-700">Qty Disetujui per Item</p>
-                  {fkp.items
-                    .filter((item) => item.status_item === 'diterima')
-                    .map((item) => (
-                      <div key={item.id} className="p-3 rounded-xl bg-gray-50 border border-gray-100">
-                        <p className="text-xs font-semibold text-gray-700 mb-1.5">
-                          {item.nama_produk_custom ?? 'Produk'}{' '}
-                          <span className="text-gray-400 font-normal">(Qty keluhan: {item.qty})</span>
-                        </p>
-                        <Input
-                          label="Qty Disetujui"
-                          type="number"
-                          required
-                          placeholder={String(item.qty)}
-                          value={itemQtyDisetujui[item.id] ?? ''}
-                          onChange={(e) =>
-                            setItemQtyDisetujui((p) => ({ ...p, [item.id]: e.target.value }))
-                          }
-                        />
-                      </div>
-                    ))}
+                  {fkp.items.filter((item) => item.status_item === 'diterima').map((item) => (
+                    <div key={item.id} className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                      <p className="text-xs font-semibold text-gray-700 mb-1.5">
+                        {item.nama_produk_custom ?? 'Produk'}{' '}
+                        <span className="text-gray-400 font-normal">(Qty keluhan: {item.qty})</span>
+                      </p>
+                      <Input label="Qty Disetujui" type="number" required placeholder={String(item.qty)}
+                        value={itemQtyDisetujui[item.id] ?? ''}
+                        onChange={(e) => setItemQtyDisetujui((p) => ({ ...p, [item.id]: e.target.value }))} />
+                    </div>
+                  ))}
                 </div>
               )}
             </>
           )}
-
-          {/* Potong tagihan */}
           {fkp.resolution?.tipe_resolusi === 'potong_tagihan' && (
             <>
-              {/* ← Tampilkan persentase sebagai read-only referensi */}
               {fkp.resolution.persentase_kompensasi_disetujui != null && (
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
-                  📊 Persentase kompensasi disetujui:{' '}
-                  <strong>{fkp.resolution.persentase_kompensasi_disetujui}%</strong>
+                  📊 Persentase kompensasi disetujui: <strong>{fkp.resolution.persentase_kompensasi_disetujui}%</strong>
                 </div>
               )}
-              {/* ← UBAH: nilai_nota_penjualan, bukan nilai_cashback */}
               <Input label="Nilai Nota Penjualan (Rp)" type="number" required
                 value={detailForm.nilai_nota_penjualan}
                 onChange={(e) => setDetailForm(p => ({ ...p, nilai_nota_penjualan: e.target.value }))} />
-              {/* Preview kalkulasi cashback */}
               {detailForm.nilai_nota_penjualan && fkp.resolution.persentase_kompensasi_disetujui != null && (
                 <div className="p-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-700">
-                  💡 Estimasi cashback:{' '}
-                  <strong>
-                    {formatRupiah(
-                      (Number(detailForm.nilai_nota_penjualan) * fkp.resolution.persentase_kompensasi_disetujui) / 100
-                    )}
-                  </strong>
-                  {' '}({fkp.resolution.persentase_kompensasi_disetujui}% × nilai nota)
+                  💡 Estimasi cashback: <strong>
+                    {formatRupiah((Number(detailForm.nilai_nota_penjualan) * fkp.resolution.persentase_kompensasi_disetujui) / 100)}
+                  </strong> ({fkp.resolution.persentase_kompensasi_disetujui}% × nilai nota)
                 </div>
               )}
               <div className="grid grid-cols-2 gap-3">
@@ -1060,17 +1172,13 @@ export function FkpDetailPage() {
                 onChange={(e) => setDetailForm(p => ({ ...p, nomor_nota_retur: e.target.value }))} />
             </>
           )}
-
-          {/* Tanpa kompensasi */}
           {fkp.resolution?.tipe_resolusi === 'tidak_ada_kompensasi' && (
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
               🚫 Tidak ada detail finansial. Klik Mulai Proses untuk melanjutkan.
             </div>
           )}
-
           <Textarea label="Catatan (opsional)" value={detailForm.keterangan}
             onChange={(e) => setDetailForm(p => ({ ...p, keterangan: e.target.value }))} rows={2} />
-
           <ModalFooter onCancel={closeModal} onConfirm={handleConfirm}
             isLoading={isConfirming} confirmLabel="Mulai Proses" />
         </div>
@@ -1105,15 +1213,15 @@ export function FkpDetailPage() {
 
 // ─── Modal Titles ─────────────────────────────────────────────────────────────
 const MODAL_TITLES: Partial<Record<ModalTipe, string>> = {
-  rsm_investigasi_ok: 'Setujui Investigasi',
+  rsm_investigasi_ok:    'Setujui Investigasi',
   rsm_investigasi_tolak: 'Tolak FKP',
-  rsm_resolusi_ok: 'Setujui Resolusi → Ke Direktur',
-  rsm_resolusi_tolak: 'Tolak FKP',
-  direktur_ok: 'Setujui FKP',
-  direktur_tolak: 'Tolak FKP',
-  revision: 'Minta Revisi / Kembalikan',
-  reject: 'Tolak FKP',
-  close: 'Tutup FKP',
+  rsm_resolusi_ok:       'Setujui Resolusi → Ke Direktur',
+  rsm_resolusi_tolak:    'Tolak FKP',
+  direktur_ok:           'Setujui FKP',
+  direktur_tolak:        'Tolak FKP',
+  revision:              'Minta Revisi / Kembalikan',
+  reject:                'Tolak FKP',
+  close:                 'Tutup FKP',
 }
 
 // ─── ModalFooter ──────────────────────────────────────────────────────────────

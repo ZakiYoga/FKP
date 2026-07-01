@@ -16,25 +16,25 @@ import type { FkpStatusKey, FkpPrioritas } from '@/types'
 
 // ── Warna chart ──────────────────────────────────────────────────────────────
 const STATUS_COLORS: Record<string, string> = {
-  draft:           '#94a3b8',
-  submitted:       '#3b82f6',
-  apsm_review:     '#8b5cf6',
-  in_review:       '#f59e0b',
-  need_revision:   '#ef4444',
-  investigation:   '#f97316',
-  investigated:    '#06b6d4',
-  rsm_review:      '#8b5cf6',
+  draft: '#94a3b8',
+  submitted: '#3b82f6',
+  apsm_review: '#8b5cf6',
+  in_review: '#f59e0b',
+  need_revision: '#ef4444',
+  investigation: '#f97316',
+  investigated: '#06b6d4',
+  rsm_review: '#8b5cf6',
   direktur_review: '#a855f7',
-  accepted:        '#10b981',
-  rejected:        '#ef4444',
-  resolved:        '#22c55e',
-  closed:          '#64748b',
+  accepted: '#10b981',
+  rejected: '#ef4444',
+  resolved: '#22c55e',
+  closed: '#64748b',
 }
 const PRIORITAS_COLORS: Record<string, string> = {
   top_urgent: '#dc2626',
-  urgent:     '#ea580c',
-  reguler:    '#16a34a',
-  low:        '#2563eb',
+  urgent: '#ea580c',
+  reguler: '#16a34a',
+  low: '#2563eb',
 }
 const KEMASAN_COLORS = ['#6366f1', '#06b6d4', '#f59e0b']
 
@@ -159,11 +159,11 @@ export function DashboardPage() {
                     textAnchor="end"
                     height={50}
                   />
-                  <YAxis 
-                  tick={{ fontSize: 11, fill: '#94a3b8' }} 
-                  tickLine={false} 
-                  axisLine={false} 
-                  allowDecimals={false}
+                  <YAxis
+                    tick={{ fontSize: 11, fill: '#94a3b8' }}
+                    tickLine={false}
+                    axisLine={false}
+                    allowDecimals={false}
                   />
                   <Tooltip
                     contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: 12 }}
@@ -332,8 +332,8 @@ export function DashboardPage() {
                     onClick={() => navigate(`/fkp/${fkp.id}`)}
                   >
                     <td className="px-5 py-3.5 font-mono text-xs text-gray-500">{fkp.nomor_fkp}</td>
-                    <td className="px-5 py-3.5 text-gray-800 font-medium truncate max-w-[200px]">{fkp.jenis_keluhan}</td>
-                    <td className="px-5 py-3.5"><PriorittasBadge prioritas={fkp.prioritas} /></td>
+                    <td className="px-5 py-3.5 text-gray-800 font-medium truncate max-w-50">{fkp.jenis_keluhan}</td>
+                    <PriorittasBadge prioritas={fkp.prioritas as FkpPrioritas} />
                     <td className="px-5 py-3.5"><StatusBadge status={fkp.status} /></td>
                     <td className="px-5 py-3.5 text-gray-400 text-xs">{formatRelative(fkp.created_at)}</td>
                     <td className="px-5 py-3.5">
@@ -356,7 +356,7 @@ const STAT_COLORS: Record<string, { bg: string; icon: string; text: string }> = 
   brand: { bg: 'bg-brand-50', icon: 'text-brand-600', text: 'text-brand-700' },
   amber: { bg: 'bg-amber-50', icon: 'text-amber-600', text: 'text-amber-700' },
   green: { bg: 'bg-emerald-50', icon: 'text-emerald-600', text: 'text-emerald-700' },
-  blue:  { bg: 'bg-blue-50',  icon: 'text-blue-600',  text: 'text-blue-700' },
+  blue: { bg: 'bg-blue-50', icon: 'text-blue-600', text: 'text-blue-700' },
 }
 
 function StatCard({

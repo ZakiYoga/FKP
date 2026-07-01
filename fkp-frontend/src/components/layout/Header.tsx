@@ -1,54 +1,50 @@
-import { Bell, Menu, X } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
-import { useCurrentUser } from '@/store/authStore'
-import { useUnreadCount } from '@/hooks/useNotifications'
-import { HeaderProps } from '@/types'
+// src/layouts/Header.tsx
 
-export function Header({ sidebarOpen, onToggleSidebar, pageTitle }: HeaderProps) {
-  const user = useCurrentUser()
-  const navigate = useNavigate()
+import { Group, Burger, Text, Box, Divider } from '@mantine/core'
+import { NotificationDropdown } from '@/components/NotificationDropdown'
+import { UserProfileDropdown } from '@/components/UserProfileDropdown'
+import { ThemeToggle } from '../ThemeToggle'
 
-  // Gunakan hook khusus unread count — endpoint ringan, tidak perlu fetch semua notifikasi
-  const { data } = useUnreadCount()
-  const unreadCount = data?.unread_count ?? 0
+interface HeaderProps {
+  mobileOpened: boolean
+  onToggleMobile: () => void
+  pageTitle?: string
+}
 
+export function Header({ mobileOpened, onToggleMobile, pageTitle }: HeaderProps) {
   return (
-    <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-xs border-b border-gray-100 shadow-xs">
-      <div className="flex items-center justify-between h-16 px-4 md:px-6">
-        <div className="flex items-center gap-4">
-          <button onClick={onToggleSidebar}
-            className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors lg:hidden">
-            {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
-          {pageTitle && <h1 className="text-lg font-semibold text-gray-900 hidden md:block">{pageTitle}</h1>}
-        </div>
+    <Group h="100%" px="md" justify="space-between" style={{ gap: 0 }}>
+      {/* Kiri: Burger (mobile/tablet) + Page title */}
+      <Group gap="sm">
+        {/* Burger hanya muncul di bawah lg */}
+        <Burger
+          opened={mobileOpened}
+          onClick={onToggleMobile}
+          hiddenFrom="md"
+          size="sm"
+          color="var(--mantine-color-gray-7)"
+          aria-label="Toggle navigation"
+        />
 
-        <div className="flex items-center gap-2">
-          {/* Bell dengan badge */}
-          <button
-            onClick={() => navigate('/notifications')}
-            className="relative p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+        {pageTitle && (
+          <Text
+            fw={600}
+            size="sm"
+            c="gray.8"
+            style={{ letterSpacing: '-0.01em' }}
+            pl={20}
           >
-            <Bell className="w-5 h-5" />
-            {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 min-w-[16px] h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </span>
-            )}
-          </button>
+            {pageTitle}
+          </Text>
+        )}
+      </Group>
 
-          {/* Avatar */}
-          <div className="flex items-center gap-2.5 pl-2">
-            <div className="w-8 h-8 rounded-full bg-brand-600 flex items-center justify-center shrink-0">
-              <span className="text-white text-xs font-bold">{user?.nama?.charAt(0).toUpperCase()}</span>
-            </div>
-            <div className="hidden md:block text-right">
-              <p className="text-sm font-medium text-gray-900 leading-tight">{user?.nama}</p>
-              <p className="text-xs text-gray-400">{user?.role?.nama_role}</p>
-            </div>
-          </div>
-        </div>
+      {/* Kanan: Notification + User */}
+      <div className="flex items-center justify-center gap-2">
+        <ThemeToggle />
+        <NotificationDropdown />
+        <UserProfileDropdown />
       </div>
-    </header>
+    </Group>
   )
 }

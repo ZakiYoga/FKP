@@ -1,157 +1,314 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { ShieldCheck, LogOut, ChevronLeft, ChevronRight, X, PanelLeftClose } from 'lucide-react'
 import {
-  LayoutDashboard, FileText, Package, MapPin, Building2,
-  Store, Users, ShieldCheck, LogOut, ChevronRight,
-  GitBranch, Settings, Bell,
-  ClipboardList,
-} from 'lucide-react'
+  Stack,
+  Text,
+  Box,
+  Avatar,
+  UnstyledButton,
+  ScrollArea,
+  ThemeIcon,
+  Tooltip,
+  ActionIcon,
+} from '@mantine/core'
 import { useKodeRole, useCurrentUser } from '@/store/authStore'
 import { useLogout } from '@/hooks/useAuth'
-import { cn } from '@/lib/utils'
+import { UserMe } from '@/types'
+import { NavItem } from '@/types/navItems'
+import { NAV_ITEMS } from '@/data/NavItems'
 
-interface NavItem {
-  label: string
-  href: string
-  icon: React.ElementType
-  roles?: string[]
-  badge?: number
+function getInitials(nama?: string) {
+  return nama?.split(' ').slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join('') ?? '?'
 }
 
-const NAV_ITEMS: NavItem[] = [
-  {
-    label: 'Dashboard',
-    href: '/dashboard',
-    icon: LayoutDashboard,
-  },
-  {
-    label: 'FKP',
-    href: '/fkp',
-    icon: FileText,
-  },
-  {
-    label: 'Outlet',
-    href: '/outlets',
-    icon: Store,
-    roles: ['superadmin', 'admin_ho', 'apsm', 'sc_spv', 'distributor'],
-  },
-  {
-    label: 'Distributor',
-    href: '/distributors',
-    icon: Building2,
-    roles: ['superadmin', 'admin_ho', 'apsm', 'sc_spv', 'rsm', 'direktur', 'qc'],
-  },
-  {
-    label: 'Area',
-    href: '/areas',
-    icon: MapPin,
-    roles: ['superadmin', 'admin_ho', 'rsm', 'direktur'],
-  },
-  {
-    label: 'Produk',
-    href: '/products',
-    icon: Package,
-    roles: ['superadmin', 'admin_ho', 'qc'],
-  },
-  {
-    label: 'Hierarki Tim',
-    href: '/hierarchy',
-    icon: GitBranch,
-    roles: ['superadmin', 'admin_ho', 'rsm', 'direktur'],
-  },
-  {
-    label: 'Pengguna',
-    href: '/users',
-    icon: Users,
-    roles: ['superadmin'],
-  },
-  {
-    label: 'Registrasi Outlet',
-    href: '/outlet-registrations',
-    icon: ClipboardList,
-    roles: ['superadmin', 'admin_ho', 'apsm', 'sc_spv', 'distributor']
-  },
-  {
-    label: 'Notifikasi',
-    href: '/notifications',
-    icon: Bell,
-  },
-  {
-    label: 'Ubah Password',
-    href: '/change-password',
-    icon: Settings,
-  },
-]
+// ─── Tokens ───────────────────────────────────────────────────────────────────
+const BG = '#0f172a'
+const BORDER = 'rgba(255,255,255,0.07)'
+const NAV_COLOR = '#94a3b8'
+const ACTIVE_BG = 'rgba(59,130,246,0.9)'
 
-export function Sidebar() {
+const SKELETON_USER: UserMe = {
+  id: '', nama: 'Loading...', email: '', no_telepon: null,
+  is_active: true, last_login: null, created_at: '',
+  role: { id: '', kode_role: '', nama_role: 'Loading...' },
+}
+
+// ─── Single nav item ──────────────────────────────────────────────────────────
+function NavItem_({
+  item, isActive, collapsed, onClick,
+}: {
+  item: NavItem
+  isActive: boolean
+  collapsed: boolean
+  onClick: () => void
+}) {
+  const Icon = item.icon
+
+  const btn = (
+    <UnstyledButton
+      onClick={onClick}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: collapsed ? 0 : 10,
+        justifyContent: collapsed ? 'center' : 'flex-start',
+        width: '100%',
+        height: 40,
+        padding: collapsed ? 0 : '0 10px',
+        borderRadius: 8,
+        background: isActive ? ACTIVE_BG : 'transparent',
+        color: isActive ? '#fff' : NAV_COLOR,
+        fontSize: '0.8125rem',
+        fontWeight: isActive ? 600 : 400,
+        transition: 'background 120ms, color 120ms',
+        overflow: 'hidden',
+        whiteSpace: 'nowrap',
+      }}
+      onMouseEnter={(e) => {
+        if (!isActive) {
+          e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
+          e.currentTarget.style.color = '#fff'
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!isActive) {
+          e.currentTarget.style.background = 'transparent'
+          e.currentTarget.style.color = NAV_COLOR
+        }
+      }}
+    >
+      <Icon size={collapsed ? 17 : 15} style={{ flexShrink: 0 }} />
+      {!collapsed && (
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {item.label}
+        </span>
+      )}
+    </UnstyledButton>
+  )
+
+  if (collapsed) {
+    return (
+      <Tooltip label={item.label} position="right" withArrow transitionProps={{ duration: 80 }}>
+        {btn}
+      </Tooltip>
+    )
+  }
+  return btn
+}
+
+// ─── Sidebar ──────────────────────────────────────────────────────────────────
+interface SidebarProps {
+  collapsed: boolean
+  onToggle: () => void
+  isMobile?: boolean
+}
+
+export function Sidebar({ collapsed, onToggle, isMobile = false }: SidebarProps) {
   const kodeRole = useKodeRole()
   const user = useCurrentUser()
   const { mutate: logout, isPending } = useLogout()
+  const navigate = useNavigate()
+  const location = useLocation()
 
+  const resolvedUser = user ?? SKELETON_USER
   const visibleItems = NAV_ITEMS.filter(
     (item) => !item.roles || item.roles.includes(kodeRole)
   )
 
-  return (
-    <aside className="flex flex-col w-64 min-h-screen bg-brand-950 border-r border-brand-900">
-      {/* Logo */}
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-brand-900">
-        <div className="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center shrink-0">
-          <ShieldCheck className="w-5 h-5 text-white" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-white font-bold text-sm leading-tight">FKP SaktiFood</p>
-          <p className="text-brand-400 text-xs truncate">Sistem Keluhan Produk</p>
-        </div>
-      </div>
+  // Toggle button:
+  // - mobile  → X (tutup drawer)
+  // - desktop collapsed  → ChevronRight (expand)
+  // - desktop expanded   → ChevronLeft  (collapse)
+  const ToggleIcon = isMobile ? X : collapsed ? ChevronRight : ChevronLeft
+  const toggleLabel = isMobile ? 'Tutup' : collapsed ? 'Perluas' : 'Ciutkan'
 
-      {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto scrollbar-thin">
-        {visibleItems.map((item) => (
-          <NavLink
-            key={item.href}
-            to={item.href}
-            className={({ isActive }) =>
-              cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group',
-                isActive
-                  ? 'bg-brand-600 text-white shadow-xs'
-                  : 'text-brand-300 hover:bg-brand-900 hover:text-white'
-              )
+  return (
+    <Stack h="100%" gap={0} style={{ background: BG }}>
+
+      {/* ── Header ── */}
+      <Box
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          height: 64,
+          padding: collapsed ? '0 12px' : '0 16px',
+          borderBottom: `1px solid ${BORDER}`,
+          flexShrink: 0,
+          gap: 10,
+          justifyContent: collapsed ? 'center' : 'flex-start',
+          position: 'relative',
+        }}
+      >
+
+        <ThemeIcon size={34} radius="md" color="blue" variant="filled" style={{ flexShrink: 0 }}>
+          <ShieldCheck size={17} />
+        </ThemeIcon>
+
+        {!collapsed && (
+          <Box style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Box style={{ minWidth: 0, flex: 1 }}>
+              <Text fw={700} size="sm" c="white" lh={1.3} truncate>FKP SaktiFood</Text>
+              <Text size="xs" lh={1.2} style={{ color: '#60a5fa' }}>Sistem Keluhan Produk</Text>
+            </Box>
+          </Box>
+        )}
+
+        {/* Satu tombol toggle — posisi berbeda tergantung mode */}
+        <Tooltip label={toggleLabel} position="right" withArrow transitionProps={{ duration: 80 }}>
+          <ActionIcon
+            onClick={onToggle}
+            size={26}
+            radius="md"
+            variant="subtle"
+            aria-label={toggleLabel}
+            style={
+              // Desktop collapsed/expanded: mengapung di sisi kanan border
+              !isMobile && !collapsed
+                ? {
+                  position: 'absolute',
+                  right: -12,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: BG,
+                  color: NAV_COLOR,
+                  zIndex: 10,
+                }
+                : !isMobile && collapsed
+                  ? {
+                    position: 'absolute',
+                    right: -12,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: BG,
+                      color: NAV_COLOR,
+                    zIndex: 10,
+                  }
+                  : {
+                    // Mobile: tombol X di kanan header
+                    flexShrink: 0,
+                    color: NAV_COLOR,
+                    background: 'rgba(255,255,255,0.06)',
+                  }
             }
           >
-            {({ isActive }) => (
-              <>
-                <item.icon
-                  className={cn(
-                    'w-4.5 h-4.5 shrink-0 transition-colors',
-                    isActive ? 'text-white' : 'text-brand-400 group-hover:text-white'
-                  )}
-                />
-                <span className="flex-1 truncate">{item.label}</span>
-                {!isActive && (
-                  <ChevronRight className="w-3.5 h-3.5 text-brand-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-                )}
-              </>
-            )}
-          </NavLink>
-        ))}
-      </nav>
+            <ToggleIcon size={18} />
+          </ActionIcon>
+        </Tooltip>
+      </Box>
 
-      {/* User info + logout */}
-      <div className="px-3 py-4 border-t border-brand-900 space-y-2">
-        <div className="px-3 py-2.5 rounded-lg bg-brand-900/50">
-          <p className="text-white text-sm font-medium truncate">{user?.nama}</p>
-          <p className="text-brand-400 text-xs truncate">{user?.role?.nama_role}</p>
-        </div>
-        <button
-          onClick={() => logout()}
-          disabled={isPending}
-          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-brand-300 hover:bg-red-900/30 hover:text-red-400 transition-all duration-150 disabled:opacity-50"
-        >
-          <LogOut className="w-4 h-4 shrink-0" />
-          {isPending ? 'Keluar...' : 'Keluar'}
-        </button>
-      </div>
-    </aside>
+      {/* ── Nav list ── */}
+      <ScrollArea flex={1} py="xs" scrollbarSize={4} style={{ minHeight: 0 }}>
+        <Stack gap={2} px={collapsed ? 8 : 'xs'}>
+          {visibleItems.map((item) => {
+            const isActive =
+              location.pathname === item.href ||
+              location.pathname.startsWith(item.href + '/')
+            return (
+              <NavItem_
+                key={item.href}
+                item={item}
+                isActive={isActive}
+                collapsed={collapsed}
+                onClick={() => {
+                  navigate(item.href)
+                  if (isMobile) onToggle()
+                }}
+              />
+            )
+          })}
+        </Stack>
+      </ScrollArea>
+
+      {/* ── User + Logout ── */}
+      <Box
+        px={collapsed ? 8 : 'sm'}
+        py="sm"
+        style={{ borderTop: `1px solid ${BORDER}`, flexShrink: 0 }}
+      >
+        {!collapsed && (
+          <Box
+            px="xs"
+            py={8}
+            mb={6}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              background: 'rgba(255,255,255,0.04)',
+              borderRadius: 8,
+              border: `1px solid ${BORDER}`,
+            }}
+          >
+            <Avatar size={28} radius="xl" color="blue" variant="filled">
+              {getInitials(resolvedUser.nama)}
+            </Avatar>
+            <Box style={{ minWidth: 0, flex: 1 }}>
+              <Text size="xs" fw={600} c="white" truncate lh={1.4}>{resolvedUser.nama}</Text>
+              <Text size="xs" truncate lh={1.3} style={{ color: '#60a5fa' }}>
+                {resolvedUser.role?.nama_role}
+              </Text>
+            </Box>
+          </Box>
+        )}
+
+        {collapsed ? (
+          <Tooltip label="Keluar" position="right" withArrow transitionProps={{ duration: 80 }}>
+            <UnstyledButton
+              onClick={() => logout()}
+              disabled={isPending}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 40,
+                height: 36,
+                borderRadius: 8,
+                color: NAV_COLOR,
+                margin: '0 auto',
+                transition: 'background 120ms, color 120ms',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(239,68,68,0.12)'
+                e.currentTarget.style.color = '#fca5a5'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent'
+                e.currentTarget.style.color = NAV_COLOR
+              }}
+            >
+              <LogOut size={16} />
+            </UnstyledButton>
+          </Tooltip>
+        ) : (
+          <UnstyledButton
+            onClick={() => logout()}
+            disabled={isPending}
+            w="100%"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '8px 10px',
+              borderRadius: 8,
+              color: NAV_COLOR,
+              fontSize: '0.8125rem',
+              fontWeight: 500,
+              transition: 'background 120ms, color 120ms',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(239,68,68,0.12)'
+              e.currentTarget.style.color = '#fca5a5'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent'
+              e.currentTarget.style.color = NAV_COLOR
+            }}
+          >
+            <LogOut size={15} />
+            <span>{isPending ? 'Keluar...' : 'Keluar'}</span>
+          </UnstyledButton>
+        )}
+      </Box>
+    </Stack>
   )
 }

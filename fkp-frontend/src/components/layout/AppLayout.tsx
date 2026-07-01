@@ -1,71 +1,153 @@
-import { useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
+import { Box, Flex, Text, Center } from '@mantine/core'
+import { useDisclosure, useMediaQuery } from '@mantine/hooks'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 
-// Map path → page title untuk header
 const PAGE_TITLES: Record<string, string> = {
-  '/dashboard':      'Dashboard',
-  '/fkp':            'Formulir Keluhan Produk',
-  '/outlets':        'Manajemen Outlet',
+  '/dashboard':            'Dashboard',
+  '/fkp':                  'Formulir Keluhan Produk',
+  '/outlets':              'Manajemen Outlet',
   '/outlet-registrations': 'Registrasi Outlet',
-  '/distributors':   'Manajemen Distributor',
-  '/areas':          'Manajemen Area',
-  '/products':       'Katalog Produk',
-  '/hierarchy':      'Hierarki Tim Sales',
-  '/users':          'Manajemen Pengguna',
-  '/notifications':  'Notifikasi',
-  '/change-password':'Ubah Password',
+  '/distributors':         'Manajemen Distributor',
+  '/areas':                'Manajemen Area',
+  '/products':             'Katalog Produk',
+  '/hierarchy':            'Hierarki Tim Sales',
+  '/users':                'Manajemen Pengguna',
+  '/notifications':        'Notifikasi',
+  '/change-password':      'Ubah Password',
 }
 
-export function AppLayout() {
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const location = useLocation()
+const SIDEBAR_EXPANDED  = 240
+const SIDEBAR_COLLAPSED = 64
+const MOBILE_BREAKPOINT = '(min-width: 1024px)'
 
-  // Ambil title dari path saat ini
+// Warna sidebar — tetap dark regardless color scheme
+const SIDEBAR_BG = '#0f172a'
+
+export function AppLayout() {
+  const [collapsed,    { toggle: toggleCollapse }]                  = useDisclosure(false)
+  const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] = useDisclosure(false)
+
+  const isDesktop  = useMediaQuery(MOBILE_BREAKPOINT)
+  const location   = useLocation()
   const currentTitle = PAGE_TITLES[location.pathname] ?? 'FKP SaktiFood'
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      {/* ── Sidebar desktop (selalu tampil di lg+) ─────────── */}
-      <div className="hidden lg:flex lg:shrink-0">
-        <Sidebar />
-      </div>
+    <Flex h="100vh" style={{ overflow: 'hidden' }}>
 
-      {/* ── Sidebar mobile (overlay) ────────────────────────── */}
-      {sidebarOpen && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 z-40 bg-black/50 lg:hidden animate-fade-in"
-            onClick={() => setSidebarOpen(false)}
-          />
-          {/* Sidebar panel */}
-          <div className="fixed inset-y-0 left-0 z-50 lg:hidden animate-slide-up">
-            <Sidebar />
-          </div>
-        </>
+      {/* ── Desktop sidebar ── */}
+      {isDesktop && (
+        <Box
+          h="100vh"
+          style={{
+            width: collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED,
+            flexShrink: 0,
+            transition: 'width 220ms ease',
+            overflow: 'visible',
+            position: 'relative',
+            zIndex: 999,
+            background: SIDEBAR_BG,
+          }}
+        >
+          <Sidebar collapsed={collapsed} onToggle={toggleCollapse} />
+        </Box>
       )}
 
-      {/* ── Main content ─────────────────────────────────────── */}
-      <div className="flex flex-col flex-1 min-w-0">
-        <Header
-          sidebarOpen={sidebarOpen}
-          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-          pageTitle={currentTitle}
-        />
+      {/* ── Mobile: backdrop + drawer ── */}
+      {!isDesktop && (
+        <AnimatePresence>
+          {mobileOpened && (
+            <>
+              <motion.div
+                key="backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                onClick={closeMobile}
+                style={{
+                  position: 'fixed',
+                  inset: 0,
+                  zIndex: 200,
+                  background: 'rgba(0,0,0,0.5)',
+                  backdropFilter: 'blur(2px)',
+                }}
+              />
+              <motion.div
+                key="drawer"
+                initial={{ x: -SIDEBAR_EXPANDED }}
+                animate={{ x: 0 }}
+                exit={{ x: -SIDEBAR_EXPANDED }}
+                transition={{ type: 'tween', duration: 0.22, ease: 'easeOut' }}
+                style={{
+                  position: 'fixed',
+                  top: 0, left: 0,
+                  zIndex: 201,
+                  width: SIDEBAR_EXPANDED,
+                  height: '100vh',
+                  background: SIDEBAR_BG,
+                  boxShadow: '8px 0 32px rgba(0,0,0,0.4)',
+                }}
+              >
+                <Sidebar collapsed={false} onToggle={closeMobile} isMobile />
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+      )}
 
-        <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-(--breakpoint-2xl) mx-auto w-full">
-          <Outlet />
-        </main>
+      {/* ── Kolom kanan ── */}
+      <Flex
+        flex={1}
+        direction="column"
+        style={{ minWidth: 0, overflow: 'hidden' }}
+        bg="var(--mantine-color-gray-0)"
+      >
+        {/* Header */}
+        <Box
+          h={64}
+          bg="var(--mantine-color-body)"
+          style={{
+            flexShrink: 0,
+            borderBottom: '1px solid var(--mantine-color-gray-2)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+            zIndex: 100,
+          }}
+        >
+          <Header
+            mobileOpened={mobileOpened}
+            onToggleMobile={toggleMobile}
+            pageTitle={currentTitle}
+          />
+        </Box>
 
-        {/* Footer */}
-        <footer className="px-6 py-3 border-t border-gray-100 text-center">
-          <p className="text-xs text-gray-400">
-            FKP SaktiFood v1.0.0 — Sistem Formulir Keluhan Produk
-          </p>
-        </footer>
-      </div>
-    </div>
+        {/* Main content */}
+        <Box flex={1} style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column' }} className="bg-gray-50 dark:bg-gray-950">
+          <Box
+            flex={1}
+            p={{ base: 'md', sm: 'lg', lg: 'xl' }}
+            style={{ maxWidth: 1440, margin: '0 auto', width: '100%' }}
+          >
+            <Outlet />
+          </Box>
+
+          {/* Footer */}
+          <Center
+            py="xs"
+            bg="var(--mantine-color-body)"
+            style={{
+              borderTop: '1px solid var(--mantine-color-gray-2)',
+              flexShrink: 0,
+            }}
+          >
+            <Text size="xs" c="dimmed">
+              FKP SaktiFood v1.0.0 — Sistem Formulir Keluhan Produk
+            </Text>
+          </Center>
+        </Box>
+      </Flex>
+    </Flex>
   )
 }

@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from .outlet import Outlet
     from .fkp import FkpComplaint, FkpStatusLog, FkpResolution
     from .notification import Notification
+    from .testimoni import FkpTestimoni
     
 class User(SQLModel, table=True):
     __tablename__ = "users"
@@ -70,3 +71,4 @@ class User(SQLModel, table=True):
         back_populates="dibuat_oleh_user",
         sa_relationship_kwargs={"foreign_keys": "[FkpResolution.dibuat_oleh]"},
     )
+    fkp_testimoni: List["FkpTestimoni"] = Relationship(back_populates="user")

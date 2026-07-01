@@ -1,82 +1,150 @@
+/* ============================================================
+   BASE IMPORTS
+   ============================================================ */
 @import 'tailwindcss';
-
 @plugin '@tailwindcss/forms';
 
+/* ============================================================
+   DARK MODE — pakai attribute Mantine, bukan class "dark"
+   ============================================================ */
+@variant dark (&:where([data-mantine-color-scheme='dark'], [data-mantine-color-scheme='dark'] *));
+
+/* ============================================================
+   MANTINE COLOR SCHEME OVERRIDES
+   ============================================================ */
+
+/* Light mode — default */
+:root,
+[data-mantine-color-scheme='light'] {
+  --mantine-color-body: #f9fafb; /* gray-50  */
+  --mantine-color-text: #111827; /* gray-900 */
+}
+
+/* Dark mode */
+[data-mantine-color-scheme='dark'] {
+  --mantine-color-body: #030712; /* gray-950 */
+  --mantine-color-text: #f9fafb; /* gray-50  */
+
+  /* Brand — lebih terang di dark agar kontras */
+  --mantine-color-brand-0: #1e1b4b;
+  --mantine-color-brand-1: #312e81;
+  --mantine-color-brand-2: #3730a3;
+  --mantine-color-brand-3: #4338ca;
+  --mantine-color-brand-4: #4f46e5;
+  --mantine-color-brand-5: #6366f1;
+  --mantine-color-brand-6: #818cf8; /* ← primary di dark */
+  --mantine-color-brand-7: #a5b4fc;
+  --mantine-color-brand-8: #c7d2fe;
+  --mantine-color-brand-9: #e0e7ff;
+
+  /* Primary filled button, badge, avatar */
+  --mantine-primary-color-filled:       var(--mantine-color-brand-5);
+  --mantine-primary-color-filled-hover: var(--mantine-color-brand-4);
+  --mantine-primary-color-light:        rgba(99, 102, 241, 0.15);
+  --mantine-primary-color-light-hover:  rgba(99, 102, 241, 0.2);
+  --mantine-primary-color-light-color:  var(--mantine-color-brand-4);
+}
+
+/* ============================================================
+   THEME TOKENS
+   ============================================================ */
 @theme {
-  --color-brand-50: #fff7ed;
-  --color-brand-100: #ffedd5;
-  --color-brand-200: #fed7aa;
-  --color-brand-300: #fdba74;
-  --color-brand-400: #fb923c;
-  --color-brand-500: #ff8c00;
-  --color-brand-600: #ea7500;
-  --color-brand-700: #c45e00;
-  --color-brand-800: #9a4a00;
-  --color-brand-900: #7c3a00;
-  --color-brand-950: #431e00;
+  /* ── Brand — Indigo ───────────────────────────────────── */
+  --color-brand-50:  #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-200: #c7d2fe;
+  --color-brand-300: #a5b4fc;
+  --color-brand-400: #818cf8;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+  --color-brand-800: #3730a3;
+  --color-brand-900: #312e81;
+  --color-brand-950: #1e1b4b;
 
-  --color-status-draft: #94a3b8;
-  --color-status-submitted: #3b82f6;
-  --color-status-apsm_review: #8b5cf6;
-  --color-status-in_review: #f59e0b;
-  --color-status-need_revision: #ef4444;
-  --color-status-investigation: #f97316;
-  --color-status-investigated: #06b6d4;
-  --color-status-rsm_review: #8b5cf6;
-  --color-status-direktur_review: #a855f7;
-  --color-status-accepted: #10b981;
-  --color-status-rejected: #ef4444;
-  --color-status-resolved: #22c55e;
-  --color-status-closed: #64748b;
+  /* ── Status ───────────────────────────────────────────── */
+  --color-status-draft:            #94a3b8;
+  --color-status-submitted:        #3b82f6;
+  --color-status-apsm_review:      #7c3aed;
+  --color-status-in_review:        #d97706;
+  --color-status-need_revision:    #dc2626;
+  --color-status-investigation:    #ea580c;
+  --color-status-investigated:     #0891b2;
+  --color-status-rsm_review:       #7c3aed;
+  --color-status-direktur_review:  #9333ea;
+  --color-status-accepted:         #059669;
+  --color-status-rejected:         #dc2626;
+  --color-status-resolved:         #16a34a;
+  --color-status-closed:           #475569;
 
+  /* ── Prioritas ────────────────────────────────────────── */
   --color-prioritas-top_urgent: #dc2626;
-  --color-prioritas-urgent: #ea580c;
-  --color-prioritas-reguler: #16a34a;
-  --color-prioritas-low: #2563eb;
+  --color-prioritas-urgent:     #ea580c;
+  --color-prioritas-reguler:    #16a34a;
+  --color-prioritas-low:        #2563eb;
 
-  --font-sans: Plus Jakarta Sans, system-ui, sans-serif;
-  --font-mono: JetBrains Mono, monospace;
+  /* ── Typography ───────────────────────────────────────── */
+  --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 
-  --shadow-card:
-    0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06);
-  --shadow-card-hover:
-    0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.08);
-  --shadow-modal:
-    0 20px 25px -5px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  /* ── Shadows ──────────────────────────────────────────── */
+  --shadow-card:       0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06);
+  --shadow-card-hover: 0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.08);
+  --shadow-modal:      0 20px 25px -5px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.1);
 
-  --animate-fade-in: fadeIn 0.2s ease-out;
-  --animate-slide-up: slideUp 0.3s ease-out;
+  /* ── Animations ───────────────────────────────────────── */
+  --animate-fade-in:   fadeIn 0.2s ease-out;
+  --animate-slide-up:  slideUp 0.3s ease-out;
   --animate-spin-slow: spin 2s linear infinite;
 
+  --animate-hide:               hide 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-slide-down-and-fade:  slideDownAndFade  150ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-slide-left-and-fade:  slideLeftAndFade  150ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-slide-up-and-fade:    slideUpAndFade    150ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-slide-right-and-fade: slideRightAndFade 150ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ── Keyframes ────────────────────────────────────────── */
   @keyframes fadeIn {
-    0% {
-      opacity: 0;
-    }
-    100% {
-      opacity: 1;
-    }
+    from { opacity: 0; }
+    to   { opacity: 1; }
   }
+
   @keyframes slideUp {
-    0% {
-      opacity: 0;
-      transform: translateY(8px);
-    }
-    100% {
-      opacity: 1;
-      transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes hide {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+  }
+
+  @keyframes slideDownAndFade {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes slideLeftAndFade {
+    from { opacity: 0; transform: translateX(6px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  @keyframes slideUpAndFade {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes slideRightAndFade {
+    from { opacity: 0; transform: translateX(-6px); }
+    to   { opacity: 1; transform: translateX(0); }
   }
 }
 
-/*
-  The default border color has changed to `currentcolor` in Tailwind CSS v4,
-  so we've added these compatibility styles to make sure everything still
-  looks the same as it did with Tailwind CSS v3.
-
-  If we ever want to remove these styles, we need to add an explicit border
-  color utility to any element that depends on these defaults.
-*/
+/* ============================================================
+   BASE STYLES
+   ============================================================ */
 @layer base {
+  /* Border color default Tailwind v4 compatibility */
   *,
   ::after,
   ::before,
@@ -84,49 +152,85 @@
   ::file-selector-button {
     border-color: var(--color-gray-200, currentcolor);
   }
+
+  * {
+    @apply border-gray-200 dark:border-gray-700;
+  }
+
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased
+           dark:bg-gray-950 dark:text-gray-100;
+    font-family: var(--font-sans);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+
+  button {
+    cursor: pointer;
+  }
 }
 
+/* ============================================================
+   UTILITIES — Input
+   ============================================================ */
 @utility input-base {
-  /* ── Input base ─────────────────────────────────────────── */
   @apply w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5
-           text-sm text-gray-900 placeholder-gray-400
-           transition-all duration-150
-           focus:border-brand-500 focus:outline-hidden focus:ring-2 focus:ring-brand-500/20
-           disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500;
+         text-sm text-gray-900 placeholder-gray-400
+         transition-all duration-150
+         focus:border-brand-500 focus:outline-hidden focus:ring-2 focus:ring-brand-500/20
+         disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500
+         dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100
+         dark:placeholder-gray-500
+         dark:focus:border-brand-400 dark:focus:ring-brand-400/20
+         dark:disabled:bg-gray-800 dark:disabled:text-gray-600;
 }
 
 @utility input-error {
-  @apply border-red-400 focus:border-red-500 focus:ring-red-500/20;
+  @apply border-red-400 focus:border-red-500 focus:ring-red-500/20
+         dark:border-red-500 dark:focus:border-red-400 dark:focus:ring-red-400/20;
 }
 
+/* ============================================================
+   UTILITIES — Button
+   ============================================================ */
 @utility btn {
-  /* ── Button variants ────────────────────────────────────── */
-  @apply inline-flex items-center justify-center gap-2 rounded-lg
-           px-4 py-2.5 text-sm font-semibold
-           transition-all duration-150 focus:outline-hidden focus:ring-2 focus:ring-offset-2
-           disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5
+         text-sm font-semibold transition-all duration-150
+         focus:outline-hidden focus:ring-2 focus:ring-offset-2
+         disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 @utility btn-primary {
-  @apply btn bg-brand-600 text-white hover:bg-brand-700
-           focus:ring-brand-500 active:bg-brand-800;
+  @apply btn bg-brand-600 text-white
+         hover:bg-brand-700 active:bg-brand-800 focus:ring-brand-500
+         dark:bg-brand-500 dark:hover:bg-brand-600 dark:active:bg-brand-700;
 }
 
 @utility btn-secondary {
   @apply btn bg-white text-gray-700 border border-gray-300
-           hover:bg-gray-50 focus:ring-gray-400;
+         hover:bg-gray-50 active:bg-gray-100 focus:ring-gray-400
+         dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700
+         dark:hover:bg-gray-700 dark:active:bg-gray-600;
 }
 
 @utility btn-danger {
-  @apply btn bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
+  @apply btn bg-red-600 text-white
+         hover:bg-red-700 active:bg-red-800 focus:ring-red-500
+         dark:bg-red-500 dark:hover:bg-red-600;
 }
 
 @utility btn-warning {
-  @apply btn bg-amber-500 text-white hover:bg-amber-600 focus:ring-amber-500;
+  @apply btn bg-amber-500 text-white
+         hover:bg-amber-600 active:bg-amber-700 focus:ring-amber-500
+         dark:bg-amber-400 dark:hover:bg-amber-500;
 }
 
 @utility btn-ghost {
-  @apply btn text-gray-600 hover:bg-gray-100 focus:ring-gray-400;
+  @apply btn bg-transparent text-gray-600
+         hover:bg-gray-100 active:bg-gray-200 focus:ring-gray-400
+         dark:text-gray-400 dark:hover:bg-gray-800 dark:active:bg-gray-700;
 }
 
 @utility btn-sm {
@@ -137,28 +241,37 @@
   @apply px-6 py-3 text-base;
 }
 
+/* ============================================================
+   UTILITIES — Card
+   ============================================================ */
 @utility card {
-  /* ── Card ───────────────────────────────────────────────── */
-  @apply rounded-xl bg-white shadow-card border border-gray-100;
+  @apply rounded-xl bg-white shadow-card border border-gray-100
+         dark:bg-gray-900 dark:border-gray-800;
 }
 
 @utility card-header {
-  @apply px-6 py-4 border-b border-gray-100;
+  @apply px-6 py-4 border-b border-gray-100
+         dark:border-gray-800;
 }
 
 @utility card-body {
   @apply px-6 py-5;
 }
 
+/* ============================================================
+   UTILITIES — Badge
+   ============================================================ */
 @utility badge {
-  /* ── Badge ──────────────────────────────────────────────── */
   @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5
-           text-xs font-semibold;
+         text-xs font-semibold;
 }
 
+/* ============================================================
+   UTILITIES — Label
+   ============================================================ */
 @utility label {
-  /* ── Label ──────────────────────────────────────────────── */
-  @apply block text-sm font-medium text-gray-700 mb-1.5;
+  @apply block text-sm font-medium text-gray-700 mb-1.5
+         dark:text-gray-300;
 }
 
 @utility label-required {
@@ -168,39 +281,18 @@
   }
 }
 
+/* ============================================================
+   UTILITIES — Misc
+   ============================================================ */
 @utility text-balance {
   text-wrap: balance;
 }
 
 @utility scrollbar-thin {
-  /* Scrollbar styling */
   scrollbar-width: thin;
   scrollbar-color: #e2e8f0 transparent;
 
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  &::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    @apply bg-gray-200 rounded-full;
-  }
-}
-
-@layer base {
-  * {
-    @apply border-gray-200;
-  }
-
-  body {
-    @apply bg-gray-50 text-gray-900 antialiased;
-    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-  }
-
-  h1, h2, h3, h4, h5, h6 {
-    @apply font-semibold tracking-tight;
-  }
+  &::-webkit-scrollbar       { width: 6px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb { @apply bg-gray-200 rounded-full dark:bg-gray-700; }
 }

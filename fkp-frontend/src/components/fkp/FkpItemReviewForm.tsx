@@ -15,7 +15,7 @@ const persentaseField = z
     .refine(
         (v) => !isNaN(Number(v)) && Number(v) >= 0 && Number(v) <= 100,
         { message: 'Persentase harus antara 0 – 100' }
-    )
+    ).default("0")
 
 export const apsmReviewSchema = z.object({
     rekomendasi_penanganan_apsm:  z.string().min(1, 'Penanganan fisik wajib dipilih'),
@@ -192,7 +192,7 @@ export function FkpItemReviewForm(props: Props) {
                         <option value="musnahkan">Dimusnahkan</option>
                         <option value="jual_pakan_ternak">Dijual sebagai pakan ternak</option>
                         <option value="kirim_ke_ho">Dikirim kembali ke HO</option>
-                        <option value="disimpan_distributor">Disimpan di distributor</option>
+                        <option value="disimpan_distributor">Disimpan sementara di distributor</option>
                         <option value="di_repack_oleh_pihak_internal">Di Repack oleh pihak internal</option>
                     </Select>
 

@@ -1,0 +1,6 @@
+export { TestimoniForm }     from './TestimoniForm'
+export { TestimoniReadOnly } from './TestimoniReadOnly'
+export { TestimoniFormFields } from './TestimoniFormFields'
+export { RatingSlider }      from './RatingSlider'
+export { RatingSliderField } from './RatingSliderField'
+export { getConfig }         from './config'

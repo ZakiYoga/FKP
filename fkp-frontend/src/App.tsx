@@ -1,15 +1,38 @@
 import { BrowserRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
-import { Toaster } from 'react-hot-toast'
+import { MantineProvider, ColorSchemeScript, createTheme } from '@mantine/core'
+import { Notifications } from '@mantine/notifications'
 import { AppRouter } from './AppRouter'
 
-/**
- * QueryClient config:
- * - staleTime 2 menit: data tidak refetch terlalu sering
- * - retry 1x: jika request gagal, coba lagi 1x (bukan 3x default)
- * - refetchOnWindowFocus false: jangan refetch saat tab aktif kembali
- */
+import '@mantine/core/styles.css'
+import '@mantine/notifications/styles.css'
+
+const theme = createTheme({
+  primaryColor: 'brand',
+  colors: {
+    brand: [
+      '#eff6ff', // 50
+      '#dbeafe', // 100
+      '#bfdbfe', // 200
+      '#93c5fd', // 300
+      '#60a5fa', // 400
+      '#3b82f6', // 500
+      '#2563eb', // 600  ← primary
+      '#1d4ed8', // 700
+      '#1e40af', // 800
+      '#1e3a8a', // 900
+      '#172554', // 950
+    ],
+  },
+  defaultRadius: 'md',
+  fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
+  components: {
+    Button: { defaultProps: { radius: 'md' } },
+    NavLink: { defaultProps: { radius: 'md' } },
+  },
+})
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -22,35 +45,20 @@ const queryClient = new QueryClient({
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <AppRouter />
+    <>
+      {/* Mencegah flash warna saat halaman pertama load */}
+      <ColorSchemeScript defaultColorScheme="light" />
 
-        {/* Toast notifications global */}
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            duration: 4000,
-            style: {
-              background: '#1e293b',
-              color: '#f1f5f9',
-              fontSize: '14px',
-              borderRadius: '10px',
-              padding: '12px 16px',
-            },
-            success: {
-              iconTheme: { primary: '#22c55e', secondary: '#fff' },
-            },
-            error: {
-              iconTheme: { primary: '#ef4444', secondary: '#fff' },
-              duration: 5000,
-            },
-          }}
-        />
-      </BrowserRouter>
+      <MantineProvider theme={theme} defaultColorScheme="light">
+        <Notifications position="top-right" zIndex={9999} />
 
-      {/* TanStack Query devtools (hanya muncul di development) */}
-      <ReactQueryDevtools initialIsOpen={false} />
-    </QueryClientProvider>
+        <QueryClientProvider client={queryClient}>
+          <BrowserRouter>
+            <AppRouter />
+          </BrowserRouter>
+          <ReactQueryDevtools initialIsOpen={false} />
+        </QueryClientProvider>
+      </MantineProvider>
+    </>
   )
 }

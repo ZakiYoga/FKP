@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from app.models.outlet import Outlet
     from app.models.notification import Notification
     from app.models.product import ProductCatalog
+    from app.models.testimoni import FkpTestimoni
 
 
 # ─── KONSTANTA ────────────────────────────────────────────────────────────────
@@ -285,6 +286,7 @@ class FkpComplaint(SQLModel, table=True):
     attachments: List["FkpAttachment"] = Relationship(back_populates="fkp")
     documents: List["FkpDocument"] = Relationship(back_populates="fkp")
     notifications: List["Notification"] = Relationship(back_populates="fkp")
+    testimoni: List["FkpTestimoni"] = Relationship(back_populates="fkp")
 
 
 # ─── FKP ITEMS (per produk dalam 1 FKP) ──────────────────────────────────────

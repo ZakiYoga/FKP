@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import toast from 'react-hot-toast'
 import { authApi } from '@/api/auth'
+import { notifications } from '@mantine/notifications'
 import { useAuthStore } from '@/store/authStore'
 import { getErrorMessage } from '@/lib/utils'
 import type { LoginRequest } from '@/types'
@@ -14,11 +14,18 @@ export function useLogin() {
     mutationFn: (data: LoginRequest) => authApi.login(data),
     onSuccess: (res) => {
       setAuth(res.user, res.access_token)
-      toast.success(`Selamat datang, ${res.user.nama}!`)
+      notifications.show({
+        message: `Selamat datang, ${res.user.nama}!`,
+        color: 'green',
+      })
+
       navigate('/dashboard', { replace: true })
     },
     onError: (error) => {
-      toast.error(getErrorMessage(error))
+      notifications.show({
+        message: getErrorMessage(error),
+        color: 'red',
+      })
     },
   })
 }
@@ -35,7 +42,10 @@ export function useLogout() {
       clearAuth()
       queryClient.clear()
       navigate('/login', { replace: true })
-      toast.success('Berhasil logout.')
+      notifications.show({
+        message: 'Berhasil logout.',
+        color: 'green',
+      })
     },
   })
 }
@@ -60,10 +70,16 @@ export function useChangePassword() {
   return useMutation({
     mutationFn: authApi.changePassword,
     onSuccess: () => {
-      toast.success('Password berhasil diubah.')
+      notifications.show({
+        message: 'Password berhasil diubah.',
+        color: 'green',
+      })
     },
     onError: (error) => {
-      toast.error(getErrorMessage(error))
+      notifications.show({
+        message: getErrorMessage(error),
+        color: 'red',
+      })
     },
   })
 }

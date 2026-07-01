@@ -14,6 +14,7 @@ from app.models.fkp import (
     FkpResolution, FkpAttachment, FkpDocument,
 )
 from app.models.notification import Notification
+from app.models.testimoni import FkpTestimoni
 
 __all__ = [
     "Provinsi", "KabupatenKota", "Kecamatan", "Kelurahan",
@@ -26,5 +27,5 @@ __all__ = [
     "ProductCatalog",
     "FkpComplaint", "FkpItem", "FkpStatusLog", 
     "FkpResolution", "FkpAttachment", "FkpDocument",
-    "Notification",
+    "Notification", "FkpTestimoni"
 ]

@@ -8,6 +8,13 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export const cx = cn
+
+export const focusRing = [
+  'outline outline-offset-2 outline-0 focus-visible:outline-2',
+  'outline-blue-500',
+]
+
 export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '-'
   return format(new Date(dateStr), 'dd MMM yyyy', { locale: id })
@@ -24,8 +31,16 @@ export function formatRelative(dateStr: string | null | undefined): string {
 }
 
 export function getErrorMessage(error: unknown): string {
+  console.log('RAW ERROR:', error)
+  console.log('FULL RESPONSE:', (error as any).response)
+  console.log('STATUS:', (error as any).response?.status)
+  console.log('DATA:', (error as any).response?.data)
+  console.log('DETAIL:', (error as any).response?.data?.detail)
+  console.log('HEADERS:', (error as any).response?.headers)
+
   if (error && typeof error === 'object' && 'response' in error) {
     const axiosError = error as { response?: { data?: ApiError } }
+    console.log('RESPONSE DATA:', axiosError.response?.data)
     const detail = axiosError.response?.data?.detail
     if (typeof detail === 'string') return detail
     if (Array.isArray(detail)) return detail.map((d) => d.msg).join(', ')
@@ -37,19 +52,19 @@ export function getErrorMessage(error: unknown): string {
 // Status color sesuai FkpStatus BE baru
 export function getStatusColor(status: FkpStatusKey): string {
   const map: Record<FkpStatusKey, string> = {
-    draft:                    'bg-gray-100 text-gray-600',
-    submitted:                'bg-blue-100 text-blue-700',
-    apsm_reviewed:            'bg-violet-100 text-violet-700',
+    draft: 'bg-gray-100 text-gray-600',
+    submitted: 'bg-blue-100 text-blue-700',
+    apsm_reviewed: 'bg-violet-100 text-violet-700',
     rsm_approval_investigasi: 'bg-amber-100 text-amber-700',
-    in_investigation:         'bg-orange-100 text-orange-700',
-    investigated:             'bg-cyan-100 text-cyan-700',
-    rsm_approval_resolusi:    'bg-purple-100 text-purple-700',
-    direktur_approval:        'bg-fuchsia-100 text-fuchsia-700',
-    accepted:                 'bg-emerald-100 text-emerald-700',
-    in_process:               'bg-teal-100 text-teal-700',
-    need_revision:            'bg-red-100 text-red-700',
-    rejected:                 'bg-red-200 text-red-800',
-    closed:                   'bg-slate-100 text-slate-600',
+    in_investigation: 'bg-orange-100 text-orange-700',
+    investigated: 'bg-cyan-100 text-cyan-700',
+    rsm_approval_resolusi: 'bg-purple-100 text-purple-700',
+    direktur_approval: 'bg-fuchsia-100 text-fuchsia-700',
+    accepted: 'bg-emerald-100 text-emerald-700',
+    in_process: 'bg-teal-100 text-teal-700',
+    need_revision: 'bg-red-100 text-red-700',
+    rejected: 'bg-red-200 text-red-800',
+    closed: 'bg-slate-100 text-slate-600',
   }
   return map[status] ?? 'bg-gray-100 text-gray-600'
 }
@@ -57,9 +72,9 @@ export function getStatusColor(status: FkpStatusKey): string {
 export function getPrioritasColor(prioritas: FkpPrioritas): string {
   const map: Record<FkpPrioritas, string> = {
     top_urgent: 'bg-red-100 text-red-700 border border-red-200',
-    urgent:     'bg-orange-100 text-orange-700 border border-orange-200',
-    reguler:    'bg-green-100 text-green-700 border border-green-200',
-    low:        'bg-blue-100 text-blue-700 border border-blue-200',
+    urgent: 'bg-orange-100 text-orange-700 border border-orange-200',
+    reguler: 'bg-green-100 text-green-700 border border-green-200',
+    low: 'bg-blue-100 text-blue-700 border border-blue-200',
   }
   return map[prioritas] ?? 'bg-gray-100 text-gray-600'
 }

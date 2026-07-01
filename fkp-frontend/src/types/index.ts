@@ -362,13 +362,28 @@ export interface FkpDetail {
   attachments: FkpAttachment[]
 }
 
+export interface FkpDistributorInfo {
+  id: string
+  nama_perusahaan: string
+  kode_distributor: string | null
+}
+
+export interface FkpOutletInfo {
+  id: string
+  nama_toko: string
+  kode_outlet: string | null
+}
+
 export interface FkpListItem {
   id: string
   product_id: string | null
   nomor_fkp: string
   outlet_id: string | null
   distributor_id: string
+  distributor_info: FkpDistributorInfo | null
+  outlet_info: FkpOutletInfo | null          
   status: FkpStatusKey
+  prioritas: string                          
   tanggal_pengajuan: string | null
   created_at: string
   item_count: number | null

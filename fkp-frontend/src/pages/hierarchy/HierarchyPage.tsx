@@ -1,7 +1,16 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronRight, Plus, X, GitBranch, Users, Building2 } from 'lucide-react'
-import { useUsers, useRoles, useRsmTeam, useAssignApsmToRsm, useAssignScSpvToApsm, useAssignDistToScSpv, useRemoveApsmFromRsm, useRemoveScSpvFromApsm, useRemoveDistFromScSpv } from '@/hooks/useUsers'
-import { useDistributors } from '@/hooks/useMasterData'
+import { Plus, X, GitBranch, Building2 } from 'lucide-react'
+import {
+  useUsersByRole,
+  useHierarchyDistributors,
+  useRsmTeam,
+  useAssignApsmToRsm,
+  useAssignScSpvToApsm,
+  useAssignDistToScSpv,
+  useRemoveApsmFromRsm,
+  useRemoveScSpvFromApsm,
+  useRemoveDistFromScSpv,
+} from '@/hooks/useHierarchy'
 import { Modal } from '@/components/ui/Modal'
 import { Select } from '@/components/ui/Select'
 import { PageLoader } from '@/components/ui/Spinner'
@@ -13,9 +22,10 @@ export function HierarchyPage() {
   const kodeRole = useKodeRole()
   const canManage = CAN_MANAGE.includes(kodeRole)
 
-  const { data: users = [], isLoading: loadingUsers } = useUsers()
-  const { data: roles = [] } = useRoles()
-  const { data: distributors = [] } = useDistributors()
+const { data: rsmList = [], isLoading: loadingUsers } = useUsersByRole('rsm')
+const { data: apsmList = [] } = useUsersByRole('apsm')
+const { data: scList = [] } = useUsersByRole('sc_spv')
+const { data: distributors = [] } = useHierarchyDistributors()
 
   const [selectedRsmId, setSelectedRsmId] = useState<string>('')
   const [modal, setModal] = useState<{
@@ -33,19 +43,6 @@ export function HierarchyPage() {
   const { mutate: removeApsm } = useRemoveApsmFromRsm()
   const { mutate: removeSc } = useRemoveScSpvFromApsm()
   const { mutate: removeDist } = useRemoveDistFromScSpv()
-
-  const getRole = (userId: string) => {
-    const u = users.find((u) => u.id === userId)
-    if (!u) return null
-    return roles.find((r) => r.id === u.role_id)
-  }
-
-  const getUsersByRole = (kode: string) =>
-    users.filter((u) => getRole(u.id)?.kode_role === kode)
-
-  const rsmList = getUsersByRole('rsm')
-  const apsmList = getUsersByRole('apsm')
-  const scList = getUsersByRole('sc_spv')
 
   const handleAssign = () => {
     if (!modal || !selectValue) return

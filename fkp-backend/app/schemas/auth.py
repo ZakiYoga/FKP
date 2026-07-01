@@ -19,8 +19,8 @@ class LoginRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "email": "superadmin@saktifood.com",
-                "password": "Admin@SaktiFood2025"
+                "email": "superadmin@saktipangan.co.id",
+                "password": "12345678"
             }
         }
 

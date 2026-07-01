@@ -31,12 +31,52 @@ from app.schemas.hierarchy import (
     ScSpvDistributorAssign, ScSpvDistributorResponse,
     RsmWithTeam,
 )
+from sqlmodel import select
+from app.models.user import User
+from app.models.role import Role
+from app.models.distributor import Distributor
+from app.schemas.hierarchy import UserBasicInfo, DistributorBasicInfo
 from app.services import hierarchy_service
 
 router = APIRouter()
 
 ADMIN_ROLES = ("superadmin", "admin_ho")
 
+
+@router.get(
+    "/users/by-role",
+    response_model=List[UserBasicInfo],
+    summary="List users by kode_role — untuk dropdown hierarki",
+)
+async def list_users_by_role(
+    kode_role: str,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_roles(*ADMIN_ROLES, "rsm", "direktur")),
+):
+    result = await db.execute(
+        select(User)
+        .join(Role, User.role_id == Role.id)
+        .where(Role.kode_role == kode_role, User.is_active == True)
+        .order_by(User.nama)
+    )
+    return result.scalars().all()
+
+
+@router.get(
+    "/distributors",
+    response_model=List[DistributorBasicInfo],
+    summary="List distributor aktif — untuk dropdown assign hierarki",
+)
+async def list_distributors_for_hierarchy(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_roles(*ADMIN_ROLES, "rsm", "direktur")),
+):
+    result = await db.execute(
+        select(Distributor)
+        .where(Distributor.status == "aktif")
+        .order_by(Distributor.nama_perusahaan)
+    )
+    return result.scalars().all()
 
 # ─── RSM ↔ APSM ──────────────────────────────────────────────────────────────
 
