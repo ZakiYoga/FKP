@@ -134,7 +134,7 @@ class FkpItemCreate(BaseModel):
     batch_number: Optional[str] = None
     expired_date: Optional[date] = None
 
-    ada_sample_keluhan: str = "tidak_ada"   # "ada" | "tidak_ada"
+    ada_sample_keluhan: str = "foto"   # "ada" | "foto"
     ada_foto_sample: bool = False
     tanggal_pembelian: Optional[date] = None
     tanggal_dikonsumsi: Optional[date] = None
@@ -157,8 +157,8 @@ class FkpItemCreate(BaseModel):
     @field_validator("ada_sample_keluhan")
     @classmethod
     def validate_sample(cls, v):
-        if v not in ("ada", "tidak_ada"):
-            raise ValueError("ada_sample_keluhan harus 'ada' atau 'tidak_ada'")
+        if v not in ("ada", "foto", "tidak_ada"):
+            raise ValueError("ada_sample_keluhan harus 'ada' atau 'foto keluhan'")
         return v
 
     @field_validator("jenis_kemasan")
@@ -175,8 +175,8 @@ class FkpItemCreate(BaseModel):
                 "qty": 2,
                 "batch_number": "BT-2025-001",
                 "expired_date": "2026-01-01",
-                "ada_sample_keluhan": "ada",
-                "ada_foto_sample": True,
+                "ada_sample_keluhan": "foto",
+                "ada_foto_sample": False,
                 "tanggal_pembelian": "2025-03-15",
                 "tanggal_dikonsumsi": "2025-03-16",
                 "jenis_keluhan": "produk_rusak_cacat",
@@ -203,8 +203,8 @@ class FkpItemUpdate(BaseModel):
     @field_validator("ada_sample_keluhan")
     @classmethod
     def validate_sample(cls, v):
-        if v is not None and v not in ("ada", "tidak_ada"):
-            raise ValueError("ada_sample_keluhan harus 'ada' atau 'tidak_ada'")
+        if v is not None and v not in ("ada", "foto", "tidak_ada"):
+            raise ValueError("ada_sample_keluhan harus 'ada' atau 'foto keluhan'")
         return v
 
     @field_validator("jenis_kemasan")
@@ -315,8 +315,8 @@ class FkpCreate(BaseModel):
                         "qty": 2,
                         "batch_number": "BT-2025-001",
                         "expired_date": "2026-01-01",
-                        "ada_sample_keluhan": "ada",
-                        "ada_foto_sample": True,
+                        "ada_sample_keluhan": "foto",
+                        "ada_foto_sample": False,
                         "jenis_keluhan": "produk_rusak_cacat",
                         "deskripsi_keluhan": "Kemasan sobek"
                     }

@@ -461,38 +461,44 @@ async def get_notifications(
     offset: int = 0,
 ) -> NotificationListResponse:
     """Ambil daftar notifikasi untuk user yang sedang login."""
-    base_query = select(Notification).where(Notification.user_id == user.id)
+    from sqlalchemy import func, select as sa_select
 
+    # ── Total & unread count dalam satu query ────────────────────────────
+    count_r = await db.execute(
+        sa_select(
+            func.count().label("total"),
+            func.count().filter(Notification.is_read == False).label("unread"),
+        ).where(Notification.user_id == user.id)
+    )
+    counts = count_r.one()
+    total, unread_count = counts.total, counts.unread
+
+    # ── Fetch notifikasi dengan pagination ───────────────────────────────
+    base_query = (
+        select(Notification)
+        .where(Notification.user_id == user.id)
+    )
     if hanya_belum_dibaca:
         base_query = base_query.where(Notification.is_read == False)
 
-    # Total
-    from sqlalchemy import func, select as sa_select
-    count_q = sa_select(func.count()).select_from(
-        select(Notification).where(Notification.user_id == user.id).subquery()
-    )
-    count_r = await db.execute(count_q)
-    total = count_r.scalar_one()
-
-    # Unread count
-    unread_q = sa_select(func.count()).select_from(
-        select(Notification).where(
-            Notification.user_id == user.id,
-            Notification.is_read == False
-        ).subquery()
-    )
-    unread_r = await db.execute(unread_q)
-    unread_count = unread_r.scalar_one()
-
-    # Data dengan pagination
     data_q = base_query.order_by(Notification.created_at.desc()).offset(offset).limit(limit)
     result = await db.execute(data_q)
     notifs = result.scalars().all()
 
-    # Enrich dengan nomor FKP & status
+    # ── Batch fetch FKP — satu query untuk semua fkp_id ─────────────────
+    fkp_ids = {n.fkp_id for n in notifs if n.fkp_id}
+    fkp_map: dict[uuid.UUID, FkpComplaint] = {}
+    if fkp_ids:
+        fkp_r = await db.execute(
+            select(FkpComplaint).where(FkpComplaint.id.in_(fkp_ids))
+        )
+        fkp_map = {fkp.id: fkp for fkp in fkp_r.scalars().all()}
+
+    # ── Enrich dari map — zero query di loop ────────────────────────────
     items = []
     for n in notifs:
-        item = NotificationResponse(
+        fkp = fkp_map.get(n.fkp_id) if n.fkp_id else None
+        items.append(NotificationResponse(
             id=n.id,
             user_id=n.user_id,
             fkp_id=n.fkp_id,
@@ -502,23 +508,15 @@ async def get_notifications(
             is_read=n.is_read,
             created_at=n.created_at,
             read_at=n.read_at,
-        )
-        if n.fkp_id:
-            fkp_r = await db.execute(
-                select(FkpComplaint).where(FkpComplaint.id == n.fkp_id)
-            )
-            fkp = fkp_r.scalar_one_or_none()
-            if fkp:
-                item.nomor_fkp = fkp.nomor_fkp
-                item.fkp_status = fkp.status
-        items.append(item)
+            nomor_fkp=fkp.nomor_fkp if fkp else None,
+            fkp_status=fkp.status if fkp else None,
+        ))
 
     return NotificationListResponse(
         notifications=items,
         total=total,
         unread_count=unread_count,
     )
-
 
 async def get_unread_count(db: AsyncSession, user: User) -> NotificationSummary:
     """Hanya unread count — untuk badge / polling ringan."""
@@ -539,24 +537,29 @@ async def mark_as_read(
     notification_ids: List[uuid.UUID],
 ) -> dict:
     """Tandai notifikasi sebagai sudah dibaca."""
+    if not notification_ids:
+        return {"updated": 0}
+
     now = datetime.now(timezone.utc)
-    updated = 0
-    for nid in notification_ids:
-        r = await db.execute(
-            select(Notification).where(
-                Notification.id == nid,
-                Notification.user_id == user.id,  # pastikan milik user ini
-            )
+
+    # ── Fetch semua sekaligus — satu query ──────────────────────────────
+    r = await db.execute(
+        select(Notification).where(
+            Notification.id.in_(notification_ids),
+            Notification.user_id == user.id,
+            Notification.is_read == False,
         )
-        notif = r.scalar_one_or_none()
-        if notif and not notif.is_read:
-            notif.is_read = True
-            notif.read_at = now
-            db.add(notif)
-            updated += 1
+    )
+    notifs = r.scalars().all()
+
+    # ── Update in-memory, satu commit ───────────────────────────────────
+    for notif in notifs:
+        notif.is_read = True
+        notif.read_at = now
+        db.add(notif)
 
     await db.commit()
-    return {"updated": updated}
+    return {"updated": len(notifs)}
 
 
 async def mark_all_as_read(db: AsyncSession, user: User) -> dict:

@@ -2,22 +2,27 @@
 Testimoni Router — endpoint untuk fitur testimoni/pendapat pelanggan FKP.
 
 Endpoint tersedia:
-  - POST   /fkp/{fkp_id}/testimoni              → buat testimoni baru
-  - GET    /fkp/{fkp_id}/testimoni              → list semua testimoni FKP ini
-  - GET    /fkp/{fkp_id}/testimoni/saya         → cek testimoni milik user login
-  - GET    /fkp/{fkp_id}/testimoni/ringkasan    → statistik testimoni FKP ini
-  - PATCH  /fkp/{fkp_id}/testimoni/{id}         → update testimoni
-  - DELETE /fkp/{fkp_id}/testimoni/{id}         → hapus testimoni
+  Mount di prefix /api/fkp  (via `router`):
+    POST   /api/fkp/{fkp_id}/testimoni           → buat testimoni baru
+    GET    /api/fkp/{fkp_id}/testimoni           → list semua testimoni FKP ini
+    GET    /api/fkp/{fkp_id}/testimoni/saya      → cek testimoni milik user login
+    GET    /api/fkp/{fkp_id}/testimoni/ringkasan → statistik testimoni FKP ini
+    PATCH  /api/fkp/{fkp_id}/testimoni/{id}      → update testimoni
+    DELETE /api/fkp/{fkp_id}/testimoni/{id}      → hapus testimoni
 
-  - GET    /testimoni                            → semua testimoni (admin only)
+  Mount di prefix /api/testimoni  (via `router_admin`):
+    GET    /api/testimoni                        → semua testimoni (admin only)
 """
 import uuid
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_db, get_current_user, get_kode_role
+from app.core.database import get_db
+from app.core.dependencies import get_current_user, get_kode_role
+from app.services.permission_service import require_permission
 from app.models.user import User
 from app.schemas.testimoni import (
     TestimoniCreate,
@@ -35,11 +40,13 @@ from app.services.testimoni_service import (
     get_semua_testimoni,
 )
 
+# ─── Router per-FKP — di-mount di /api/fkp ───────────────────────────────────
+# Semua path di sini otomatis jadi /api/fkp/{fkp_id}/testimoni/...
 router = APIRouter()
 
-# Role yang boleh melihat semua testimoni lintas FKP
-_ADMIN_ROLES = ("superadmin", "admin_ho", "rsm", "direktur", "qc")
-
+# ─── Router admin — di-mount di /api/testimoni ───────────────────────────────
+# Menghindari bentrok GET "" dengan fkp.router yang juga punya GET "" di /api/fkp
+router_admin = APIRouter()
 
 # ─── Per-FKP ──────────────────────────────────────────────────────────────────
 
@@ -67,12 +74,7 @@ async def tambah_testimoni(
     - Satu user hanya bisa memberi satu testimoni per FKP.
     """
     result = await buat_testimoni(fkp_id, data, user, kode_role, db)
-    # Enrich nama pemberi
-    result_dict = {
-        **result.__dict__,
-        "nama_pemberi": user.nama,
-    }
-    return result_dict
+    return {**result.__dict__, "nama_pemberi": user.nama}
 
 
 @router.get(
@@ -93,7 +95,7 @@ async def list_testimoni_fkp(
     """
     testimoni_list = await get_testimoni_by_fkp(fkp_id, db)
     return [
-        {**t.__dict__, "nama_pemberi": None}  # nama diisi via join di sini jika diperlukan
+        {**t.__dict__, "nama_pemberi": None}
         for t in testimoni_list
     ]
 
@@ -115,10 +117,8 @@ async def testimoni_saya(
     atau `null` jika belum memberi testimoni.
     Berguna untuk FE menentukan apakah tombol 'Beri Testimoni' ditampilkan atau tidak.
     """
-    from fastapi.responses import JSONResponse
     testimoni = await get_testimoni_milik_saya(fkp_id, user, db)
     if not testimoni:
-        # Return eksplisit JSON null — hindari ambiguitas FastAPI dengan Optional response
         return JSONResponse(content=None)
     return {**testimoni.__dict__, "nama_pemberi": user.nama}
 
@@ -182,7 +182,7 @@ async def remove_testimoni(
 
 # ─── Dashboard admin — semua testimoni ───────────────────────────────────────
 
-@router.get(
+@router_admin.get(
     "",
     response_model=List[TestimoniResponse],
     summary="Ambil semua testimoni (admin)",
@@ -201,15 +201,12 @@ async def list_semua_testimoni(
 ):
     """
     Ambil semua testimoni lintas FKP — untuk halaman dashboard atau laporan.
-    Hanya bisa diakses oleh: superadmin, admin_ho, rsm, direktur, qc.
+    Hanya bisa diakses oleh: superadmin (bypass), admin_ho, rsm, direktur, qc
+    (DB-driven via permission testimoni.read_all — lihat dashboard RBAC).
     """
-    from fastapi import HTTPException
-    if kode_role not in _ADMIN_ROLES:
-        raise HTTPException(
-            status_code=403,
-            detail=f"Role '{kode_role}' tidak bisa mengakses semua testimoni."
-        )
 
+    await require_permission(kode_role, "testimoni.read_all", db)
+    
     return await get_semua_testimoni(
         db=db,
         kode_role=kode_role,

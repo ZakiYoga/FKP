@@ -2,8 +2,17 @@
 Upload Service — menangani upload file foto bukti FKP ke local storage.
 Fase 1: simpan di folder uploads/. Fase selanjutnya: migrasi ke S3/MinIO.
 
-FIX: Upload sekarang mendukung fkp_item_id opsional sehingga foto bisa
-dikaitkan langsung ke item tertentu (bukan hanya level FKP).
+[FIX #7] Sebelumnya upload_attachment() tidak melakukan pengecekan akses
+sama sekali — siapa pun dengan token valid bisa upload ke fkp_id manapun
+selama dia tahu UUID-nya. Sekarang ditambahkan scope check berbasis
+FkpComplaint.distributor_id, konsisten dengan aturan scoping section 3
+dokumen (distributor_id sebagai anchor utama).
+
+[FIX #3 turunan] delete_attachment() sebelumnya bandingkan kode_role dengan
+string "superadmin" — diganti memakai is_superadmin() berbasis flag.
+
+FIX sebelumnya: Upload sekarang mendukung fkp_item_id opsional sehingga foto
+bisa dikaitkan langsung ke item tertentu (bukan hanya level FKP).
 """
 import os
 import uuid
@@ -19,6 +28,11 @@ from app.core.config import settings
 from app.models.fkp import FkpAttachment, FkpComplaint, FkpItem, FkpStatus
 from app.models.user import User
 from app.models.fkp import TipeDokumen
+from app.services.authz_helpers import (
+    is_superadmin,
+    has_global_access,
+    assert_distributor_in_scope,
+)
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 ALLOWED_VIDEO_TYPES = {"video/mp4", "video/quicktime"}
@@ -33,6 +47,7 @@ async def upload_attachment(
     file: UploadFile,
     user: User,
     db: AsyncSession,
+    kode_role: str,
     fkp_item_id: Optional[uuid.UUID] = None,
     tipe_dokumen: Optional[str] = None,
     keterangan: Optional[str] = None,
@@ -43,6 +58,21 @@ async def upload_attachment(
     fkp = result.scalar_one_or_none()
     if not fkp:
         raise HTTPException(status_code=404, detail="FKP tidak ditemukan.")
+
+    # [FIX #7] Scope check — user harus berada dalam scope distributor_id FKP
+    # ini sesuai aturan section 3 dokumen. Tanpa ini, siapa pun bisa upload
+    # attachment ke FKP siapa saja asal tahu UUID-nya.
+    if not await has_global_access(user, kode_role, db):
+        try:
+            await assert_distributor_in_scope(
+                fkp.distributor_id,
+                user,
+                kode_role,
+                db,
+                forbidden_message="Anda tidak berhak mengunggah lampiran ke FKP ini.",
+            )
+        except PermissionError as e:
+            raise HTTPException(status_code=403, detail=str(e))
 
     if fkp.status in [FkpStatus.CLOSED, FkpStatus.REJECTED]:
         raise HTTPException(
@@ -166,7 +196,9 @@ async def delete_attachment(
     if not attachment:
         raise HTTPException(status_code=404, detail="File tidak ditemukan.")
 
-    if attachment.uploaded_by != user.id and kode_role != "superadmin":
+    # [FIX #3 turunan] is_superadmin() berbasis flag, bukan string "superadmin"
+    superadmin = await is_superadmin(user, db)
+    if attachment.uploaded_by != user.id and not superadmin:
         raise HTTPException(status_code=403, detail="Tidak bisa menghapus file milik orang lain.")
 
     prefix = "/uploads/"

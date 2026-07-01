@@ -31,24 +31,6 @@ AsyncSessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_com
 
 DEFAULT_PASSWORD = "12345678"
 
-# ─────────────────────────────────────────────────────────────────────────────
-# DATA USER TESTING
-# Format: (nama, email, kode_role, no_telepon)
-#
-# Hierarki:
-#   Super Admin  (akses penuh sistem)
-#   Direktur
-#   RSM (1 orang, bawah Direktur)
-#     └── APSM Jawa Tengah   (bawah RSM, PIC AREA-02)
-#           └── SC/SPV 1     (bawah APSM)
-#                 └── Distributor Semarang, Distributor Yogyakarta
-#           └── SC/SPV 2     (bawah APSM)
-#                 └── Distributor Solo, Distributor Magelang
-#     └── APSM Jawa Barat    (bawah RSM, PIC AREA-01)
-#           └── SC/SPV 3     (bawah APSM)
-#                 └── Distributor Bandung
-# ─────────────────────────────────────────────────────────────────────────────
-
 USERS_DATA = [
     # Super Admin
     ("Super Admin",         "superadmin@saktipangan.co.id",    "superadmin", "08111000000"),
@@ -60,12 +42,12 @@ USERS_DATA = [
     ("QC Inspector",        "qc@saktipangan.co.id",            "qc",         "08111000004"),
 
     # APSM (PIC Area)
-    ("Priyo",        "apsm.area1@saktipangan.co.id",   "apsm",       "08111000010"),
+    ("Priyo",        "apsm.area1@saktipangan.co.id",    "apsm",       "08111000010"),
     ("Yulius",       "apsm.area2@saktipangan.co.id",    "apsm",       "08111000011"),
-    ("Irvan",       "apsm.area3@saktipangan.co.id",    "apsm",       "08111000012"),
-    ("Joko",       "apsm.area4@saktipangan.co.id",    "apsm",       "08111000013"),
+    ("Irvan",        "apsm.area3@saktipangan.co.id",    "apsm",       "08111000012"),
+    ("Joko",         "apsm.area4@saktipangan.co.id",    "apsm",       "08111000013"),
     ("Yulius",       "apsm.area5@saktipangan.co.id",    "apsm",       "08111000014"),
-    ("Sigit",       "apsm.area6@saktipangan.co.id",    "apsm",       "08111000015"),
+    ("Sigit",        "apsm.area6@saktipangan.co.id",    "apsm",       "08111000015"),
     ("Yulius",       "apsm.area7@saktipangan.co.id",    "apsm",       "08111000016"),
 
     # SC/SPV (bawah APSM Jateng)
@@ -92,15 +74,21 @@ USERS_DATA = [
 ]
 
 AREAS_DATA = [
-    {"kode_area": "AREA-01", "nama_area": "Jawa Barat"},
-    {"kode_area": "AREA-02", "nama_area": "Jawa Tengah"},
+    {"kode_area": "AREA-01", "nama_area": "Area 1"},
+    {"kode_area": "AREA-02", "nama_area": "Area 2"},
+    {"kode_area": "AREA-03", "nama_area": "Area 3"},
+    {"kode_area": "AREA-04", "nama_area": "Area 4"},
+    {"kode_area": "AREA-05", "nama_area": "Area 5"},
+    {"kode_area": "AREA-06", "nama_area": "Area 6"},
+    {"kode_area": "AREA-07", "nama_area": "Area 7"},
 ]
 
 ROLES_DATA = [
-    {"kode_role": "superadmin",  "nama_role": "Super Admin"},   # ← TAMBAHAN
+    {"kode_role": "superadmin",  "nama_role": "Super Admin"},
     {"kode_role": "direktur",    "nama_role": "Direktur"},
     {"kode_role": "rsm",         "nama_role": "RSM"},
     {"kode_role": "admin_ho",    "nama_role": "Admin HO"},
+    {"kode_role": "warehouse",   "nama_role": "Warehouse / Transporter"},
     {"kode_role": "qc",          "nama_role": "QC"},
     {"kode_role": "apsm",        "nama_role": "APSM"},
     {"kode_role": "sc_spv",      "nama_role": "SC/SPV"},

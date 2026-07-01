@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { authApi } from '@/api/auth'
 import { notifications } from '@mantine/notifications'
 import { useAuthStore } from '@/store/authStore'
@@ -9,6 +9,7 @@ import type { LoginRequest } from '@/types'
 export function useLogin() {
   const { setAuth } = useAuthStore()
   const navigate = useNavigate()
+  const location = useLocation()
 
   return useMutation({
     mutationFn: (data: LoginRequest) => authApi.login(data),
@@ -19,7 +20,9 @@ export function useLogin() {
         color: 'green',
       })
 
-      navigate('/dashboard', { replace: true })
+      // Redirect ke halaman yang ingin dituju sebelumnya, atau dashboard
+      const from = (location.state as { from?: Location })?.from?.pathname ?? '/dashboard'
+      navigate(from, { replace: true })
     },
     onError: (error) => {
       notifications.show({
@@ -61,8 +64,9 @@ export function useMe() {
       return res.user
     },
     enabled: isAuthenticated,
-    staleTime: 5 * 60 * 1000,  // 5 menit
+    staleTime: 1 * 60 * 1000,
     retry: false,
+    throwOnError: false,
   })
 }
 

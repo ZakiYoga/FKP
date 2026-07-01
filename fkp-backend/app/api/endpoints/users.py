@@ -15,7 +15,7 @@ from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import require_roles
+from app.core.dependencies import require_permission_dep
 from app.core.security import hash_password
 from app.models.user import User
 from app.models.role import Role
@@ -31,7 +31,7 @@ router = APIRouter()
 )
 async def list_users(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles("superadmin")),
+    current_user: User = Depends(require_permission_dep("user.manage")),
 ):
     result = await db.execute(select(User).order_by(User.created_at.desc()))
     return result.scalars().all()
@@ -46,7 +46,7 @@ async def list_users(
 async def create_user(
     request: UserCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles("superadmin")),
+    current_user: User = Depends(require_permission_dep("user.manage")),
 ):
     # Cek email sudah dipakai atau belum
     result = await db.execute(select(User).where(User.email == request.email))
@@ -85,7 +85,7 @@ async def create_user(
 async def get_user(
     user_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles("superadmin")),
+    current_user: User = Depends(require_permission_dep("user.manage")),
 ):
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
@@ -103,7 +103,7 @@ async def update_user(
     user_id: uuid.UUID,
     request: UserUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles("superadmin")),
+    current_user: User = Depends(require_permission_dep("user.manage")),
 ):
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
@@ -130,7 +130,7 @@ async def update_user(
 async def deactivate_user(
     user_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles("superadmin")),
+    current_user: User = Depends(require_permission_dep("user.manage")),
 ):
     # Cegah superadmin menonaktifkan dirinya sendiri
     if user_id == current_user.id:

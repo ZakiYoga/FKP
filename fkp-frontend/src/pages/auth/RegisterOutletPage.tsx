@@ -1,6 +1,5 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Eye, EyeOff, Loader2, CheckCircle2, ChevronLeft } from 'lucide-react'
@@ -10,15 +9,8 @@ import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { cn } from '@/lib/utils'
 import axios from 'axios'
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface DistributorOption {
-  id: string
-  nama_perusahaan: string
-  kode_distributor: string
-  alamat_lengkap: string | null
-}
+import { DistributorOption } from '@/types'
+import { RegisterOutletFormValues, registerOutletSchema } from '@/schemas/registerOutletSchema'
 
 // ─── Password Strength ────────────────────────────────────────────────────────
 
@@ -56,27 +48,6 @@ function PasswordStrengthBar({ password }: { password: string }) {
   )
 }
 
-// ─── Schema ───────────────────────────────────────────────────────────────────
-
-const schema = z
-  .object({
-    nama_toko:       z.string().min(3, 'Nama toko minimal 3 karakter'),
-    pemilik_toko:    z.string().min(3, 'Nama pemilik minimal 3 karakter'),
-    tipe_toko:       z.enum(['retail', 'grosir', 'horeka'], { required_error: 'Pilih tipe toko' }),
-    no_hp:           z.string().min(9, 'No. HP tidak valid').max(15),
-    distributor_id:  z.string().uuid('Pilih distributor terlebih dahulu'),
-    alamat_lengkap:  z.string().optional(),
-    email:           z.string().email('Format email tidak valid'),
-    password:        z.string().min(8, 'Password minimal 8 karakter'),
-    retype_password: z.string(),
-  })
-  .refine((d) => d.password === d.retype_password, {
-    message: 'Password tidak cocok',
-    path: ['retype_password'],
-  })
-
-type FormValues = z.infer<typeof schema>
-
 // ─── Steps ────────────────────────────────────────────────────────────────────
 
 const STEPS = ['Data Toko', 'Distribusi', 'Akun'] as const
@@ -85,8 +56,8 @@ const STEPS = ['Data Toko', 'Distribusi', 'Akun'] as const
 
 function usePublicDistributors() {
   const [distributors, setDistributors] = useState<DistributorOption[]>([])
-  const [isLoading, setIsLoading]       = useState(true)
-  const [error, setError]               = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     axios
@@ -116,19 +87,20 @@ const itemVariants = {
 const stepContentVariants = {
   initial: { opacity: 0, x: 20 },
   animate: { opacity: 1, x: 0 },
-  exit:    { opacity: 0, x: -16 },
+  exit: { opacity: 0, x: -16 },
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function RegisterOutletPage() {
-  const [step, setStep]         = useState(0)
-  const [showPw, setShowPw]     = useState(false)
-  const [showPw2, setShowPw2]   = useState(false)
+  const [step, setStep] = useState(0)
+  const [showPw, setShowPw] = useState(false)
+  const [showPw2, setShowPw2] = useState(false)
   const [isSuccess, setIsSuccess] = useState<{ kode_outlet: string; message: string } | null>(null)
 
   const { mutate: register, isPending } = useRegisterOutlet()
   const { distributors, isLoading: loadingDist, error: distError } = usePublicDistributors()
+  const [previewAlamatDistributor, setPreviewAlamatDistributor] = useState('')
 
   const {
     register: reg,
@@ -138,14 +110,14 @@ export function RegisterOutletPage() {
     watch,
     clearErrors,
     formState: { errors },
-  } = useForm<FormValues>({ resolver: zodResolver(schema) })
+  } = useForm<RegisterOutletFormValues>({ resolver: zodResolver(registerOutletSchema) })
 
   const selectedDistributorId = watch('distributor_id')
-  const passwordValue         = watch('password') ?? ''
-  const selectedDistributor   = distributors.find((d) => d.id === selectedDistributorId) ?? null
+  const passwordValue = watch('password') ?? ''
+  const selectedDistributor = distributors.find((d) => d.id === selectedDistributorId) ?? null
 
-  const stepFields: (keyof FormValues)[][] = [
-    ['nama_toko', 'pemilik_toko', 'tipe_toko', 'no_hp'],
+  const stepFields: (keyof RegisterOutletFormValues)[][] = [
+    ['nama_toko', 'pemilik_toko', 'tipe_toko', 'no_hp', 'alamat_lengkap'],
     ['distributor_id'],
     ['email', 'password', 'retype_password'],
   ]
@@ -157,9 +129,9 @@ export function RegisterOutletPage() {
     if (valid) { clearErrors(); setStep((s) => s + 1) }
   }
 
-  const onSubmit = (data: FormValues) => {
+  const onSubmit = (data: RegisterOutletFormValues) => {
     register(
-      { ...data, alamat_lengkap: data.alamat_lengkap || null },
+      { ...data, alamat_lengkap: data.alamat_lengkap || "" },
       { onSuccess: (res) => setIsSuccess({ kode_outlet: res.kode_outlet, message: res.message }) },
     )
   }
@@ -194,9 +166,17 @@ export function RegisterOutletPage() {
 
   // ── Form ─────────────────────────────────────────────────────────────────
   return (
-    <motion.div variants={containerVariants} initial="initial" animate="animate" className="max-w-lg w-full space-y-6">
+    <motion.div
+      variants={containerVariants}
+      initial="initial"
+      animate="animate"
+      className="w-full space-y-6 p-4 md:p-6 lg:max-w-xl xl:max-w-2xl"
+    >
       {/* Header */}
-      <motion.div variants={itemVariants} className="mb-6">
+      <motion.div
+        variants={itemVariants}
+        className="mb-6"
+      >
         <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Daftar Outlet</h2>
         <p className="text-gray-500 text-sm mt-1.5">
           Lengkapi data berikut untuk mendaftarkan outlet Anda.
@@ -211,9 +191,9 @@ export function RegisterOutletPage() {
               <div
                 className={cn(
                   'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300',
-                  i < step   ? 'bg-emerald-500 text-white' :
-                  i === step ? 'bg-brand-600 text-white ring-4 ring-brand-100' :
-                               'bg-gray-100 text-gray-400',
+                  i < step ? 'bg-emerald-500 text-white' :
+                    i === step ? 'bg-brand-600 text-white ring-4 ring-brand-100' :
+                      'bg-gray-100 text-gray-400',
                 )}
               >
                 {i < step ? '✓' : i + 1}
@@ -246,11 +226,34 @@ export function RegisterOutletPage() {
             <Input label="Nama Toko" required placeholder="Toko Sumber Jaya" error={errors.nama_toko?.message} {...reg('nama_toko')} />
             <Input label="Nama Pemilik" required placeholder="Budi Santoso" error={errors.pemilik_toko?.message} {...reg('pemilik_toko')} />
             <Select label="Tipe Toko" required placeholder="-- Pilih tipe toko --" error={errors.tipe_toko?.message} {...reg('tipe_toko')}>
-              <option value="retail">Retail</option>
+              <option value="retail_tradisional">Retail Tradisional</option>
+              <option value="retail_modern">Retail Modern</option>
               <option value="grosir">Grosir</option>
-              <option value="horeka">HoReCa</option>
+              <option value="horeca">HoReCa (Hotel, Restoran, Cafe)</option>
+              <option value="umkm">UMKM</option>
+              <option value="tobaku">Tobaku</option>
+              <option value="bakery">Bakery</option>
+              <option value="catering">Catering</option>
+              <option value="reseller">Reseller</option>
+              <option value="online_shop">Online Shop</option>
+              <option value="lainnya">Lainnya</option>
             </Select>
-            <Input label="No. HP / WhatsApp" required type="tel" placeholder="081234567890" error={errors.no_hp?.message} {...reg('no_hp')} />
+            <Input label="No. HP / WhatsApp" required type="tel" placeholder="6281234567890" maxLength={15} error={errors.no_hp?.message} {...reg('no_hp')} />
+
+            {/* Alamat OUTLET — form field, dikirim ke backend sebagai alamat_lengkap */}
+            <div>
+              <label className="label">Alamat Toko</label>
+              <textarea
+                rows={3}
+                placeholder="Jl. Mawar No. 10, Kelurahan ..., Kecamatan ..., Kota ..."
+                className={cn('input-base resize-none', errors.alamat_lengkap && 'input-error')}
+                {...reg('alamat_lengkap')}
+              />
+              {errors.alamat_lengkap && (
+                <p className="mt-1.5 text-xs text-red-600">{errors.alamat_lengkap.message}</p>
+              )}
+              <p className="mt-1 text-xs text-gray-400">Opsional. Alamat lengkap lokasi toko Anda.</p>
+            </div>
           </motion.div>
         )}
 
@@ -275,7 +278,7 @@ export function RegisterOutletPage() {
                   onChange={(e) => {
                     const picked = distributors.find((d) => d.id === e.target.value)
                     setValue('distributor_id', e.target.value, { shouldValidate: true })
-                    setValue('alamat_lengkap', picked?.alamat_lengkap ?? '')
+                    setPreviewAlamatDistributor(picked?.alamat_lengkap ?? '')  // ← local state, BUKAN setValue form
                   }}
                 >
                   <option value="">-- Pilih distributor --</option>
@@ -292,13 +295,14 @@ export function RegisterOutletPage() {
               <p className="mt-1 text-xs text-gray-400">Pilih distributor yang akan mengelola outlet Anda.</p>
             </div>
 
+            {/* Alamat DISTRIBUTOR — readonly preview, BUKAN form field, tidak ikut payload submit */}
             <div>
               <label className="label">Alamat Distributor</label>
               <textarea
                 rows={3}
                 disabled
                 readOnly
-                value={selectedDistributor?.alamat_lengkap ?? ''}
+                value={previewAlamatDistributor}
                 placeholder={selectedDistributorId ? 'Alamat tidak tersedia' : 'Otomatis terisi setelah memilih distributor'}
                 className="input-base resize-none bg-gray-50 text-gray-500 cursor-not-allowed"
               />

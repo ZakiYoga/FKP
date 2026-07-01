@@ -33,7 +33,19 @@ class OutletRegisterRequest(BaseModel):
     @field_validator("tipe_toko")
     @classmethod
     def tipe_toko_valid(cls, v: str) -> str:
-        allowed = {"retail", "grosir", "horeka"}
+        allowed = {
+            "retail_tradisional",
+            "retail_modern",
+            "grosir",
+            "horeca",
+            "umkm",
+            "tobaku",
+            "bakery",
+            "catering",
+            "reseller",
+            "online_shop",
+            "lainnya",
+        }
         if v.lower() not in allowed:
             raise ValueError(f"tipe_toko harus salah satu dari: {allowed}")
         return v.lower()
@@ -84,11 +96,28 @@ class OutletApproveRequest(BaseModel):
  
  
 class OutletApproveResponse(BaseModel):
+    """
+    [REVISI] `user_is_active` bersifat informatif, BUKAN efek samping dari
+    approve ini.
+
+    Keputusan final: User.is_active SELALU True untuk akun yang valid secara
+    administratif, dan TIDAK dipakai sebagai proxy status approval outlet.
+    approve_registration() tidak lagi mengubah is_active sama sekali — yang
+    berubah hanya Outlet.status. Gate login untuk role outlet sepenuhnya
+    ditentukan oleh status outlet (lihat auth_service.login()): login
+    diizinkan jika MINIMAL SATU outlet milik user berstatus 'aktif', karena
+    1 user boleh memiliki lebih dari satu outlet (distributor harus sama).
+
+    Field ini tetap disertakan agar caller bisa melihat status administratif
+    user tanpa query tambahan — nilainya akan tetap True kecuali user
+    tersebut secara independen pernah dinonaktifkan admin.
+    """
     message: str
     outlet_id: uuid.UUID
     user_id: uuid.UUID
     kode_outlet: str
     status: str                     # "aktif"
+    user_is_active: bool = True     # status administratif user, bukan hasil approve ini
  
  
 # ─── REQUEST: Reject Registrasi ──────────────────────────────────────────────

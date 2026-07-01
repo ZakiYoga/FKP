@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<p>Halo, <strong>{{ nama_penerima }}</strong>,</p>
+<p>Keluhan produk Anda telah <strong>ditolak</strong> setelah melalui proses review.</p>
+<div class="box box-red">
+  <p><strong>Nomor FKP</strong> &nbsp; {{ nomor_fkp }}</p>
+  <p><strong>Status</strong> &nbsp;
+     <span class="badge b-red">Ditolak</span></p>
+  <p><strong>Ditolak oleh</strong> &nbsp; {{ ditolak_oleh }}</p>
+</div>
+<p><strong>Alasan Penolakan:</strong></p>
+<div class="box box-red" style="font-style:italic">{{ alasan_penolakan }}</div>
+<p>Jika ada pertanyaan lebih lanjut, silakan hubungi tim Admin HO.</p>
+{% endblock %}

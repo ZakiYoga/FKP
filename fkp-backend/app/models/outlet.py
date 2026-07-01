@@ -1,8 +1,14 @@
 import uuid
-from typing import Optional, List
+from typing import TYPE_CHECKING, Optional, List
 from datetime import datetime, timezone
 from sqlalchemy import DateTime, Column, Numeric
 from sqlmodel import SQLModel, Field, Relationship
+
+if TYPE_CHECKING:
+    from .distributor import Distributor
+    from .user import User
+    from .fkp import FkpComplaint
+    from .wilayah import Kelurahan
 
 
 class Outlet(SQLModel, table=True):
@@ -13,7 +19,7 @@ class Outlet(SQLModel, table=True):
     kode_outlet: str = Field(max_length=30, unique=True, index=True)
     nama_toko: str = Field(max_length=200)
     pemilik_toko: str = Field(max_length=150)
-    tipe_toko: str = Field(max_length=50)     # "retail" | "grosir" | "horeka" | dll
+    tipe_toko: str = Field(max_length=50) 
     no_hp: Optional[str] = Field(default=None, max_length=20)
     email: Optional[str] = Field(default=None, max_length=150)
 
@@ -30,7 +36,7 @@ class Outlet(SQLModel, table=True):
         description="User pemilik / PIC utama toko ini"
     )
 
-    status: str = Field(default="aktif", max_length=20)   # "aktif" | "nonaktif"
+    status: str = Field(default="pending", max_length=20)   # "aktif" | "nonaktif" | "pending"
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True))

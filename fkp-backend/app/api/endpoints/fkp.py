@@ -6,6 +6,39 @@ Termasuk:
   - Transisi status (submit, review, approve, reject, close)
   - Upload attachment
   - Generate PDF (FKP dan Berita Acara Pemusnahan)
+
+── PERUBAHAN (migrasi RBAC dinamis) ───────────────────────────────────────
+4 fungsi service berikut sekarang menerima parameter `kode_role` tambahan
+(sebelumnya gap keamanan — tidak ada cek role sama sekali):
+  - add_fkp_item
+  - update_fkp_item
+  - delete_fkp_item
+  - input_surat_jalan
+kode_role sudah tersedia di tiap endpoint lewat Depends(get_kode_role),
+jadi cukup diteruskan ke pemanggilan fungsi.
+
+── PERBAIKAN LANJUTAN (audit keamanan) ────────────────────────────────────
+  - download_fkp_pdf() & preview_fkp_html(): sebelumnya tidak ada validasi
+    kode_role/scope sama sekali, sehingga FKP milik pihak lain bisa diunduh
+    siapa saja yang login. Sekarang divalidasi lewat
+    validate_fkp_formulir_access(), sama seperti /formulir-pdf. Endpoint
+    preview juga dimatikan total di luar mode settings.DEBUG.
+  - upload_bukti(): BUG KRITIS — kode_role tidak pernah terkirim ke
+    upload_attachment() karena argumen positional bergeser satu slot
+    (fkp_item_id tertukar masuk ke slot kode_role, dst). Semua upload
+    attachment oleh role non-superadmin akan ditolak 403. Sekarang dipanggil
+    dengan keyword arguments eksplisit.
+
+── PERBAIKAN RBAC DINAMIS (Kategori B audit RBAC) ─────────────────────────
+4 fungsi Berita Acara (download_berita_acara_pdf,
+download_berita_acara_pdf_with_override, generate_berita_acara_metadata,
+generate_berita_acara_manual) sebelumnya mengecek tuple konstanta
+_BA_ROLES/_BA_MANUAL_ROLES manual di badan fungsi — tidak ada dependency
+require_roles() sama sekali sehingga tidak pernah terhubung ke dashboard
+RBAC, walau modul fkp lain sudah bermigrasi. Sekarang via
+require_permission() yang DB-driven (fkp.berita_acara.read /
+fkp.berita_acara.manual), superadmin tetap bypass total via is_superadmin.
+_BA_ROLES dan _BA_MANUAL_ROLES dihapus karena tidak lagi dipakai.
 """
 import uuid
 from decimal import Decimal
@@ -13,9 +46,13 @@ from typing import Optional, List
 from fastapi import APIRouter, Depends, Response, UploadFile, File, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_db, get_current_user, get_kode_role
+from app.core.database import get_db
+from app.core.dependencies import get_current_user, get_kode_role
 from app.core.config import settings
 from app.models.user import User
+from app.models.fkp import TipeDokumen, FkpStatus
+import traceback
+
 from app.schemas.fkp import (
     FkpCreate, FkpUpdate, FkpDetailResponse, FkpListResponse,
     FkpItemCreate, FkpItemUpdate, FkpItemResponse,
@@ -31,7 +68,9 @@ from app.schemas.berita_acara import (
     BeritaAcaraManualRequest,
     BeritaAcaraGenerateResponse,
 )
+
 from app.services import fkp_service, upload_service
+from app.services.permission_service import require_permission
 from app.services.fkp_service import (
     create_fkp, update_fkp, list_fkp, get_fkp_detail,
     submit_fkp, apsm_review, admin_ho_review,
@@ -40,7 +79,8 @@ from app.services.fkp_service import (
     direktur_approve, update_pengiriman, request_revision,
     reject_fkp, input_surat_jalan, close_fkp,
     add_fkp_item, update_fkp_item, delete_fkp_item,
-    buat_dokumen, hapus_dokumen,
+    buat_dokumen, hapus_dokumen, 
+    list_fkp_penerbitan as _list, validate_fkp_formulir_access
 )
 from app.services.fkp_pdf_service import generate_fkp_pdf
 from app.services.berita_acara_pdf_service import (
@@ -51,13 +91,101 @@ from app.services.berita_acara_pdf_service import (
 router = APIRouter()
 
 # ─── Role constants ───────────────────────────────────────────────────────────
+# _BA_ROLES dan _BA_MANUAL_ROLES DIHAPUS (Kategori B audit RBAC) — diganti
+# require_permission(kode_role, "fkp.berita_acara.read"/".manual", db) di
+# masing-masing fungsi. Mapping role identik dengan tuple lama, dikelola
+# lewat seeds/seed_permissions.py + dashboard RBAC.
 
-# Role yang boleh generate/download Berita Acara dari FKP
-_BA_ROLES = ("superadmin", "admin_ho", "qc", "rsm")
+# Status yang diizinkan untuk download (bukan draft, bukan need_revision)
+_FORMULIR_DOWNLOADABLE_STATUS = {
+    FkpStatus.SUBMITTED,
+    FkpStatus.APSM_REVIEWED,
+    FkpStatus.RSM_APPROVAL_INVESTIGASI,
+    FkpStatus.IN_INVESTIGATION,
+    FkpStatus.INVESTIGATED,
+    FkpStatus.RSM_APPROVAL_RESOLUSI,
+    FkpStatus.DIREKTUR_APPROVAL,
+    FkpStatus.ACCEPTED,
+    FkpStatus.IN_PROCESS,
+    FkpStatus.CLOSED,
+    FkpStatus.REJECTED,
+}
 
-# Role yang boleh generate BA manual
-_BA_MANUAL_ROLES = ("superadmin", "admin_ho", "qc", "rsm", "direktur")
+@router.get(
+    "/penerbitan",
+    response_model=List[FkpListResponse],
+    summary="List FKP untuk halaman penerbitan — filtered by role",
+)
+async def list_fkp_penerbitan(
+    status:     Optional[str]  = Query(None),
+    tanggal_dari: Optional[str] = Query(None, description="Format YYYY-MM-DD"),
+    tanggal_sampai: Optional[str] = Query(None, description="Format YYYY-MM-DD"),
+    db:         AsyncSession   = Depends(get_db),
+    user:       User           = Depends(get_current_user),
+    kode_role:  str            = Depends(get_kode_role),
+):
+    """
+    List FKP untuk penerbitan dokumen formulir.
+    - Hanya menampilkan FKP yang sudah melewati draft/need_revision
+    - Otomatis difilter berdasarkan scope role
+    """
+    return await _list(db, user, kode_role, status, tanggal_dari, tanggal_sampai)
 
+
+@router.get(
+    "/{fkp_id}/formulir-pdf",
+    summary="Download PDF Formulir FKP — dengan validasi akses per role",
+    response_class=Response,
+    responses={
+        200: {"content": {"application/pdf": {}}, "description": "File PDF Formulir FKP"},
+        403: {"description": "Tidak punya akses ke FKP ini"},
+        404: {"description": "FKP tidak ditemukan"},
+        422: {"description": "FKP belum bisa didownload (masih draft/need_revision)"},
+    },
+)
+async def download_formulir_fkp_pdf(
+    fkp_id:    uuid.UUID,
+    db:        AsyncSession = Depends(get_db),
+    user:      User         = Depends(get_current_user),
+    kode_role: str          = Depends(get_kode_role),
+):
+    """
+    Download Formulir FKP sebagai PDF.
+
+    Akses per role:
+    - outlet       → hanya FKP outlet sendiri
+    - distributor  → FKP milik distributor sendiri
+    - sc_spv       → FKP distributor yang ditangani
+    - apsm         → FKP area APSM
+    - admin_ho / qc / rsm / direktur / superadmin / finance → semua FKP
+    """
+
+    try:
+        await validate_fkp_formulir_access(fkp_id, user, kode_role, db)
+    except HTTPException:
+        raise
+
+    try:
+        pdf_bytes, nomor_fkp = await generate_fkp_pdf(
+            fkp_id=fkp_id,
+            db=db,
+            upload_dir=settings.UPLOAD_DIR,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+            traceback.print_exc()  # ← tambah ini, lihat terminal FastAPI
+            raise HTTPException(status_code=500, detail=f"Gagal generate PDF: {e}")
+
+    safe_nomor = nomor_fkp.replace("/", "-")
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="Formulir-FKP-{safe_nomor}.pdf"',
+            "Content-Length":      str(len(pdf_bytes)),
+        },
+    )
 
 # ─── Meta ─────────────────────────────────────────────────────────────────────
 
@@ -67,11 +195,12 @@ async def list_tipe_dokumen():
     Listing semua tipe dokumen yang valid beserta label dan kelompoknya.
     Digunakan FE untuk dropdown pilihan tipe_dokumen saat upload.
     """
-    from app.models.fkp import TipeDokumen
     return {
         "tipe_dokumen": [
             {"value": TipeDokumen.FOTO_KELUHAN,             "label": "Foto Keluhan Produk",        "kelompok": "keluhan"},
             {"value": TipeDokumen.FOTO_SAMPLE,              "label": "Foto Sample",                "kelompok": "keluhan"},
+            {"value": TipeDokumen.FOTO_EXPIRED,             "label": "Foto Kadaluarsa (Expired)",  "kelompok": "keluhan"},
+            {"value": TipeDokumen.FOTO_KODE_PRODUKSI,       "label": "Foto Kode Produksi",         "kelompok": "keluhan"}, 
             {"value": TipeDokumen.FOTO_INVESTIGASI,         "label": "Foto Hasil Investigasi",     "kelompok": "investigasi"},
             {"value": TipeDokumen.SURAT_JALAN,              "label": "Surat Jalan",                "kelompok": "resolusi"},
             {"value": TipeDokumen.FOTO_SERAH_TERIMA,        "label": "Foto Serah Terima Barang",   "kelompok": "resolusi"},
@@ -156,8 +285,18 @@ async def download_fkp_pdf(
     fkp_id:       uuid.UUID,
     db:           AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    kode_role:    str  = Depends(get_kode_role),
 ):
-    """Download FKP sebagai PDF siap cetak."""
+    """
+    Download FKP sebagai PDF siap cetak.
+
+    PERBAIKAN KEAMANAN: sebelumnya endpoint ini hanya butuh login (tidak ada
+    validasi kode_role/scope sama sekali), sehingga user dari outlet/distributor
+    mana pun bisa mendownload PDF FKP milik pihak lain selama tahu UUID-nya.
+    Sekarang divalidasi sama seperti /formulir-pdf.
+    """
+    await validate_fkp_formulir_access(fkp_id, current_user, kode_role, db)
+
     try:
         pdf_bytes, nomor_fkp = await generate_fkp_pdf(
             fkp_id=fkp_id,
@@ -190,6 +329,7 @@ async def preview_fkp_html(
     fkp_id:       uuid.UUID,
     db:           AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    kode_role:    str  = Depends(get_kode_role),
 ):
     """
     Preview HTML template FKP di browser — berguna untuk QA tampilan.
@@ -198,7 +338,19 @@ async def preview_fkp_html(
     Versi lama memanggil build_fkp_context dengan signature yang salah
     (fkp_data=dict, outlet_data=dict, dst). Versi ini menggunakan ORM objects
     langsung sesuai signature aktual fungsi tersebut.
+
+    PERBAIKAN KEAMANAN: endpoint ini sebelumnya tidak punya validasi
+    kode_role/scope sama sekali (hanya butuh login), dan tetap bisa diakses
+    langsung walau disembunyikan dari Swagger (include_in_schema=False hanya
+    menyembunyikan dari dokumentasi, bukan menutup endpoint). Sekarang:
+    1) endpoint dimatikan total di luar mode DEBUG,
+    2) tetap divalidasi scope-nya seperti /formulir-pdf saat DEBUG aktif.
     """
+    if not settings.DEBUG:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    await validate_fkp_formulir_access(fkp_id, current_user, kode_role, db)
+
     from sqlmodel import select as sql_select
     from sqlalchemy.orm import selectinload
 
@@ -287,12 +439,10 @@ async def download_berita_acara_pdf(
     - FKP harus sudah memiliki resolusi dengan metode_penanganan_fisik = 'dimusnahkan'
     (tidak lagi tergantung tipe_resolusi)
     """
-
-    if kode_role not in _BA_ROLES:
-        raise HTTPException(
-            status_code=403,
-            detail=f"Role '{kode_role}' tidak diizinkan mengunduh Berita Acara.",
-        )
+    # PERBAIKAN RBAC (Kategori B): sebelumnya cek tuple hardcode _BA_ROLES
+    # di badan fungsi, tidak terhubung ke dashboard RBAC. Sekarang via
+    # require_permission() — DB-driven, superadmin bypass via is_superadmin.
+    await require_permission(kode_role, "fkp.berita_acara.read", db)
 
     try:
         pdf_bytes, nomor_dokumen, _ = await generate_berita_acara_pdf(
@@ -344,13 +494,10 @@ async def download_berita_acara_pdf_with_override(
     metode pemusnahan, nama-nama TTD, catatan tambahan.
 
     Berguna bila data DB belum lengkap atau perlu koreksi sebelum cetak.
-    Role yang diizinkan: superadmin, admin_ho, qc, rsm
+    Role yang diizinkan: lihat permission fkp.berita_acara.read di dashboard RBAC.
     """
-    if kode_role not in _BA_ROLES:
-        raise HTTPException(
-            status_code=403,
-            detail=f"Role '{kode_role}' tidak diizinkan mengunduh Berita Acara.",
-        )
+    # PERBAIKAN RBAC (Kategori B): lihat penjelasan di download_berita_acara_pdf.
+    await require_permission(kode_role, "fkp.berita_acara.read", db)
 
     try:
         pdf_bytes, nomor_dokumen, _ = await generate_berita_acara_pdf(
@@ -401,13 +548,10 @@ async def generate_berita_acara_metadata(
     url_download — cocok untuk FE yang perlu menampilkan daftar dokumen FKP
     setelah generate tanpa langsung download file.
 
-    Role yang diizinkan: superadmin, admin_ho, qc, rsm
+    Role yang diizinkan: lihat permission fkp.berita_acara.read di dashboard RBAC.
     """
-    if kode_role not in _BA_ROLES:
-        raise HTTPException(
-            status_code=403,
-            detail=f"Role '{kode_role}' tidak diizinkan generate Berita Acara.",
-        )
+    # PERBAIKAN RBAC (Kategori B): lihat penjelasan di download_berita_acara_pdf.
+    await require_permission(kode_role, "fkp.berita_acara.read", db)
 
     try:
         _, nomor_dokumen, doc_id = await generate_berita_acara_pdf(
@@ -458,13 +602,11 @@ async def generate_berita_acara_manual(
     - Jika `fkp_id` kosong → PDF hanya bisa diunduh via url_download yang
       menggunakan endpoint stream terpisah (belum diimplementasi, extend sesuai kebutuhan).
 
-    Role yang diizinkan: superadmin, admin_ho, qc, rsm, direktur
+    Role yang diizinkan: lihat permission fkp.berita_acara.manual di dashboard RBAC.
     """
-    if kode_role not in _BA_MANUAL_ROLES:
-        raise HTTPException(
-            status_code=403,
-            detail=f"Role '{kode_role}' tidak diizinkan generate Berita Acara manual.",
-        )
+    # PERBAIKAN RBAC (Kategori B): sebelumnya cek tuple hardcode
+    # _BA_MANUAL_ROLES. Sekarang via require_permission(), DB-driven.
+    await require_permission(kode_role, "fkp.berita_acara.manual", db)
 
     try:
         pdf_bytes, nomor_dokumen, doc_id = await generate_berita_acara_pdf_manual(
@@ -506,7 +648,9 @@ async def tambah_item(
     kode_role: str  = Depends(get_kode_role),
 ):
     """Tambah item produk baru ke FKP. Hanya bisa saat status draft atau need_revision."""
-    return await add_fkp_item(fkp_id, data.model_dump(exclude_none=True), user, db)
+    # PERBAIKAN RBAC: kode_role sekarang diteruskan — sebelumnya gap keamanan
+    # (add_fkp_item tidak menerima/mengecek role sama sekali).
+    return await add_fkp_item(fkp_id, data.model_dump(exclude_none=True), user, kode_role, db)
 
 
 @router.patch("/{fkp_id}/items/{item_id}", response_model=FkpItemResponse)
@@ -519,7 +663,8 @@ async def edit_item(
     kode_role: str  = Depends(get_kode_role),
 ):
     """Edit item produk. Hanya bisa saat status draft atau need_revision."""
-    return await update_fkp_item(fkp_id, item_id, data, user, db)
+    # PERBAIKAN RBAC: kode_role sekarang diteruskan.
+    return await update_fkp_item(fkp_id, item_id, data, user, kode_role, db)
 
 
 @router.delete("/{fkp_id}/items/{item_id}")
@@ -531,7 +676,8 @@ async def hapus_item(
     kode_role: str  = Depends(get_kode_role),
 ):
     """Hapus item dari FKP. Minimal 1 item harus tetap ada."""
-    return await delete_fkp_item(fkp_id, item_id, user, db)
+    # PERBAIKAN RBAC: kode_role sekarang diteruskan.
+    return await delete_fkp_item(fkp_id, item_id, user, kode_role, db)
 
 
 # ─── TRANSISI STATUS ──────────────────────────────────────────────────────────
@@ -712,7 +858,10 @@ async def update_surat_jalan(
     kode_role: str  = Depends(get_kode_role),
 ):
     """Input/update nomor surat jalan untuk resolusi tukar_barang."""
-    return await input_surat_jalan(fkp_id, data.nomor_surat_jalan, user, db)
+    # PERBAIKAN RBAC: kode_role sekarang diteruskan — sebelumnya gap keamanan
+    # (input_surat_jalan tidak menerima/mengecek role sama sekali, sehingga
+    # role apapun bisa mengubah nomor surat jalan).
+    return await input_surat_jalan(fkp_id, data.nomor_surat_jalan, user, kode_role, db)
 
 
 # ─── UPLOAD ATTACHMENT ────────────────────────────────────────────────────────
@@ -738,8 +887,24 @@ async def upload_bukti(
     kode_role: str  = Depends(get_kode_role),
 ):
     """Upload foto/dokumen bukti keluhan. Format: JPEG, PNG, WebP, MP4, MOV."""
+    # PERBAIKAN BUG KRITIS: sebelumnya dipanggil positional
+    # (fkp_id, file, user, db, fkp_item_id, tipe_dokumen, keterangan) padahal
+    # signature asli upload_attachment() adalah
+    # (fkp_id, file, user, db, kode_role, fkp_item_id, tipe_dokumen, keterangan).
+    # Akibatnya kode_role TIDAK PERNAH terkirim (tergeser oleh fkp_item_id),
+    # sehingga has_global_access()/get_scoped_distributor_ids() menerima nilai
+    # yang salah dan upload selalu ditolak 403 untuk semua role non-superadmin.
+    # Sekarang dipanggil dengan keyword arguments agar urutan tidak lagi
+    # jadi sumber bug.
     return await upload_service.upload_attachment(
-        fkp_id, file, user, db, fkp_item_id, tipe_dokumen, keterangan
+        fkp_id=fkp_id,
+        file=file,
+        user=user,
+        db=db,
+        kode_role=kode_role,
+        fkp_item_id=fkp_item_id,
+        tipe_dokumen=tipe_dokumen,
+        keterangan=keterangan,
     )
 
 
@@ -752,7 +917,9 @@ async def hapus_attachment(
     kode_role:     str  = Depends(get_kode_role),
 ):
     """Hapus file bukti. Hanya bisa oleh uploader atau superadmin."""
-    return await upload_service.delete_attachment(attachment_id, user, kode_role, db)
+    return await upload_service.delete_attachment(
+        attachment_id=attachment_id, user=user, kode_role=kode_role, db=db
+    )
 
 
 # ─── FINANCE ──────────────────────────────────────────────────────────────────

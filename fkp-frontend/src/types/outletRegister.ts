@@ -6,7 +6,7 @@ export interface OutletRegisterRequest {
   retype_password: string
   nama_toko: string
   pemilik_toko: string
-  tipe_toko: string        // "retail" | "grosir" | "horeka"
+  tipe_toko: string
   no_hp: string
   distributor_id: string
   alamat_lengkap?: string | null
@@ -29,7 +29,7 @@ export interface OutletRegistrationDetail {
   tipe_toko: string
   no_hp: string | null
   email: string
-  alamat_lengkap: string | null
+  alamat_lengkap?: string | null
   distributor_id: string
   status: string
   created_at: string

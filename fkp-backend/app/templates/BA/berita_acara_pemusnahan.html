@@ -1,720 +1,564 @@
 <!DOCTYPE html>
 <html lang="id">
-
 <head>
   <meta charset="UTF-8" />
   <title>Berita Acara Pemusnahan – {{ ba.nomor_dokumen }}</title>
   <style>
-    /* ── Reset ──────────────────────────────────── */
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
       font-family: Arial, Helvetica, sans-serif;
-      font-size: 9pt;
-      color: #1a1a1a;
+      font-size: 8.5pt;
+      color: #000;
+      line-height: 1.3;
     }
 
-    /* ── Page (xhtml2pdf @page) ─────────────────── */
+    /* ─── PAGE SETUP ─────────────────────────── */
     @page {
       size: A4;
-      margin: 15mm 14mm 18mm 14mm;
+      margin: 14mm 14mm 22mm 14mm;
+
+      @bottom-left {
+        content: string(footer-left);
+        font-size: 6.5pt;
+        color: #555;
+        font-family: Arial, Helvetica, sans-serif;
+        border-top: 0.5pt solid #999;
+        padding-top: 3pt;
+        white-space: nowrap;
+      }
+
+      @bottom-right {
+        content: "Hal. " counter(page) " / " counter(pages);
+        font-size: 6.5pt;
+        color: #555;
+        font-family: Arial, Helvetica, sans-serif;
+        border-top: 0.5pt solid #999;
+        padding-top: 3pt;
+        white-space: nowrap;
+      }
     }
 
-    /* ── Tables ─────────────────────────────────── */
+    #footer-source {
+      position: running(footer-left);
+      font-size: 6.5pt;
+      color: #555;
+    }
+
     table {
       border-collapse: collapse;
-    }
-
-    /* ── Header ─────────────────────────────────── */
-    .tbl-header {
       width: 100%;
-      border: 1.5pt solid #000;
-      margin-bottom: 10pt;
     }
 
-    .tbl-header td {
-      vertical-align: middle;
+    /* ─── HEADER ─────────────────────────────── */
+    .tbl-header {
+      border: 0.75pt solid #000;
+      margin-bottom: 7pt;
     }
+    .tbl-header td { vertical-align: middle; }
 
     .cell-logo {
-      width: 110pt;
-      padding: 6pt 8pt;
-      border-right: 1.5pt solid #000;
+      width: 90pt;
+      padding: 4pt 6pt;
+      border-right: 0.75pt solid #000;
       text-align: center;
     }
-
-    .cell-logo img {
-      max-width: 100pt;
-      max-height: 40pt;
-    }
-
-    .logo-text {
-      font-size: 13pt;
-      font-weight: bold;
-      color: #1a3a6b;
-    }
-
-    .logo-text span {
-      color: #e6b800;
-    }
+    .cell-logo img { max-width: 80pt; max-height: 30pt; }
+    .logo-text { font-size: 11pt; font-weight: bold; }
 
     .cell-title {
       text-align: center;
-      padding: 6pt 10pt;
-      border-right: 1.5pt solid #000;
+      padding: 4pt 8pt;
+      border-right: 0.75pt solid #000;
     }
-
     .doc-title {
-      font-size: 13pt;
+      font-size: 10pt;
       font-weight: bold;
-      color: #000;
       text-transform: uppercase;
-    }
-
-    .doc-subtitle {
-      font-size: 9pt;
-      color: #333;
-      margin-top: 2pt;
+      letter-spacing: 0.5pt;
     }
 
     .cell-meta {
-      width: 130pt;
+      width: 160pt;
       vertical-align: top;
       padding: 0;
     }
-
     .tbl-meta {
+      border-collapse: collapse;
       width: 100%;
     }
-
     .tbl-meta td {
-      padding: 4pt 6pt;
-      font-size: 8.5pt;
-      border-bottom: 1pt solid #000;
+      padding: 2.5pt 4pt;
+      font-size: 7.5pt;
+      border-bottom: 0.75pt solid #000;
       vertical-align: middle;
     }
-
-    .tbl-meta tr:last-child td {
-      border-bottom: none;
-    }
-
+    .tbl-meta tr:last-child td { border-bottom: none; }
     .meta-label {
       font-weight: bold;
-      color: #000;
-      background: #fff;
-      width: 70pt;
+      width: 58pt;
       white-space: nowrap;
-      border-right: 1pt solid #000;
+      border-right: 0.75pt solid #000;
     }
 
-    /* ── Pembuka ─────────────────────────────────── */
+    /* ─── PEMBUKA ─────────────────────────────── */
     .pembuka {
-      font-size: 9pt;
-      line-height: 1.6;
-      margin-bottom: 10pt;
+      font-size: 8.5pt;
+      line-height: 1.65;
+      margin-bottom: 7pt;
+      text-align: justify;
     }
 
-    /* ── Section Header ─────────────────────────── */
+    /* ─── SECTION HEADER ─────────────────────── */
     .sec-header {
-      background: #2c5fa3;
-      color: #fff;
+      border: 0.75pt solid #000;
+      border-bottom: none;
+      background: #ececec;
       font-weight: bold;
-      font-size: 9pt;
-      padding: 5pt 8pt;
+      font-size: 8pt;
+      padding: 3pt 6pt;
       text-transform: uppercase;
+      letter-spacing: 0.3pt;
+      page-break-after: avoid;
+    }
+
+    /* ─── TABEL BARANG ───────────────────────── */
+    .tbl-barang {
+      border: 0.75pt solid #000;
+      border-collapse: collapse;
+      margin-bottom: 8pt;
+    }
+    .tbl-barang th {
+      font-size: 8pt;
+      font-weight: bold;
+      text-align: center;
+      padding: 2.5pt 5pt;
+      border: 0.75pt solid #000;
+      background: #f3f3f3;
+    }
+    .tbl-barang td {
+      padding: 2.5pt 5pt;
+      border: 0.75pt solid #000;
+      vertical-align: top;
+      font-size: 8.5pt;
+      text-align: center;
+    }
+    .td-no    { width: 6%; }
+    .td-nama  { width: 34%; text-align: left !important; }
+    .td-batch { width: 24%; }
+    .td-qty   { width: 14%; }
+    .td-ket   { width: 22%; text-align: left !important; }
+    .tbl-barang tr.empty-row td { height: 16pt; }
+
+    /* ─── TABEL METODE ───────────────────────── */
+    .tbl-metode {
+      border: 0.75pt solid #000;
+      border-collapse: collapse;
       margin-bottom: 0;
     }
-
-    /* ── Info Table ─────────────────────────────── */
-    .tbl-info {
-      width: 100%;
-      border: 1pt solid #bbb;
-      border-top: none;
-      margin-bottom: 10pt;
-    }
-
-    .tbl-info td {
-      padding: 5pt 8pt;
-      border: 1pt solid #bbb;
-      vertical-align: top;
-      font-size: 8.5pt;
-    }
-
-    .lbl {
-      font-weight: bold;
-      color: #000;
-      background: #fff;
-      width: 35%;
-      white-space: nowrap;
-    }
-
-    .val {
-      width: 65%;
-    }
-
-    /* ── Tabel Barang ────────────────────────────── */
-    .tbl-barang {
-      width: 100%;
-      border: 1pt solid #bbb;
-      border-top: none;
-      margin-bottom: 10pt;
-    }
-
-    .tbl-barang th {
-      background: #dce6f5;
-      color: #000;
-      font-size: 8.5pt;
-      font-weight: bold;
-      text-align: center;
-      padding: 5pt 8pt;
-      border: 1pt solid #bbb;
-    }
-
-    .tbl-barang td {
-      padding: 5pt 8pt;
-      border: 1pt solid #bbb;
-      vertical-align: top;
-      font-size: 8.5pt;
-      text-align: center;
-    }
-
-    .tbl-barang td.td-no {
-      width: 6%;
-    }
-
-    .tbl-barang td.td-nama {
-      width: 34%;
-      text-align: left;
-    }
-
-    .tbl-barang td.td-batch {
-      width: 24%;
-    }
-
-    .tbl-barang td.td-qty {
-      width: 14%;
-    }
-
-    .tbl-barang td.td-ket {
-      width: 22%;
-      text-align: left;
-    }
-
-    .tbl-barang tr.empty-row td {
-      height: 22pt;
-    }
-
-    /* ── Metode ──────────────────────────────────── */
-    .tbl-metode {
-      width: 100%;
-      border: 1pt solid #bbb;
-      border-top: none;
-      margin-bottom: 10pt;
-    }
-
     .tbl-metode td {
-      padding: 5pt 8pt;
-      border: 1pt solid #bbb;
+      padding: 2.5pt 6pt;
+      border: 0.75pt solid #000;
       vertical-align: top;
       font-size: 8.5pt;
     }
-
     .mlbl {
       font-weight: bold;
-      color: #000;
-      background: #fff;
-      width: 35%;
+      width: 32%;
       white-space: nowrap;
+      background: #fafafa;
+    }
+    .mval { width: 68%; }
+
+    /* ─── TINDAK LANJUT ──────────────────────── */
+    .tindak-wrap {
+      border: 0.75pt solid #000;
+      border-top: none;
+      padding: 3pt 6pt;
+      margin-bottom: 8pt;
+      font-size: 8.5pt;
+    }
+    .tindak-label {
+      font-weight: bold;
+      margin-bottom: 3pt;
     }
 
-    .mval {
-      width: 65%;
-    }
-
-    /* ── Checkbox ────────────────────────────────── */
+    /* ─── CHECKBOX ───────────────────────────── */
     .cb {
       display: inline-block;
       width: 9pt;
       height: 9pt;
-      border: 1pt solid #333;
+      border: 0.75pt solid #000;
       text-align: center;
-      font-size: 7pt;
+      font-size: 8pt;
       line-height: 9pt;
+      padding-right: 1pt;
       margin-right: 3pt;
       vertical-align: middle;
+      overflow: hidden;
     }
+    .cb-label { margin-right: 12pt; vertical-align: middle; }
 
-    .cb-on {
-      background: #fff;
-      color: #000;
-      border-color: #333;
-    }
-
-    .cb-off {
-      background: #fff;
-      color: #fff;
-    }
-
-    .cb-label {
-      margin-right: 14pt;
-      vertical-align: middle;
-    }
-
-    /* ── Tindak Lanjut ───────────────────────────── */
-    .tindak-wrap {
-      border: 1pt solid #bbb;
-      border-top: none;
-      padding: 6pt 8pt;
-      margin-bottom: 10pt;
-      font-size: 8.5pt;
-    }
-
-    .tindak-label {
-      font-weight: bold;
-      margin-bottom: 5pt;
-    }
-
-    /* ── Pernyataan ──────────────────────────────── */
-    .pernyataan-box {
-      border: 1pt solid #bbb;
-      border-top: none;
-      padding: 8pt 10pt;
-      font-size: 8.5pt;
-      line-height: 1.6;
-      margin-bottom: 0;
-    }
-
-    /* ── Catatan Tambahan ────────────────────────── */
-    .catatan-box {
-      border: 1pt solid #bbb;
-      border-top: none;
-      padding: 6pt 10pt;
-      font-size: 8.5pt;
-      line-height: 1.6;
-      margin-bottom: 10pt;
-    }
-
-    /* ── Tanda Tangan ────────────────────────────── */
-    .tbl-ttd {
-      width: 100%;
-      border: 1pt solid #bbb;
-      margin-bottom: 6pt;
+    /* ─── PERNYATAAN ─────────────────────────── */
+    .sec-block {
+      margin-bottom: 8pt;
       page-break-inside: avoid;
     }
-
-    .tbl-ttd th {
-      background: #fff;
-      color: #000;
+    .pernyataan-box {
+      border: 0.75pt solid #000;
+      border-top: none;
+      padding: 4pt 8pt;
       font-size: 8.5pt;
-      padding: 5pt 6pt;
-      text-align: center;
-      border: 1pt solid #bbb;
-      font-weight: bold;
+      line-height: 1.65;
+      text-align: justify;
     }
 
-    .tbl-ttd td {
-      border: 1pt solid #bbb;
-      vertical-align: top;
+    /* ─── CATATAN ────────────────────────────── */
+    .catatan-box {
+      border: 0.75pt solid #000;
+      border-top: none;
+      padding: 3pt 8pt;
+      font-size: 8.5pt;
+      line-height: 1.6;
+    }
+    .catatan-spacer {
+      border: 0.75pt solid #000;
+      border-top: none;
+      height: 18pt;
+    }
+
+    /* ─── TANDA TANGAN ───────────────────────── */
+    .section-block-ttd { page-break-inside: avoid; margin-bottom: 8pt; }
+
+    .tbl-ttd {
+      border: 0.75pt solid #000;
+      border-top: none;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    .tbl-ttd th {
+      border: 0.75pt solid #000;
       text-align: center;
+      padding: 3.5pt 4pt;
+      font-size: 7.5pt;
+      font-weight: bold;
+      background: #f3f3f3;
+      width: 25%;
+    }
+    .tbl-ttd td {
+      border: 0.75pt solid #000;
+      text-align: center;
+      vertical-align: top;
       padding: 5pt 6pt;
       width: 25%;
     }
-
     .ttd-space {
-      height: 55pt;
-      border-bottom: 1pt solid #999;
-      margin: 3pt 10pt;
+      height: 44pt;
+      border-bottom: 0.75pt solid #aaa;
+      margin: 0 10pt 4pt 10pt;
     }
-
     .ttd-name {
-      font-size: 8pt;
+      font-size: 7.5pt;
       font-weight: bold;
       margin-top: 3pt;
-      min-height: 12pt;
+      min-height: 9pt;
     }
+    .ttd-role { font-size: 7pt; color: #333; margin-top: 2pt; }
 
-    .ttd-role {
-      font-size: 8pt;
-      color: #333;
-      margin-top: 2pt;
-    }
-
-    /* ── Footer bar ────────────────────────────── */
-    .footer-bar {
-      font-size: 7.5pt;
-      color: #333;
-      margin-top: 6pt;
-      text-align: left;
-    }
-
-    /* ── Lampiran Foto ───────────────────────────── */
-    .page-break {
-      page-break-before: always;
-    }
+    /* ─── LAMPIRAN FOTO ──────────────────────── */
+    .page-break { page-break-before: always; }
 
     .lamp-title {
-      font-size: 12pt;
+      font-size: 10pt;
       font-weight: bold;
       text-transform: uppercase;
       text-align: center;
-      margin-bottom: 10pt;
+      margin-bottom: 6pt;
       margin-top: 4pt;
+      letter-spacing: 0.3pt;
     }
 
     .tbl-foto {
-      width: 100%;
-      border: 1pt solid #bbb;
-      margin-bottom: 12pt;
+      border: 0.75pt solid #000;
+      border-collapse: collapse;
+      margin-bottom: 8pt;
+      page-break-inside: avoid;
     }
-
     .tbl-foto th {
-      background: #dce6f5;
       font-weight: bold;
-      font-size: 8.5pt;
-      color: #000;
+      font-size: 7.5pt;
       text-align: center;
-      padding: 5pt;
-      border: 1pt solid #bbb;
+      padding: 2.5pt 4pt;
+      border: 0.75pt solid #000;
       width: 33.3%;
+      background: #f3f3f3;
     }
-
     .tbl-foto td {
       width: 33.3%;
       vertical-align: top;
-      padding: 6pt;
-      border: 1pt solid #bbb;
+      padding: 4pt;
+      border: 0.75pt solid #000;
       text-align: center;
     }
 
     .foto-box {
       width: 100%;
-      min-height: 110pt;
-      border: 1.2pt dashed #bbb;
-      background: #f8f9fb;
+      min-height: 100pt;
+      border: 0.75pt dashed #999;
       text-align: center;
-      padding: 4pt;
-      margin-bottom: 5pt;
+      padding: 3pt;
+      margin-bottom: 3pt;
     }
+    .foto-box img { max-width: 100%; max-height: 100pt; }
 
-    .foto-box img {
-      max-width: 100%;
-      max-height: 110pt;
-    }
-
-    .foto-none {
-      color: #bbb;
-      font-size: 8pt;
-      padding-top: 34pt;
-      display: block;
-    }
-
-    .foto-caption {
-      font-size: 8pt;
-      color: #444;
-      margin-top: 3pt;
-    }
-
-    /* ── Misc ─────────────────────────────────────── */
-    .muted {
-      color: #888;
-      font-style: italic;
+    .foto-kosong {
       font-size: 7.5pt;
-    }
-
-    .mb8 {
-      margin-bottom: 8pt;
-    }
-
-    .blank {
       color: #999;
+      font-style: italic;
+      text-align: center;
+      height: 100pt;
+      display: table-cell;
+      vertical-align: middle;
+      width: 100%;
     }
+
+    .foto-caption { font-size: 7.5pt; color: #444; margin-top: 2pt; }
+    .lamp-kosong {
+      font-size: 8.5pt;
+      color: #555;
+      font-style: italic;
+      text-align: center;
+      padding: 16pt 0;
+      border: 0.75pt solid #ccc;
+    }
+    .muted { color: #777; font-style: italic; font-size: 7pt; }
   </style>
 </head>
-
 <body>
 
-  <!-- ═══════════════════════════════════════
-       HEADER
-  ═══════════════════════════════════════ -->
-  <table class="tbl-header">
-    <tr>
-      <td class="cell-logo">
-        {% if logo_base64 %}
+<!-- FOOTER SOURCE -->
+<div id="footer-source">
+  Dicetak: {{ generated_at.strftime('%d/%m/%Y %H:%M') if generated_at else '__/__/20__ __:__' }}
+  &nbsp;&nbsp;|&nbsp;&nbsp;
+  PT Sakti Pangan Perkasa &nbsp;·&nbsp; Berita Acara Pemusnahan dan Tukar Barang &nbsp;·&nbsp; Dokumen Rahasia
+</div>
+
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- HEADER                                          -->
+<!-- ═══════════════════════════════════════════════ -->
+<table class="tbl-header">
+  <tr>
+    <td class="cell-logo">
+      {% if logo_base64 %}
         <img src="data:image/png;base64,{{ logo_base64 }}" alt="Logo" />
-        {% else %}
-        <div class="logo-text">Sakti<span>Food</span></div>
-        {% endif %}
-      </td>
-
-      <td class="cell-title">
-        <div class="doc-title">Berita Acara</div>
-        <div class="doc-title">Pemusnahan dan Tukar Barang</div>
-      </td>
-
-      <td class="cell-meta">
-        <table class="tbl-meta">
-          <tr>
-            <td class="meta-label">No. Dokumen</td>
-            <td>{{ ba.nomor_dokumen | default('SPP/QC/FORM 26') }}</td>
-          </tr>
-          <tr>
-            <td class="meta-label">Revisi</td>
-            <td>{{ ba.revisi | default('00') }}</td>
-          </tr>
-          <tr>
-            <td class="meta-label">Tanggal</td>
-            <td>{{ ba.tanggal_dokumen | format_date if ba.tanggal_dokumen else '___/___/20__' }}</td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
+      {% else %}
+        <div class="logo-text">SaktiFood</div>
+      {% endif %}
+    </td>
+    <td class="cell-title">
+      <div class="doc-title">Berita Acara</div>
+      <div class="doc-title">Pemusnahan dan Tukar Barang</div>
+    </td>
+    <td class="cell-meta">
+      <table class="tbl-meta">
+        <tr><td class="meta-label">No. Dokumen</td><td>{{ ba.nomor_dokumen | default('SPP/QC/FORM 26') }}</td></tr>
+        <tr><td class="meta-label">Revisi</td><td>{{ ba.revisi | default('00') }}</td></tr>
+        <tr><td class="meta-label">Tanggal</td><td>{{ ba.tanggal_dokumen | format_date if ba.tanggal_dokumen else '___/___/20__' }}</td></tr>
+      </table>
+    </td>
+  </tr>
+</table>
 
 
-  <!-- ═══════════════════════════════════════
-       KALIMAT PEMBUKA
-  ═══════════════════════════════════════ -->
-  <p class="pembuka">
-    Pada hari ini,
-    <strong>{{ ba.hari | default('_______________') }}</strong>
-    tanggal
-    <strong>{{ ba.tanggal_pelaksanaan | format_date_long if ba.tanggal_pelaksanaan else '_____________ bulan _____________ tahun _____________' }}</strong>,
-    bertempat di
-    <strong>{{ ba.lokasi_pelaksanaan | default('_____________________________________________') }}</strong>,
-    telah dilaksanakan pemusnahan barang dengan rincian sebagai berikut:
-  </p>
+<!-- KALIMAT PEMBUKA -->
+<p class="pembuka">
+  Pada hari ini, <strong>{{ ba.hari | default('_______________') }}</strong>
+  tanggal <strong>{{ ba.tanggal_pelaksanaan | format_date_long if ba.tanggal_pelaksanaan else '_____________ bulan _____________ tahun _____________' }}</strong>,
+  bertempat di <strong>{{ ba.lokasi_pelaksanaan | default('_____________________________________________') }}</strong>,
+  telah dilaksanakan pemusnahan barang dengan rincian sebagai berikut:
+</p>
 
 
-  <!-- ═══════════════════════════════════════
-       A. INFORMASI KESELURUHAN (TABEL BARANG)
-  ═══════════════════════════════════════ -->
-  <div class="sec-header">A.&nbsp; Informasi Keseluruhan</div>
-  <table class="tbl-barang">
-    <tr>
-      <th style="width:6%;">No</th>
-      <th style="width:34%; text-align:left;">Nama Barang</th>
-      <th style="width:24%;">Batch No / ED</th>
-      <th style="width:14%;">Jumlah</th>
-      <th style="width:22%; text-align:left;">Keterangan</th>
-    </tr>
-
-    {% for item in items %}
-    <tr>
-      <td class="td-no">{{ loop.index }}</td>
-      <td class="td-nama">{{ item.nama_barang }}</td>
-      <td class="td-batch">{{ item.batch_no_ed | default('&nbsp;') }}</td>
-      <td class="td-qty">{{ item.jumlah | default('&nbsp;') }}</td>
-      <td class="td-ket">{{ item.keterangan | default('&nbsp;') }}</td>
-    </tr>
-    {% endfor %}
-
-    {# Baris kosong pelengkap sampai minimal 4 baris #}
-    {% for i in range([4 - items|length, 0]|max) %}
-    <tr class="empty-row">
-      <td class="td-no">{{ items|length + loop.index }}</td>
-      <td class="td-nama">&nbsp;</td>
-      <td class="td-batch">&nbsp;</td>
-      <td class="td-qty">&nbsp;</td>
-      <td class="td-ket">&nbsp;</td>
-    </tr>
-    {% endfor %}
-  </table>
+<!-- ═══════════════════════════════════════════════ -->
+<!-- A. INFORMASI KESELURUHAN                        -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="sec-header">A. &nbsp;Informasi Keseluruhan</div>
+<table class="tbl-barang">
+  <tr>
+    <th class="td-no">No</th>
+    <th class="td-nama" style="text-align:left;">Nama Barang</th>
+    <th class="td-batch">Batch No / ED</th>
+    <th class="td-qty">Jumlah</th>
+    <th class="td-ket" style="text-align:left;">Keterangan</th>
+  </tr>
+  {% for item in items %}
+  <tr>
+    <td class="td-no">{{ loop.index }}</td>
+    <td class="td-nama">{{ item.nama_barang }}</td>
+    <td class="td-batch">{{ item.batch_no_ed | default('-') }}</td>
+    <td class="td-qty">{{ item.jumlah | default('-') }}</td>
+    <td class="td-ket">{{ item.keterangan | default('-') }}</td>
+  </tr>
+  {% endfor %}
+  {% for i in range([4 - items|length, 0]|max) %}
+  <tr class="empty-row">
+    <td class="td-no">{{ items|length + loop.index }}</td>
+    <td class="td-nama">&nbsp;</td>
+    <td class="td-batch">&nbsp;</td>
+    <td class="td-qty">&nbsp;</td>
+    <td class="td-ket">&nbsp;</td>
+  </tr>
+  {% endfor %}
+</table>
 
 
-  <!-- ═══════════════════════════════════════
-       B. METODE & PELAKSANAAN PEMUSNAHAN
-  ═══════════════════════════════════════ -->
-  <div class="sec-header">B.&nbsp; Metode &amp; Pelaksanaan Pemusnahan</div>
-  <table class="tbl-metode">
+<!-- ═══════════════════════════════════════════════ -->
+<!-- B. METODE & PELAKSANAAN                         -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="sec-header">B. &nbsp;Metode &amp; Pelaksanaan Pemusnahan</div>
+<table class="tbl-metode">
+  <tr>
+    <td class="mlbl">Metode Pemusnahan</td>
+    <td class="mval">
+      {% set mt = ba.metode_pemusnahan | default('') %}
+      <span class="cb">{% if mt == 'dibakar' %}&#10003;{% endif %}</span><span class="cb-label">Dibakar</span>
+      <span class="cb">{% if mt == 'dihancurkan' %}&#10003;{% endif %}</span><span class="cb-label">Dihancurkan</span>
+      <span class="cb">{% if mt == 'dikembalikan_ho' %}&#10003;{% endif %}</span><span class="cb-label">Dikembalikan ke HO</span>
+      <span class="cb">{% if mt and mt not in ['dibakar','dihancurkan','dikembalikan_ho'] %}&#10003;{% endif %}</span><span class="cb-label">Lainnya{% if mt and mt not in ['dibakar','dihancurkan','dikembalikan_ho'] %}: {{ mt }}{% else %}: _______________{% endif %}</span>
+    </td>
+  </tr>
+  <tr>
+    <td class="mlbl">Lokasi Pemusnahan</td>
+    <td class="mval">{{ ba.lokasi_pemusnahan | default('-') }}</td>
+  </tr>
+  <tr>
+    <td class="mlbl">Tanggal Pelaksanaan</td>
+    <td class="mval">{{ ba.tanggal_pelaksanaan | format_date if ba.tanggal_pelaksanaan else '-' }}</td>
+  </tr>
+  <tr>
+    <td class="mlbl">Pihak Pelaksana</td>
+    <td class="mval">{{ ba.pihak_pelaksana | default('-') }}</td>
+  </tr>
+  <tr>
+    <td class="mlbl">Dokumentasi (Lampiran)</td>
+    <td class="mval">{{ ba.dokumentasi_lampiran | default('-') }}</td>
+  </tr>
+</table>
 
-    <!-- Metode Pemusnahan -->
-    <tr>
-      <td class="mlbl">Metode Pemusnahan</td>
-      <td class="mval">
-        {% set mt = ba.metode_pemusnahan | default('') %}
-
-        <span class="cb cb-{% if mt == 'dibakar' %}on{% else %}off{% endif %}">
-          {% if mt == 'dibakar' %}✓{% endif %}
-        </span><span class="cb-label"> Dibakar</span>
-
-        <span class="cb cb-{% if mt == 'dihancurkan' %}on{% else %}off{% endif %}">
-          {% if mt == 'dihancurkan' %}✓{% endif %}
-        </span><span class="cb-label"> Dihancurkan</span>
-
-        <span class="cb cb-{% if mt == 'dikembalikan_ho' %}on{% else %}off{% endif %}">
-          {% if mt == 'dikembalikan_ho' %}✓{% endif %}
-        </span><span class="cb-label"> Dikembalikan ke HO</span>
-
-        <span class="cb cb-{% if mt and mt not in ['dibakar','dihancurkan','dikembalikan_ho'] %}on{% else %}off{% endif %}">
-          {% if mt and mt not in ['dibakar','dihancurkan','dikembalikan_ho'] %}✓{% endif %}
-        </span><span class="cb-label"> Lainnya{% if mt and mt not in ['dibakar','dihancurkan','dikembalikan_ho'] %}: {{ mt }}{% else %}: _________________{% endif %}</span>
-      </td>
-    </tr>
-
-    <!-- Lokasi Pemusnahan -->
-    <tr>
-      <td class="mlbl">Lokasi Pemusnahan</td>
-      <td class="mval">{{ ba.lokasi_pemusnahan | default('&nbsp;') }}</td>
-    </tr>
-
-    <!-- Tanggal Pelaksanaan -->
-    <tr>
-      <td class="mlbl">Tanggal Pelaksanaan</td>
-      <td class="mval">{{ ba.tanggal_pelaksanaan | format_date if ba.tanggal_pelaksanaan else '&nbsp;' }}</td>
-    </tr>
-
-    <!-- Pihak Pelaksana -->
-    <tr>
-      <td class="mlbl">Pihak Pelaksana</td>
-      <td class="mval">{{ ba.pihak_pelaksana | default('&nbsp;') }}</td>
-    </tr>
-
-    <!-- Dokumentasi -->
-    <tr>
-      <td class="mlbl">Dokumentasi (Lampiran)</td>
-      <td class="mval">{{ ba.dokumentasi_lampiran | default('&nbsp;') }}</td>
-    </tr>
-  </table>
-
-  <!-- Tindakan Selanjutnya -->
-  <div class="tindak-wrap">
-    <div class="tindak-label">Tindakan selanjutnya :</div>
-
-    {% set tl = ba.tindak_lanjut | default('') %}
-
-    <span class="cb cb-{% if tl == 'penukaran_barang' %}on{% else %}off{% endif %}">
-      {% if tl == 'penukaran_barang' %}✓{% endif %}
-    </span><span class="cb-label"> Penukaran Barang</span>
-    <br style="margin-bottom:4pt;" />
-    <span class="cb cb-{% if tl == 'potong_tagihan' %}on{% else %}off{% endif %}">
-      {% if tl == 'potong_tagihan' %}✓{% endif %}
-    </span><span class="cb-label"> Potong tagihan</span>
-    <br style="margin-bottom:4pt;" />
-    <span class="cb cb-{% if tl == 'tanpa_kompensasi' %}on{% else %}off{% endif %}">
-      {% if tl == 'tanpa_kompensasi' %}✓{% endif %}
-    </span><span class="cb-label"> Tanpa Kompensasi</span>
-  </div>
+<!-- Tindak Lanjut -->
+<div class="tindak-wrap">
+  <div class="tindak-label">Tindakan selanjutnya :</div>
+  {% set tl = ba.tindak_lanjut | default('') %}
+  <span class="cb">{% if tl == 'penukaran_barang' %}&#10003;{% endif %}</span><span class="cb-label">Penukaran Barang</span>
+  <span class="cb">{% if tl == 'potong_tagihan' %}&#10003;{% endif %}</span><span class="cb-label">Potong Tagihan</span>
+  <span class="cb">{% if tl == 'tanpa_kompensasi' %}&#10003;{% endif %}</span><span class="cb-label">Tanpa Kompensasi</span>
+</div>
 
 
-  <!-- ═══════════════════════════════════════
-       C. PERNYATAAN
-  ═══════════════════════════════════════ -->
-  <div class="sec-header">C.&nbsp; Pernyataan</div>
+<!-- ═══════════════════════════════════════════════ -->
+<!-- C. PERNYATAAN                                   -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="sec-block">
+  <div class="sec-header">C. &nbsp;Pernyataan</div>
   <div class="pernyataan-box">
     Demikian Berita Acara ini dibuat dengan sebenarnya dan ditandatangani oleh pihak-pihak yang hadir dalam
     pelaksanaan pemusnahan barang tersebut.
   </div>
-
-  {# ── Catatan Tambahan (dari override.catatan_tambahan / Skenario A) ── #}
   {% if ba.catatan_tambahan %}
   <div class="catatan-box">
     <strong>Catatan:</strong> {{ ba.catatan_tambahan }}
   </div>
   {% else %}
-  <div style="border: 1pt solid #bbb; border-top: none; height: 8pt; margin-bottom: 10pt;"></div>
+  <div class="catatan-spacer"></div>
   {% endif %}
+</div>
 
 
-  <!-- ═══════════════════════════════════════
-       TANDA TANGAN
-  ═══════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════════ -->
+<!-- D. TANDA TANGAN                                 -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="section-block-ttd">
+  <div class="sec-header">D. &nbsp;Tanda Tangan / Persetujuan</div>
   <table class="tbl-ttd">
     <tr>
-      <th>Diajukan oleh,</th>
-      <th>Saksi I,</th>
-      <th>Saksi II,</th>
-      <th>Disetujui oleh,</th>
+      <th>Diajukan Oleh<br/><span style="font-weight:normal;font-size:6.5pt;">(Pelanggan)</span></th>
+      <th>Saksi I<br/><span style="font-weight:normal;font-size:6.5pt;">(Internal)</span></th>
+      <th>Saksi II<br/><span style="font-weight:normal;font-size:6.5pt;">(Eksternal)</span></th>
+      <th>Disetujui Oleh<br/><span style="font-weight:normal;font-size:6.5pt;">(Marketing)</span></th>
     </tr>
     <tr>
       <td>
         <div class="ttd-space"></div>
-        <div class="ttd-name">{{ ba.nama_pengaju | default('&nbsp;') }}</div>
-        <div class="ttd-role">Pelanggan</div>
+        <div class="ttd-name">{{ ba.nama_pengaju | default('') }}</div>
+        <div class="ttd-role">Tgl: {{ ba.tanggal_pelaksanaan | format_date if ba.tanggal_pelaksanaan else '__/__/20__' }}</div>
       </td>
       <td>
         <div class="ttd-space"></div>
-        <div class="ttd-name">{{ ba.nama_saksi_internal | default('&nbsp;') }}</div>
-        <div class="ttd-role">Saksi Internal</div>
+        <div class="ttd-name">{{ ba.nama_saksi_internal | default('') }}</div>
+        <div class="ttd-role">Tgl: __/__/20__</div>
       </td>
       <td>
         <div class="ttd-space"></div>
-        <div class="ttd-name">{{ ba.nama_saksi_eksternal | default('&nbsp;') }}</div>
-        <div class="ttd-role">Saksi Eksternal</div>
+        <div class="ttd-name">{{ ba.nama_saksi_eksternal | default('') }}</div>
+        <div class="ttd-role">Tgl: __/__/20__</div>
       </td>
       <td>
         <div class="ttd-space"></div>
-        <div class="ttd-name">{{ ba.nama_penyetuju | default('&nbsp;') }}</div>
-        <div class="ttd-role">Marketing</div>
+        <div class="ttd-name">{{ ba.nama_penyetuju | default('') }}</div>
+        <div class="ttd-role">Tgl: __/__/20__</div>
       </td>
     </tr>
   </table>
-
-  <div class="footer-bar">
-    Dicetak pada: {{ generated_at.strftime('%d/%m/%Y') if generated_at else '__/__/20__' }}
-    Pukul: {{ generated_at.strftime('%H:%M') if generated_at else '__:__' }}
-    &nbsp;&nbsp;|&nbsp;&nbsp;
-    PT Sakti Pangan Perkasa | FKP — Formulir Keluhan Pelanggan | Dokumen Berita Acara | Halaman: 1 dari 1
-  </div>
+</div>
 
 
-  <!-- ═══════════════════════════════════════
-       LAMPIRAN FOTO (halaman terpisah)
-       — Render hanya jika ada foto
-  ═══════════════════════════════════════ -->
-  {% if foto_list and foto_list | length > 0 %}
-  <div class="page-break">
+<!-- ═══════════════════════════════════════════════ -->
+<!-- LAMPIRAN FOTO                                   -->
+<!-- ═══════════════════════════════════════════════ -->
+{% if foto_list and foto_list | length > 0 %}
+<div class="page-break">
 
-    <div class="lamp-title">Lampiran Dokumentasi Foto</div>
+  <div class="lamp-title">Lampiran Dokumentasi Foto</div>
 
-    {# Kelompokkan foto per 3 kolom #}
-    {% set cols = 3 %}
-    {% for i in range(0, foto_list|length, cols) %}
-    <table class="tbl-foto">
-      <tr>
-        {% for j in range(cols) %}
-        {% set idx = i + j %}
+  {% set cols = 3 %}
+  {% for i in range(0, foto_list|length, cols) %}
+  <table class="tbl-foto">
+    <tr>
+      {% for j in range(cols) %}
+      {% set idx = i + j %}
+      {% if idx < foto_list|length %}
+      <th>{{ foto_list[idx].judul | default('Foto ' ~ (idx+1)) }}</th>
+      {% else %}
+      <th>&nbsp;</th>
+      {% endif %}
+      {% endfor %}
+    </tr>
+    <tr>
+      {% for j in range(cols) %}
+      {% set idx = i + j %}
+      <td>
         {% if idx < foto_list|length %}
-        <th>{{ foto_list[idx].judul | default('Foto ' ~ (idx+1)) }}</th>
-        {% else %}
-        <th>&nbsp;</th>
-        {% endif %}
-        {% endfor %}
-      </tr>
-      <tr>
-        {% for j in range(cols) %}
-        {% set idx = i + j %}
-        <td>
-          {% if idx < foto_list|length %}
           {% set foto = foto_list[idx] %}
+          {% if foto.base64 %}
           <div class="foto-box">
-            {% if foto.base64 %}
-            <img src="data:{{ foto.tipe_file | default('image/jpeg') }};base64,{{ foto.base64 }}"
-              alt="{{ foto.judul }}" />
-            {% else %}
-            <span class="foto-none">[ Tempel / Lampirkan Foto ]</span>
-            {% endif %}
+            <img src="data:{{ foto.tipe_file | default('image/jpeg') }};base64,{{ foto.base64 }}" alt="{{ foto.judul }}" />
           </div>
-          <div class="foto-caption">{{ foto.keterangan | default('') }}</div>
           {% else %}
-          <div class="foto-box"><span class="foto-none">&nbsp;</span></div>
+          <div class="foto-kosong">Tidak ada foto</div>
           {% endif %}
-        </td>
-        {% endfor %}
-      </tr>
-    </table>
-    {% endfor %}
+          <div class="foto-caption">{{ foto.keterangan | default('') }}</div>
+        {% else %}
+          <div class="foto-kosong">&nbsp;</div>
+        {% endif %}
+      </td>
+      {% endfor %}
+    </tr>
+  </table>
+  {% endfor %}
 
-    <div class="footer-bar">
-      PT Sakti Pangan Perkasa | FKP — Formulir Keluhan Pelanggan | Dokumen Berita Acara | Lampiran Foto
-    </div>
-
-  </div>
-  {% endif %}
+</div>
+{% endif %}
 
 </body>
-
 </html>

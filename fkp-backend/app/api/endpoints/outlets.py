@@ -1,180 +1,113 @@
 """
-Outlet Endpoints:
-  GET    /api/outlets/              → List outlet (filter by distributor)
-  POST   /api/outlets/              → Buat outlet baru
-  GET    /api/outlets/{id}          → Detail outlet
-  PUT    /api/outlets/{id}          → Update outlet
-  DELETE /api/outlets/{id}          → Nonaktifkan outlet
+Outlet Endpoints — HTTP layer saja.
+Semua business logic ada di outlet_service.py.
+
+── Endpoint ────────────────────────────────────────────────────────────────
+  GET    /api/outlets/                        → List outlet (scoped by role)
+  POST   /api/outlets/                        → Buat outlet baru
+  GET    /api/outlets/assignable-users        → Dropdown PIC untuk assign
+  GET    /api/outlets/{id}                    → Detail outlet
+  PUT    /api/outlets/{id}                    → Update outlet
+  DELETE /api/outlets/{id}                    → Nonaktifkan outlet
 """
 import uuid
 from typing import List, Optional
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user, get_current_user_with_role, require_roles
+from app.core.dependencies import (
+    get_current_user, get_current_user_with_role,
+    require_permission_dep, get_kode_role,
+)
 from app.models.outlet import Outlet
-from app.models.distributor import DistributorUser
-from app.models.sc_spv import ScSpvDistributor, ApsmScSpv
+from app.models.user import User
 from app.schemas.outlet import OutletCreate, OutletUpdate, OutletResponse
+from app.schemas.user import UserBriefResponse
+from app.services import outlet_service
 
 router = APIRouter()
 
 
-@router.get("/", response_model=List[OutletResponse], summary="List outlet (difilter by role)")
+@router.get("/", response_model=List[OutletResponse])
 async def list_outlets(
     distributor_id: Optional[uuid.UUID] = Query(default=None),
     status: Optional[str] = Query(default=None),
     db: AsyncSession = Depends(get_db),
     auth=Depends(get_current_user_with_role),
 ):
-    """
-    Mengembalikan daftar outlet sesuai role pengguna.
- 
-    | Role                                                   | Data yang dikembalikan                              |
-    |--------------------------------------------------------|-----------------------------------------------------|
-    | superadmin / admin_ho / qc / rsm / direktur / finance | Semua outlet                                        |
-    | apsm                                                   | Outlet dari distributor yang dikelola sc_spv-nya    |
-    | sc_spv                                                 | Outlet dari distributor yang dia handle             |
-    | distributor                                            | Outlet dari distributor tempat dia terdaftar        |
-    | outlet                                                 | Hanya outlet miliknya sendiri (via pic_user_id)     |
-    """
     user, kode_role = auth
- 
-    query = select(Outlet)
- 
-    # ── Role dengan akses penuh ──────────────────────────────────────────────
-    if kode_role in ("superadmin", "admin_ho", "qc", "rsm", "direktur", "finance"):
-        pass  # Tidak ada pembatasan — lanjut ke filter opsional
- 
-    # ── Outlet: hanya outlet miliknya sendiri ────────────────────────────────
-    elif kode_role == "outlet":
-        query = query.where(Outlet.pic_user_id == user.id)
- 
-    # ── Distributor: outlet dari distributor tempat dia terdaftar ────────────
-    elif kode_role == "distributor":
-        du_result = await db.execute(
-            select(DistributorUser.distributor_id).where(
-                DistributorUser.user_id == user.id
-            )
-        )
-        dist_ids = du_result.scalars().all()
-        if not dist_ids:
-            return []
-        query = query.where(Outlet.distributor_id.in_(dist_ids))
- 
-    # ── SC/SPV: outlet dari distributor yang dia handle ──────────────────────
-    elif kode_role == "sc_spv":
-        dist_result = await db.execute(
-            select(ScSpvDistributor.distributor_id).where(
-                ScSpvDistributor.sc_spv_user_id == user.id
-            )
-        )
-        dist_ids = dist_result.scalars().all()
-        if not dist_ids:
-            return []
-        query = query.where(Outlet.distributor_id.in_(dist_ids))
- 
-    # ── APSM: outlet dari distributor yang dikelola sc_spv bawahannya ────────
-    elif kode_role == "apsm":
-        sc_result = await db.execute(
-            select(ApsmScSpv.sc_spv_user_id).where(
-                ApsmScSpv.apsm_user_id == user.id
-            )
-        )
-        sc_spv_ids = sc_result.scalars().all()
-        if not sc_spv_ids:
-            return []
-        dist_result = await db.execute(
-            select(ScSpvDistributor.distributor_id).where(
-                ScSpvDistributor.sc_spv_user_id.in_(sc_spv_ids)
-            )
-        )
-        dist_ids = dist_result.scalars().all()
-        if not dist_ids:
-            return []
-        query = query.where(Outlet.distributor_id.in_(dist_ids))
- 
-    else:
-        raise HTTPException(status_code=403, detail=f"Role '{kode_role}' tidak diizinkan mengakses data outlet.")
- 
-    # ── Filter opsional ──────────────────────────────────────────────────────
-    if distributor_id:
-        query = query.where(Outlet.distributor_id == distributor_id)
-    if status:
-        query = query.where(Outlet.status == status)
- 
-    result = await db.execute(query.order_by(Outlet.nama_toko))
-    return result.scalars().all()
+    return await outlet_service.list_outlets(
+        db=db,
+        user=user,
+        kode_role=kode_role,
+        distributor_id=distributor_id,
+        status=status,
+    )
 
 
-@router.post("/", response_model=OutletResponse, status_code=201, summary="Buat outlet baru")
+@router.post("/", response_model=OutletResponse, status_code=201)
 async def create_outlet(
     data: OutletCreate,
     db: AsyncSession = Depends(get_db),
     auth=Depends(get_current_user_with_role),
-    current_user=Depends(require_roles("superadmin", "admin_ho", "apsm", "sc_spv", "distributor")),
+    _=Depends(require_permission_dep("outlet.manage")),
 ):
     user, kode_role = auth
-    print(f"DEBUG kode_role: '{kode_role}'")  # lihat di log server
-    # Cek kode_outlet unik
-    existing = await db.execute(select(Outlet).where(Outlet.kode_outlet == data.kode_outlet))
-    if existing.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail=f"Kode outlet '{data.kode_outlet}' sudah digunakan.")
-
-    outlet = Outlet(**data.model_dump())
-    db.add(outlet)
-    await db.commit()
-    await db.refresh(outlet)
-    return outlet
+    return await outlet_service.create_outlet(
+        data=data, user=user, kode_role=kode_role, db=db,
+    )
 
 
-@router.get("/{outlet_id}", response_model=OutletResponse, summary="Detail outlet")
+@router.get("/assignable-users", response_model=List[UserBriefResponse])
+async def list_assignable_pic_users(
+    distributor_id: uuid.UUID = Query(..., description="Distributor tujuan outlet"),
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_permission_dep("outlet.assignable_users.read")),
+):
+    """
+    List user yang bisa di-assign sebagai PIC outlet untuk distributor tertentu.
+    Dipakai FE untuk populate dropdown saat buat/edit outlet.
+    Hanya admin_ho dan superadmin yang bisa memanggil endpoint ini.
+    """
+    return await outlet_service.get_assignable_pic_users(
+        distributor_id=distributor_id, db=db,
+    )
+
+
+@router.get("/{outlet_id}", response_model=OutletResponse)
 async def get_outlet(
     outlet_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user),
+    _=Depends(get_current_user),
 ):
-    result = await db.execute(select(Outlet).where(Outlet.id == outlet_id))
-    outlet = result.scalar_one_or_none()
-    if not outlet:
-        raise HTTPException(status_code=404, detail="Outlet tidak ditemukan.")
-    return outlet
+    return await outlet_service.get_outlet_or_404(outlet_id, db)
 
 
-@router.put("/{outlet_id}", response_model=OutletResponse, summary="Update outlet")
+@router.put("/{outlet_id}", response_model=OutletResponse)
 async def update_outlet(
     outlet_id: uuid.UUID,
     data: OutletUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles("superadmin", "admin_ho", "apsm", "sc_spv", "distributor")),
+    auth=Depends(get_current_user_with_role),
+    _=Depends(require_permission_dep("outlet.manage")),
 ):
-    result = await db.execute(select(Outlet).where(Outlet.id == outlet_id))
-    outlet = result.scalar_one_or_none()
-    if not outlet:
-        raise HTTPException(status_code=404, detail="Outlet tidak ditemukan.")
-    for k, v in data.model_dump(exclude_none=True).items():
-        setattr(outlet, k, v)
-    outlet.updated_at = datetime.now(timezone.utc)
-    db.add(outlet)
-    await db.commit()
-    await db.refresh(outlet)
-    return outlet
+    user, kode_role = auth
+    return await outlet_service.update_outlet(
+        outlet_id=outlet_id, data=data, user=user, kode_role=kode_role, db=db,
+    )
 
 
-@router.delete("/{outlet_id}", summary="Nonaktifkan outlet")
+@router.delete("/{outlet_id}")
 async def deactivate_outlet(
     outlet_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles("superadmin", "admin_ho")),
+    _=Depends(require_permission_dep("outlet.deactivate")),
 ):
-    result = await db.execute(select(Outlet).where(Outlet.id == outlet_id))
-    outlet = result.scalar_one_or_none()
-    if not outlet:
-        raise HTTPException(status_code=404, detail="Outlet tidak ditemukan.")
+    outlet = await outlet_service.get_outlet_or_404(outlet_id, db)
+    from datetime import datetime, timezone
     outlet.status = "nonaktif"
     outlet.updated_at = datetime.now(timezone.utc)
     db.add(outlet)

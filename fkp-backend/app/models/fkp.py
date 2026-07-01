@@ -147,11 +147,14 @@ class TipeDokumen:
     FOTO_KELUHAN        = "foto_keluhan"         # foto produk bermasalah saat pengajuan
     FOTO_SAMPLE         = "foto_sample"          # foto sample yang dikirim ke QC
     FOTO_INVESTIGASI    = "foto_investigasi"     # foto hasil investigasi QC
+    FOTO_EXPIRED        = "foto_expired"         # foto produk yang sudah kadaluarsa
+    FOTO_KODE_PRODUKSI  = "foto_kode_produksi"   # foto kode produksi / BTN
+    
  
     # ── Resolusi — tukar barang ───────────────────────────
-    SURAT_JALAN         = "surat_jalan"          # surat jalan pengiriman barang pengganti
-    FOTO_SERAH_TERIMA   = "foto_serah_terima"    # foto serah terima barang
-    BERITA_ACARA_PENUKARAN = "berita_acara_penukaran"
+    SURAT_JALAN             = "surat_jalan"          # surat jalan pengiriman barang pengganti
+    FOTO_SERAH_TERIMA       = "foto_serah_terima"    # foto serah terima barang
+    BERITA_ACARA_PENUKARAN  = "berita_acara_penukaran"
  
     # ── Resolusi — potong tagihan ─────────────────────────
     INVOICE_TERPOTONG   = "invoice_terpotong"    # invoice yang sudah dipotong tagihan
@@ -159,7 +162,7 @@ class TipeDokumen:
     NOTA_RETUR          = "nota_retur"           # nota retur produk
  
     # ── Resolusi — pemusnahan ─────────────────────────────
-    FOTO_PEMUSNAHAN     = "foto_pemusnahan"      # foto dokumentasi proses pemusnahan
+    FOTO_PEMUSNAHAN         = "foto_pemusnahan"      # foto dokumentasi proses pemusnahan
     BERITA_ACARA_PEMUSNAHAN = "berita_acara_pemusnahan"
  
     # ── Dokumen umum ─────────────────────────────────────
@@ -168,7 +171,7 @@ class TipeDokumen:
     DOKUMEN_LAINNYA     = "dokumen_lainnya"      # catch-all untuk dokumen lain
  
     ALL = [
-        FOTO_KELUHAN, FOTO_SAMPLE, FOTO_INVESTIGASI,
+        FOTO_KELUHAN, FOTO_SAMPLE, FOTO_INVESTIGASI, FOTO_EXPIRED, FOTO_KODE_PRODUKSI,
         SURAT_JALAN, FOTO_SERAH_TERIMA, BERITA_ACARA_PENUKARAN,
         INVOICE_TERPOTONG, BUKTI_TRANSFER, NOTA_RETUR,
         FOTO_PEMUSNAHAN, BERITA_ACARA_PEMUSNAHAN,

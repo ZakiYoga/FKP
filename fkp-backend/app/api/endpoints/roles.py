@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.models.user import User
-from app.core.dependencies import require_roles
+from app.core.dependencies import require_permission_dep
 
 router = APIRouter()
 
@@ -35,7 +35,7 @@ class RoleResponse(BaseModel):
 )
 async def list_roles(
     db: AsyncSession = Depends(get_db),
-    current_user : User = Depends(require_roles("superadmin")),
+    current_user : User = Depends(require_permission_dep("role.read")),
 ):
     from app.models.role import Role
     result = await db.execute(

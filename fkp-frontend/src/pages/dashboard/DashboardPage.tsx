@@ -9,7 +9,7 @@ import { useFkpList } from '@/hooks/useFkp'
 import { computeStats } from '@/api/dashboard'
 import { useCurrentUser, useKodeRole } from '@/store/authStore'
 import { PageLoader } from '@/components/ui/Spinner'
-import { StatusBadge, PriorittasBadge } from '@/components/ui/Badge'
+import { StatusBadge, PrioritasBadge } from '@/components/ui/Badge'
 import { formatRelative } from '@/lib/utils'
 import { FKP_STATUS_LABEL, FKP_PRIORITAS_LABEL } from '@/types'
 import type { FkpStatusKey, FkpPrioritas } from '@/types'
@@ -333,7 +333,7 @@ export function DashboardPage() {
                   >
                     <td className="px-5 py-3.5 font-mono text-xs text-gray-500">{fkp.nomor_fkp}</td>
                     <td className="px-5 py-3.5 text-gray-800 font-medium truncate max-w-50">{fkp.jenis_keluhan}</td>
-                    <PriorittasBadge prioritas={fkp.prioritas as FkpPrioritas} />
+                    <PrioritasBadge prioritas={fkp.prioritas as FkpPrioritas} />
                     <td className="px-5 py-3.5"><StatusBadge status={fkp.status} /></td>
                     <td className="px-5 py-3.5 text-gray-400 text-xs">{formatRelative(fkp.created_at)}</td>
                     <td className="px-5 py-3.5">

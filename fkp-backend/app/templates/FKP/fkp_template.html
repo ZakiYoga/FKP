@@ -1,589 +1,718 @@
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
   <meta charset="UTF-8" />
   <title>FKP – {{ fkp.nomor_fkp }}</title>
   <style>
-    /* ── Reset ──────────────────────────────────── */
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
     body {
       font-family: Arial, Helvetica, sans-serif;
-      font-size: 9pt;
-      color: #1a1a1a;
+      font-size: 8.5pt;
+      color: #000;
+      line-height: 1.3;
     }
 
-    /* ── Page (xhtml2pdf @page) ─────────────────── */
+    /* ─── PAGE SETUP ─────────────────────────── */
     @page {
       size: A4;
-      margin: 15mm 14mm 18mm 14mm;
+      margin: 14mm 14mm 22mm 14mm;
+
+      @bottom-left {
+        content: string(footer-left);
+        font-size: 6.5pt;
+        color: #555;
+        font-family: Arial, Helvetica, sans-serif;
+        border-top: 0.5pt solid #999;
+        padding-top: 3pt;
+        white-space: nowrap;
+      }
+
+      @bottom-right {
+        content: "Hal. " counter(page) " / " counter(pages);
+        font-size: 6.5pt;
+        color: #555;
+        font-family: Arial, Helvetica, sans-serif;
+        border-top: 0.5pt solid #999;
+        padding-top: 3pt;
+        white-space: nowrap;
+      }
     }
 
-    /* ── Tables ─────────────────────────────────── */
-    table { border-collapse: collapse; }
+    #footer-source {
+      position: running(footer-left);
+      font-size: 6.5pt;
+      color: #555;
+    }
 
-    /* ── Header ─────────────────────────────────── */
-    .tbl-header {
+    table {
+      border-collapse: collapse;
       width: 100%;
-      border: 1.5pt solid #000;
-      margin-bottom: 10pt;
     }
-    .tbl-header td { vertical-align: middle; }
+
+    /* ─── HEADER ─────────────────────────────── */
+    .tbl-header {
+      border: 0.75pt solid #000;
+      margin-bottom: 6pt;
+    }
+
+    .tbl-header td {
+      vertical-align: middle;
+    }
 
     .cell-logo {
-      width: 110pt;
-      padding: 6pt 8pt;
-      border-right: 1.5pt solid #000;
+      width: 90pt;
+      padding: 4pt 6pt;
+      border-right: 0.75pt solid #000;
       text-align: center;
     }
+
     .cell-logo img {
-      max-width: 100pt;
-      max-height: 40pt;
+      max-width: 80pt;
+      max-height: 30pt;
     }
+
     .logo-text {
-      font-size: 13pt;
+      font-size: 11pt;
       font-weight: bold;
-      color: #e28b00;
     }
-    .logo-text span { color: #068c01; }
 
     .cell-title {
       text-align: center;
-      padding: 6pt 10pt;
-      border-right: 1.5pt solid #000;
+      padding: 4pt 8pt;
+      border-right: 0.75pt solid #000;
     }
+
     .doc-title {
-      font-size: 13pt;
+      font-size: 10pt;
       font-weight: bold;
-      color: #000;
       text-transform: uppercase;
+      letter-spacing: 0.5pt;
     }
+
     .doc-subtitle {
-      font-size: 9pt;
-      color: #333;
-      margin-top: 2pt;
+      font-size: 7.5pt;
+      color: #444;
+      margin-top: 1pt;
     }
 
     .cell-meta {
-      width: 130pt;
+      width: 160pt;
       vertical-align: top;
       padding: 0;
     }
-    .tbl-meta {
-      width: 100%;
-    }
+
     .tbl-meta td {
-      padding: 4pt 6pt;
-      font-size: 8.5pt;
-      border-bottom: 1pt solid #000;
+      padding: 2.5pt 4pt;
+      font-size: 7.5pt;
+      border-bottom: 0.75pt solid #000;
       vertical-align: middle;
     }
-    .tbl-meta tr:last-child td { border-bottom: none; }
-    .meta-label {
-      font-weight: bold;
-      color: #000;
-      background: #fff;
-      width: 70pt;
-      white-space: nowrap;
-      border-right: 1pt solid #000;
+
+    .tbl-meta tr:last-child td {
+      border-bottom: none;
     }
 
-    /* ── Section Header ─────────────────────────── */
-    .sec-header {
-      background: #2c5fa3;
-      color: #fff;
+    .meta-label {
       font-weight: bold;
-      font-size: 9pt;
-      padding: 5pt 8pt;
+      width: 58pt;
+      white-space: nowrap;
+      border-right: 0.75pt solid #000;
+    }
+
+    /* ─── SECTION BLOCKS ─────────────────────── */
+    .section-block,
+    .section-block-produk,
+    .section-block-ttd {
+      display: block;
+      margin-top: 0;
+      margin-bottom: 8pt;
+    }
+
+    .section-block {
+      page-break-inside: avoid;
+    }
+
+    .section-block-ttd {
+      page-break-inside: avoid;
+    }
+
+    /* ─── SECTION HEADER ─────────────────────── */
+    .sec-header {
+      border: 0.75pt solid #000;
+      background: #ececec;
+      font-weight: bold;
+      font-size: 8pt;
+      padding: 3pt 6pt;
       text-transform: uppercase;
+      letter-spacing: 0.3pt;
+      page-break-after: avoid;
       margin-bottom: 0;
     }
 
-    /* ── Info Table ─────────────────────────────── */
+    /* ─── INFO TABLE ─────────────────────────── */
     .tbl-info {
-      width: 100%;
-      border: 1pt solid #bbb;
+      border: 0.75pt solid #000;
       border-top: none;
-      margin-bottom: 10pt;
+      table-layout: fixed;
+      border-collapse: collapse;
     }
+
     .tbl-info td {
-      padding: 5pt 8pt;
-      border: 1pt solid #bbb;
+      padding: 2.5pt 6pt;
+      border: 0.75pt solid #000;
       vertical-align: top;
       font-size: 8.5pt;
     }
+
     .lbl {
       font-weight: bold;
-      color: #000;
-      background: #fff;
-      width: 35%;
+      width: 30%;
       white-space: nowrap;
+      background: #fafafa;
     }
-    .val { width: 65%; }
 
-    /* ── Produk Block ────────────────────────────── */
+    .val {
+      width: 70%;
+    }
+
+    /* ─── PRODUK BLOCK ───────────────────────── */
     .produk-wrap {
-      border: 1pt solid #bbb;
+      border-left: 0.75pt solid #000;
+      border-right: 0.75pt solid #000;
+      border-bottom: 0.75pt solid #000;
       border-top: none;
-      margin-bottom: 10pt;
       page-break-inside: avoid;
+      display: block;
+      margin-bottom: 0;
     }
+
     .produk-head {
-      background: #fff;
-      color: #000;
       font-weight: bold;
-      font-size: 9pt;
-      padding: 5pt 8pt;
-      border-bottom: 1pt solid #bbb;
-      border-top: 1pt solid #bbb;
+      font-size: 8pt;
+      padding: 2.5pt 6pt;
+      border-bottom: 0.75pt solid #000;
+      border-top: 0.75pt solid #000;
+      background: #f5f5f5;
     }
+
     .tbl-produk {
-      width: 100%;
+      table-layout: fixed;
+      border-top: none;
+      border-collapse: collapse;
     }
+
     .tbl-produk td {
-      padding: 5pt 8pt;
-      border: 1pt solid #bbb;
+      padding: 2.5pt 6pt;
+      border: 0.75pt solid #000;
       vertical-align: top;
       font-size: 8.5pt;
     }
+
     .plbl {
       font-weight: bold;
-      color: #000;
-      background: #fff;
-      width: 30%;
+      width: 18%;
       white-space: nowrap;
+      background: #fafafa;
     }
-    .pval { width: 37%; }
+
+    .pval {
+      width: 38%;
+    }
+
     .hlbl {
       font-weight: bold;
-      color: #000;
-      background: #fff;
-      width: 17%;
+      width: 18%;
       white-space: nowrap;
+      background: #fafafa;
     }
-    .hval { width: 16%; }
 
-    /* ── Checkbox ────────────────────────────────── */
+    .hval {
+      width: 16%;
+    }
+
+    /* ─── CHECKBOX ───────────────────────────── */
     .cb {
       display: inline-block;
       width: 9pt;
       height: 9pt;
-      border: 1pt solid #333;
+      border: 0.75pt solid #000;
       text-align: center;
-      font-size: 7pt;
-      line-height: 9pt;
-      margin-right: 3pt;
+      font-size: 13pt;
+      line-height: 3pt;
+      text-indent: -2pt;
+      margin-right: 5pt;
       vertical-align: middle;
     }
-    .cb-on  { background: #fff; color: #000; border-color: #333; }
-    .cb-off { background: #fff; color: #fff; }
-    .cb-label { margin-right: 12pt; vertical-align: middle; }
 
-    /* ── Tanda Tangan ────────────────────────────── */
+    .cb-label {
+      margin-right: 11pt;
+      vertical-align: middle;
+    }
+
+    /* ─── TANDA TANGAN ───────────────────────── */
     .tbl-ttd {
       width: 100%;
-      border: 1pt solid #bbb;
+      border: 0.75pt solid #000;
       border-top: none;
-      margin-bottom: 6pt;
-      page-break-inside: avoid;
+      border-collapse: collapse;
+      table-layout: fixed;
     }
+
     .tbl-ttd th {
-      background: #fff;
-      color: #000;
-      font-size: 8.5pt;
-      padding: 5pt 6pt;
+      border: 0.75pt solid #000;
       text-align: center;
-      border: 1pt solid #bbb;
+      padding: 3.5pt 4pt;
+      font-size: 7.5pt;
       font-weight: bold;
+      background: #f3f3f3;
+      width: 25%;
     }
+
     .tbl-ttd td {
-      border: 1pt solid #bbb;
-      vertical-align: top;
+      border: 0.75pt solid #000;
       text-align: center;
+      vertical-align: top;
       padding: 5pt 6pt;
       width: 25%;
     }
+
     .ttd-space {
-      height: 55pt;
-      border-bottom: 1pt solid #999;
-      margin: 3pt 10pt;
+      height: 44pt;
+      border-bottom: 0.75pt solid #aaa;
+      margin: 0 10pt 4pt 10pt;
     }
+
     .ttd-name {
-      font-size: 8pt;
+      font-size: 7.5pt;
       font-weight: bold;
       margin-top: 3pt;
-      min-height: 12pt;
+      min-height: 9pt;
     }
-    .ttd-date { font-size: 8pt; color: #333; margin-top: 2pt; }
 
-    /* ── Footer bar ────────────────────────────── */
-    .footer-bar {
-      font-size: 7.5pt;
+    .ttd-date {
+      font-size: 7pt;
       color: #333;
-      margin-top: 6pt;
-      text-align: left;
+      margin-top: 2pt;
     }
 
-    /* ── Lampiran ─────────────────────────────────── */
-    .page-break { page-break-before: always; }
+    /* ─── LAMPIRAN ───────────────────────────── */
+    .page-break {
+      page-break-before: always;
+    }
 
     .lamp-title {
-      font-size: 12pt;
+      font-size: 9pt;
       font-weight: bold;
       text-transform: uppercase;
       text-align: center;
-      margin-bottom: 10pt;
-      margin-top: 4pt;
+      margin-bottom: 4pt;
+      margin-top: 2pt;
     }
 
     .lamp-prod-header {
       font-weight: bold;
-      font-size: 9pt;
-      color: #000;
-      margin: 8pt 0 4pt 0;
-      padding-bottom: 2pt;
+      font-size: 7.5pt;
+      margin: 4pt 0 1.5pt 0;
+      border-bottom: 0.75pt solid #000;
+      padding-bottom: 1.5pt;
+      page-break-after: avoid;
     }
 
     .tbl-foto {
+      border: 0.75pt solid #000;
+      border-collapse: collapse;
+      margin-bottom: 0;
+      table-layout: fixed;
       width: 100%;
-      border: 1pt solid #bbb;
-      margin-bottom: 12pt;
     }
+
     .tbl-foto th {
-      background: #fff;
       font-weight: bold;
-      font-size: 8.5pt;
-      color: #000;
+      font-size: 7pt;
       text-align: center;
-      padding: 5pt;
-      border: 1pt solid #bbb;
-      width: 33.3%;
+      padding: 2pt 3pt;
+      border: 0.75pt solid #000;
+      width: 33.33%;
+      background: #f3f3f3;
     }
+
     .tbl-foto td {
-      width: 33.3%;
+      width: 33.33%;
       vertical-align: top;
-      padding: 6pt;
-      border: 1pt solid #bbb;
+      padding: 3pt;
+      border: 0.75pt solid #000;
       text-align: center;
     }
 
-    .foto-box {
+    .foto-img-wrap {
       width: 100%;
-      min-height: 100pt;
-      border: 1.2pt dashed #bbb;
-      background: #f8f9fb;
       text-align: center;
-      padding: 4pt;
-      margin-bottom: 5pt;
-    }
-    .foto-box img {
-      max-width: 100%;
-      max-height: 100pt;
-    }
-    .foto-none {
-      color: #bbb;
-      font-size: 8pt;
-      padding-top: 30pt;
-      display: block;
+      border: 0.75pt dashed #bbb;
+      padding: 2pt;
+      margin-bottom: 2pt;
     }
 
-    .tbl-fotometa { width: 100%; font-size: 8pt; }
+    .foto-img-wrap img {
+      max-width: 100%;
+      height: 155pt;
+      object-fit: contain;
+      display: block;
+      margin: 0 auto;
+    }
+
+    .tbl-fotometa {
+      font-size: 6.5pt;
+      width: 100%;
+      margin-bottom: 4pt;
+    }
+
     .tbl-fotometa td {
-      padding: 2pt 4pt;
-      border: 1pt solid #ddd;
+      padding: 1pt 2pt;
+      border: 0.75pt solid #ddd;
       vertical-align: top;
       text-align: left;
     }
-    .fmlbl { font-weight: bold; width: 42%; color: #000; }
 
-    /* ── Misc ─────────────────────────────────────── */
-    .muted { color: #888; font-style: italic; font-size: 7.5pt; }
-    .mb8 { margin-bottom: 8pt; }
+    .fmlbl {
+      font-weight: bold;
+      width: 40%;
+    }
+
+    .muted {
+      color: #777;
+      font-style: italic;
+      font-size: 6.5pt;
+    }
+
+    .foto-kosong {
+      font-size: 7pt;
+      color: #bbb;
+      font-style: italic;
+      text-align: center;
+      padding: 8pt 0;
+    }
+
+    .lamp-kosong {
+      font-size: 8pt;
+      color: #555;
+      font-style: italic;
+      text-align: center;
+      padding: 12pt 0;
+      border: 0.75pt solid #ccc;
+    }
   </style>
 </head>
+
 <body>
 
-<!-- ═══════════════════════════════════════
-     HEADER
-═══════════════════════════════════════ -->
-<table class="tbl-header">
-  <tr>
-    <td class="cell-logo">
-      {% if logo_base64 %}
+  <!-- Footer running element — tidak terlihat di halaman, hanya untuk @page -->
+  <div id="footer-source">
+    Dicetak: {{ generated_at.strftime('%d/%m/%Y %H:%M') if generated_at else '__/__/20__ __:__' }}
+    &nbsp;&nbsp;|&nbsp;&nbsp;
+    PT Sakti Pangan Perkasa &nbsp;·&nbsp; FKP – Formulir Keluhan Pelanggan &nbsp;·&nbsp; Dokumen Rahasia
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- HEADER                                          -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <table class="tbl-header">
+    <tr>
+      <td class="cell-logo">
+        {% if logo_base64 %}
         <img src="data:image/png;base64,{{ logo_base64 }}" alt="Logo" />
-      {% else %}
-        <div class="logo-text">Sakti<span>Food</span></div>
-      {% endif %}
-    </td>
+        {% else %}
+        <div class="logo-text">SaktiFood</div>
+        {% endif %}
+      </td>
+      <td class="cell-title">
+        <div class="doc-title">Formulir Keluhan Pelanggan</div>
+        <div class="doc-subtitle">Customer Complaint Form</div>
+      </td>
+      <td class="cell-meta">
+        <table class="tbl-meta">
+          <tr>
+            <td class="meta-label">No. Dokumen</td>
+            <td>SPP/QC/FORM 24</td>
+          </tr>
+          <tr>
+            <td class="meta-label">Revisi</td>
+            <td>00</td>
+          </tr>
+          <tr>
+            <td class="meta-label">Tanggal</td>
+            <td>{{ fkp.tanggal_pengajuan | format_date if fkp.tanggal_pengajuan else '___/___/20__' }}</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 
-    <td class="cell-title">
-      <div class="doc-title">Formulir Keluhan Pelanggan</div>
-      <div class="doc-subtitle">Customer Complaint Form</div>
-    </td>
 
-    <td class="cell-meta">
-      <table class="tbl-meta">
-        <tr><td class="meta-label">No. Dokumen</td><td>SPP/QC/FORM 24</td></tr>
-        <tr><td class="meta-label">Revisi</td><td>00</td></tr>
-        <tr><td class="meta-label">Tanggal</td><td>{{ fkp.tanggal_pengajuan | format_date if fkp.tanggal_pengajuan else '___/___/20__' }}</td></tr>
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- A. INFORMASI OUTLET / PELANGGAN                 -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div class="section-block">
+    <div class="sec-header">A. &nbsp;Informasi Outlet / Pelanggan</div>
+    <table class="tbl-info">
+      <tr>
+        <td class="lbl">Tanggal Keluhan</td>
+        <td class="val">{{ fkp.tanggal_pengajuan | format_date if fkp.tanggal_pengajuan else '-' }}</td>
+      </tr>
+      <tr>
+        <td class="lbl">Nama Pelanggan</td>
+        <td class="val">{{ outlet.nama_toko if outlet and outlet.nama_toko else '-' }}</td>
+      </tr>
+      <tr>
+        <td class="lbl">Alamat Lengkap</td>
+        <td class="val">{{ outlet.alamat_lengkap if outlet and outlet.alamat_lengkap else '-' }}</td>
+      </tr>
+      <tr>
+        <td class="lbl">No. Telepon</td>
+        <td class="val">{{ outlet.no_hp if outlet and outlet.no_hp else '-' }}</td>
+      </tr>
+      <tr>
+        <td class="lbl">Email</td>
+        <td class="val">{{ outlet.email if outlet and outlet.email else '-' }}</td>
+      </tr>
+    </table>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- B. PRODUK YANG DIKELUHKAN                       -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div class="section-block-produk">
+    <div class="sec-header">B. &nbsp;Informasi Produk yang Dikeluhkan</div>
+
+    {% for item in items %}
+    <div class="produk-wrap">
+      <div class="produk-head">Produk {{ loop.index }}</div>
+      <table class="tbl-produk">
+        <tr>
+          <td class="plbl">Nama Produk</td>
+          <td class="pval" colspan="3">{{ item.nama_produk }}</td>
+        </tr>
+        <tr>
+          <td class="plbl">Jenis Kemasan</td>
+          <td class="pval" colspan="3">{{ item.jenis_kemasan or '' }}</td>
+        </tr>
+        <tr>
+          <td class="plbl">Jumlah Produk</td>
+          <td class="pval">{{ item.qty }} pcs</td>
+          <td class="hlbl">Kode Produksi</td>
+          <td class="hval">{{ item.batch_number or '' }}</td>
+        </tr>
+        <tr>
+          <td class="plbl">Tanggal Kadaluarsa</td>
+          <td class="pval">{{ item.expired_date | format_date if item.expired_date else '-' }}</td>
+          <td class="hlbl">Tanggal Pembelian</td>
+          <td class="hval">{{ item.tanggal_pembelian | format_date if item.tanggal_pembelian else '-' }}</td>
+        </tr>
+        <tr>
+          <td class="plbl">Tanggal Dikonsumsi</td>
+          <td class="pval" colspan="3">{{ item.tanggal_dikonsumsi | format_date if item.tanggal_dikonsumsi else '-' }}</td>
+        </tr>
+        <tr>
+          <td class="plbl">Deskripsi Keluhan</td>
+          <td class="pval" colspan="3" style="min-height:24pt;">{{ item.deskripsi_keluhan or '' }}</td>
+        </tr>
+        <tr>
+          <td class="plbl">Sample Keluhan</td>
+          <td class="pval">
+            {% set sv = item.ada_sample_keluhan %}
+            <span class="cb">{% if sv == 'ada' %}&#10003;{% endif %}</span><span class="cb-label">Ada</span><br />
+            <span class="cb">{% if sv == 'foto' %}&#10003;{% endif %}</span><span class="cb-label">Foto</span><br />
+            <span class="cb">{% if sv == 'tidak_ada' %}&#10003;{% endif %}</span><span class="cb-label">Tidak Ada</span>
+          </td>
+          <td class="hlbl">Kondisi Sample</td>
+          <td class="hval">
+            {% set kd = item.kondisi_sample | default('') %}
+            <span class="cb">{% if kd == 'utuh' %}&#10003;{% endif %}</span><span class="cb-label">Utuh</span><br />
+            <span class="cb">{% if kd == 'terbuka' %}&#10003;{% endif %}</span><span class="cb-label">Terbuka</span><br />
+            <span class="cb">{% if kd and kd not in ['utuh','terbuka'] %}&#10003;{% endif %}</span><span
+              class="cb-label">Lain-lain{% if kd and kd not in ['utuh','terbuka'] %}: {{ kd }}{% endif %}</span>
+          </td>
+        </tr>
+        <tr>
+          <td class="plbl">Foto Produk<br /><span class="muted">(Lihat lampiran)</span></td>
+          <td class="pval" colspan="3">
+            {% set ft = item.foto_types | default([]) %}
+            <span class="cb">{% if 'expired' in ft %}&#10003;{% endif %}</span><span class="cb-label">Foto Expired</span><br />
+            <span class="cb">{% if 'kode_produksi' in ft %}&#10003;{% endif %}</span><span class="cb-label">Kode Produksi</span><br />
+            <span class="cb">{% if 'keluhan' in ft %}&#10003;{% endif %}</span><span class="cb-label">Keluhan / Sample</span>
+          </td>
+        </tr>
       </table>
-    </td>
-  </tr>
-</table>
-
-
-<!-- ═══════════════════════════════════════
-     A. INFORMASI OUTLET / PELANGGAN
-═══════════════════════════════════════ -->
-<div class="sec-header">A.  Informasi Outlet / Pelanggan</div>
-<table class="tbl-info">
-  <tr>
-    <td class="lbl">Tanggal Keluhan</td>
-    <td class="val">{{ fkp.tanggal_pengajuan | format_date if fkp.tanggal_pengajuan else '&nbsp;' }}</td>
-  </tr>
-  <tr>
-    <td class="lbl">Nama Pelanggan</td>
-    <td class="val">{{ outlet.nama_toko if outlet and outlet.nama_toko else '&nbsp;' }}</td>
-  </tr>
-  <tr>
-    <td class="lbl">Alamat Lengkap</td>
-    <td class="val" style="min-height:24pt;">{{ outlet.alamat_lengkap if outlet and outlet.alamat_lengkap else '&nbsp;' }}</td>
-  </tr>
-  <tr>
-    <td class="lbl">No. Telepon</td>
-    <td class="val">{{ outlet.no_hp if outlet and outlet.no_hp else '&nbsp;' }}</td>
-  </tr>
-  <tr>
-    <td class="lbl">Email</td>
-    <td class="val">{{ outlet.email if outlet and outlet.email else '&nbsp;' }}</td>
-  </tr>
-</table>
-
-
-<!-- ═══════════════════════════════════════
-     B. PRODUK YANG DIKELUHKAN
-═══════════════════════════════════════ -->
-<div class="sec-header">B.  Informasi Produk yang Dikeluhkan</div>
-
-{% for item in items %}
-<div class="produk-wrap">
-  <div class="produk-head">Produk {{ loop.index }}</div>
-  <table class="tbl-produk">
-
-    <tr>
-      <td class="plbl">Nama Produk</td>
-      <td class="pval" colspan="3">{{ item.nama_produk }}</td>
-    </tr>
-    <tr>
-      <td class="plbl">Kemasan (Jenis Kemasan)</td>
-      <td class="pval" colspan="3">{{ item.jenis_kemasan or '&nbsp;' }}</td>
-    </tr>
-    <tr>
-      <td class="plbl">Jumlah Produk</td>
-      <td class="pval" colspan="3">{{ item.qty }} pcs</td>
-    </tr>
-    <tr>
-      <td class="plbl">Kode Produksi</td>
-      <td class="pval" colspan="3">{{ item.batch_number or '&nbsp;' }}</td>
-    </tr>
-    <tr>
-      <td class="plbl">Tanggal Kadaluarsa</td>
-      <td class="pval" colspan="3">{{ item.expired_date | format_date if item.expired_date else '&nbsp;' }}</td>
-    </tr>
-    <tr>
-      <td class="plbl">Tanggal Dikonsumsi</td>
-      <td class="pval">{{ item.tanggal_dikonsumsi | format_date if item.tanggal_dikonsumsi else '&nbsp;' }}</td>
-      <td class="hlbl">Tanggal Pembelian</td>
-      <td class="hval">{{ item.tanggal_pembelian | format_date if item.tanggal_pembelian else '&nbsp;' }}</td>
-    </tr>
-    <tr>
-      <td class="plbl">Penjelasan Keluhan<br/>(Deskripsi Keluhan)</td>
-      <td class="pval" colspan="3" style="min-height:36pt;">{{ item.deskripsi_keluhan or '&nbsp;' }}</td>
-    </tr>
-
-    <!-- Sample Keluhan -->
-    <tr>
-      <td class="plbl">Sample Keluhan</td>
-      <td class="pval">
-        {% set sv = item.ada_sample_keluhan %}
-        <span class="cb cb-{% if sv == 'ada' %}on{% else %}off{% endif %}">{% if sv == 'ada' %}✓{% endif %}</span><span class="cb-label"> Ada</span><br/>
-        <span class="cb cb-{% if sv == 'tidak_ada' %}on{% else %}off{% endif %}">{% if sv == 'tidak_ada' %}✓{% endif %}</span><span class="cb-label"> Tidak Ada</span><br/>
-        <span class="cb cb-{% if sv and sv not in ['ada','tidak_ada'] %}on{% else %}off{% endif %}">{% if sv and sv not in ['ada','tidak_ada'] %}✓{% endif %}</span><span class="cb-label"> Lain - lain{% if sv and sv not in ['ada','tidak_ada'] %}: {{ sv }}{% endif %}</span>
-      </td>
-      <td class="hlbl">Kondisi Sample Keluhan</td>
-      <td class="hval">
-        {% set kd = item.kondisi_sample | default('') %}
-        <span class="cb cb-{% if kd == 'utuh' %}on{% else %}off{% endif %}">{% if kd == 'utuh' %}✓{% endif %}</span><span class="cb-label"> Utuh</span><br/>
-        <span class="cb cb-{% if kd == 'terbuka' %}on{% else %}off{% endif %}">{% if kd == 'terbuka' %}✓{% endif %}</span><span class="cb-label"> Terbuka</span><br/>
-        <span class="cb cb-{% if kd and kd not in ['utuh','terbuka'] %}on{% else %}off{% endif %}">{% if kd and kd not in ['utuh','terbuka'] %}✓{% endif %}</span><span class="cb-label"> Lain - lain{% if kd and kd not in ['utuh','terbuka'] %}: {{ kd }}{% endif %}</span>
-      </td>
-    </tr>
-
-    <!-- Foto -->
-    <tr>
-      <td class="plbl">Foto Produk<br/><span class="muted">(Lampirkan foto pada<br/>halaman berikutnya /<br/>lampiran)</span></td>
-      <td class="pval" colspan="3">
-        {% set ft = item.foto_types | default([]) %}
-        <span class="cb cb-{% if 'expired' in ft %}on{% else %}off{% endif %}">{% if 'expired' in ft %}✓{% endif %}</span><span class="cb-label"> Foto Expired</span>
-        <span class="cb cb-{% if 'kode_produksi' in ft %}on{% else %}off{% endif %}">{% if 'kode_produksi' in ft %}✓{% endif %}</span><span class="cb-label"> Kode Produksi</span>
-        <span class="cb cb-{% if 'keluhan' in ft %}on{% else %}off{% endif %}">{% if 'keluhan' in ft %}✓{% endif %}</span><span class="cb-label"> Keluhan / Sample</span>
-      </td>
-    </tr>
-
-  </table>
-</div>
-{% endfor %}
-
-
-<!-- ═══════════════════════════════════════
-     C. INFORMASI KESELURUHAN
-═══════════════════════════════════════ -->
-<div class="sec-header">C.  Informasi Keseluruhan</div>
-<table class="tbl-info mb8">
-  <tr>
-    <td class="lbl">Urgensi</td>
-    <td class="val">
-      {% set p = fkp.prioritas | default('') %}
-      <span class="cb cb-{% if p == 'low' %}on{% else %}off{% endif %}">{% if p == 'low' %}✓{% endif %}</span><span class="cb-label"> Rendah</span>
-      <span class="cb cb-{% if p == 'reguler' %}on{% else %}off{% endif %}">{% if p == 'reguler' %}✓{% endif %}</span><span class="cb-label"> Sedang</span>
-      <span class="cb cb-{% if p == 'urgent' %}on{% else %}off{% endif %}">{% if p == 'urgent' %}✓{% endif %}</span><span class="cb-label"> Tinggi</span>
-      <span class="cb cb-{% if p == 'top_urgent' %}on{% else %}off{% endif %}">{% if p == 'top_urgent' %}✓{% endif %}</span><span class="cb-label"> Sangat Tinggi</span>
-    </td>
-  </tr>
-  <tr>
-    <td class="lbl">Lokasi Pembelian</td>
-    <td class="val">{{ fkp.lokasi_pembelian or '&nbsp;' }}</td>
-  </tr>
-  <tr>
-    <td class="lbl">Catatan Tambahan</td>
-    <td class="val" style="min-height:28pt;">{{ fkp.catatan_distributor or '&nbsp;' }}</td>
-  </tr>
-</table>
-
-
-<!-- ═══════════════════════════════════════
-     D. TANDA TANGAN
-═══════════════════════════════════════ -->
-<div class="sec-header">D.  Tanda Tangan / Persetujuan</div>
-<table class="tbl-ttd">
-  <tr>
-    <th>Diajukan Oleh<br/><span style="font-weight:normal;font-size:7.5pt;">(Outlet / Distributor)</span></th>
-    <th>Direview Oleh<br/><span style="font-weight:normal;font-size:7.5pt;">(APSM)</span></th>
-    <th>Diketahui Oleh<br/><span style="font-weight:normal;font-size:7.5pt;">(Marketing)</span></th>
-    <th>Disetujui Oleh<br/><span style="font-weight:normal;font-size:7.5pt;">(Direktur)</span></th>
-  </tr>
-  <tr>
-    <td>
-      <div class="ttd-space"></div>
-      <div class="ttd-name">{{ submitted_by_name or 'Outlet / Distributor' }}</div>
-      <div class="ttd-date">Tanggal: {{ fkp.tanggal_pengajuan | format_date if fkp.tanggal_pengajuan else '__/__/20__' }}</div>
-    </td>
-    <td>
-      <div class="ttd-space"></div>
-      <div class="ttd-name">{{ apsm_name or 'APSM' }}</div>
-      <div class="ttd-date">Tanggal: __/__/20__</div>
-    </td>
-    <td>
-      <div class="ttd-space"></div>
-      <div class="ttd-name">{{ marketing_name or 'Marketing' }}</div>
-      <div class="ttd-date">Tanggal: __/__/20__</div>
-    </td>
-    <td>
-      <div class="ttd-space"></div>
-      <div class="ttd-name">{{ direktur_name or 'Direktur' }}</div>
-      <div class="ttd-date">Tanggal: __/__/20__</div>
-    </td>
-  </tr>
-</table>
-
-<div class="footer-bar">
-  Dicetak pada: {{ generated_at.strftime('%d/%m/%Y') if generated_at else '__/__/20__' }}
-  Pukul: {{ generated_at.strftime('%H:%M') if generated_at else '__:__' }}
-  &nbsp;&nbsp;|&nbsp;&nbsp; PT Sakti Pangan Perkasa | FKP — Formulir Keluhan Pelanggan | Dokumen ini bersifat rahasia
-</div>
-
-
-<!-- ═══════════════════════════════════════
-     LAMPIRAN FOTO (halaman terpisah)
-═══════════════════════════════════════ -->
-{% if items | has_attachments %}
-<div class="page-break">
-
-  <div class="lamp-title">Lampiran Foto Produk</div>
-
-  {% for item in items %}
-  {% if item.attachments %}
-
-  <div class="lamp-prod-header">
-    Produk #{{ loop.index }} — Nama Produk: {{ item.nama_produk }}
+    </div>
+    {% endfor %}
   </div>
 
-  <table class="tbl-foto">
-    <tr>
-      <th>Foto Expired / Kadaluarsa</th>
-      <th>Foto Keluhan Produk</th>
-      <th>Foto Kode Produksi</th>
-    </tr>
-    <tr>
-      <!-- Foto Expired -->
-      <td>
-        <div class="foto-box">
-          {% set ae = item.attachments | find_attachment('foto_expired') %}
-          {% if ae and ae.base64 %}
-            <img src="data:{{ ae.tipe_file or 'image/jpeg' }};base64,{{ ae.base64 }}" alt="Expired" />
-          {% else %}
-            <span class="foto-none">[ Tempel / Lampirkan Foto ]</span>
-          {% endif %}
-        </div>
-        <table class="tbl-fotometa">
-          <tr><td class="fmlbl">Tipe Dokumen</td><td></td></tr>
-          <tr><td class="fmlbl">Keterangan :</td><td>{{ ae.keterangan if ae and ae.keterangan else '&nbsp;' }}</td></tr>
-        </table>
-      </td>
 
-      <!-- Foto Keluhan -->
-      <td>
-        <div class="foto-box">
-          {% set ak = item.attachments | find_attachment('foto_keluhan') %}
-          {% if ak and ak.base64 %}
-            <img src="data:{{ ak.tipe_file or 'image/jpeg' }};base64,{{ ak.base64 }}" alt="Keluhan" />
-          {% else %}
-            <span class="foto-none">[ Tempel / Lampirkan Foto ]</span>
-          {% endif %}
-        </div>
-        <table class="tbl-fotometa">
-          <tr><td class="fmlbl">Tipe Dokumen</td><td></td></tr>
-          <tr><td class="fmlbl">Keterangan :</td><td>{{ ak.keterangan if ak and ak.keterangan else '&nbsp;' }}</td></tr>
-        </table>
-      </td>
-
-      <!-- Foto Kode Produksi -->
-      <td>
-        <div class="foto-box">
-          {% set akp = item.attachments | find_attachment('foto_kode_produksi') %}
-          {% if akp and akp.base64 %}
-            <img src="data:{{ akp.tipe_file or 'image/jpeg' }};base64,{{ akp.base64 }}" alt="Kode Produksi" />
-          {% else %}
-            <span class="foto-none">[ Tempel / Lampirkan Foto ]</span>
-          {% endif %}
-        </div>
-        <table class="tbl-fotometa">
-          <tr><td class="fmlbl">Tipe Dokumen</td><td></td></tr>
-          <tr><td class="fmlbl">Keterangan :</td><td>{{ akp.keterangan if akp and akp.keterangan else '&nbsp;' }}</td></tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-
-  {% endif %}
-  {% endfor %}
-
-  <div class="footer-bar">
-    PT Sakti Pangan Perkasa | FKP — Formulir Keluhan Pelanggan | Dokumen ini bersifat rahasia
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- C. INFORMASI KESELURUHAN                        -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div class="section-block">
+    <div class="sec-header">C. &nbsp;Informasi Keseluruhan</div>
+    <table class="tbl-info">
+      <tr>
+        <td class="lbl">Urgensi</td>
+        <td class="val">
+          {% set p = fkp.prioritas | default('') %}
+          <span class="cb">{% if p == 'low' %}&#10003;{% endif %}</span><span class="cb-label">Rendah</span>
+          <span class="cb">{% if p == 'reguler' %}&#10003;{% endif %}</span><span class="cb-label">Sedang</span>
+          <span class="cb">{% if p == 'urgent' %}&#10003;{% endif %}</span><span class="cb-label">Tinggi</span>
+          <span class="cb">{% if p == 'top_urgent' %}&#10003;{% endif %}</span><span class="cb-label">Sangat Tinggi</span>
+        </td>
+      </tr>
+      <tr>
+        <td class="lbl">Lokasi Pembelian</td>
+        <td class="val">{{ fkp.lokasi_pembelian or '' }}</td>
+      </tr>
+      <tr>
+        <td class="lbl">Catatan Tambahan</td>
+        <td class="val" style="min-height:20pt;">{{ fkp.catatan_distributor or '-' }}</td>
+      </tr>
+    </table>
   </div>
 
-</div>
-{% endif %}
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- D. TANDA TANGAN                                 -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div class="section-block-ttd">
+    <div class="sec-header">D. &nbsp;Tanda Tangan / Persetujuan</div>
+    <table class="tbl-ttd">
+      <tr>
+        <th>Diajukan Oleh<br /><span style="font-weight:normal;font-size:6.5pt;">(Outlet / Distributor)</span></th>
+        <th>Direview Oleh<br /><span style="font-weight:normal;font-size:6.5pt;">(APSM)</span></th>
+        <th>Diketahui Oleh<br /><span style="font-weight:normal;font-size:6.5pt;">(Marketing)</span></th>
+        <th>Disetujui Oleh<br /><span style="font-weight:normal;font-size:6.5pt;">(Direktur)</span></th>
+      </tr>
+      <tr>
+        <td>
+          <div class="ttd-space"></div>
+          <div class="ttd-name">{{ submitted_by_name if submitted_by_name else '-' }}</div>
+          <div class="ttd-date">Tgl: {{ fkp.tanggal_pengajuan | format_date if fkp.tanggal_pengajuan else '__/__/20__' }}</div>
+        </td>
+        <td>
+          <div class="ttd-space"></div>
+          <div class="ttd-name">{{ apsm_name if apsm_name else '-' }}</div>
+          <div class="ttd-date">Tgl: __/__/20__</div>
+        </td>
+        <td>
+          <div class="ttd-space"></div>
+          <div class="ttd-name">{{ marketing_name if marketing_name else '-' }}</div>
+          <div class="ttd-date">Tgl: __/__/20__</div>
+        </td>
+        <td>
+          <div class="ttd-space"></div>
+          <div class="ttd-name">{{ direktur_name if direktur_name else '-' }}</div>
+          <div class="ttd-date">Tgl: __/__/20__</div>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- LAMPIRAN FOTO                                   -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div class="page-break">
+
+    <div class="lamp-title">Lampiran Foto Produk</div>
+
+    {% if items | has_attachments %}
+
+    {% for item in items %}
+    {% if item.attachments %}
+
+    <div class="lamp-prod-header">
+      Produk #{{ loop.index }} &nbsp;—&nbsp; {{ item.nama_produk }}
+    </div>
+
+    {% set list_expired = item.attachments | filter_attachments('foto_expired') %}
+    {% set list_keluhan = (item.attachments | filter_attachments('foto_keluhan'))
+                        + (item.attachments | filter_attachments('foto_sample')) %}
+    {% set list_kode    = item.attachments | filter_attachments('foto_kode_produksi') %}
+
+    {% set max_rows = namespace(v=1) %}
+    {% if list_expired | length > max_rows.v %}{% set max_rows.v = list_expired | length %}{% endif %}
+    {% if list_keluhan | length > max_rows.v %}{% set max_rows.v = list_keluhan | length %}{% endif %}
+    {% if list_kode    | length > max_rows.v %}{% set max_rows.v = list_kode    | length %}{% endif %}
+
+    <table class="tbl-foto">
+      <tr>
+        <th>Foto Expired / Kadaluarsa</th>
+        <th>Foto Keluhan Produk</th>
+        <th>Foto Kode Produksi</th>
+      </tr>
+
+      {% for i in range(max_rows.v) %}
+      <tr>
+        <td>
+          {% if i < list_expired | length %}
+            {% set ae = list_expired[i] %}
+            <div class="foto-img-wrap">
+              <img src="data:image/jpeg;base64,{{ ae.base64 }}" alt="Expired {{ i + 1 }}" />
+            </div>
+            <table class="tbl-fotometa">
+              <tr><td class="fmlbl">Keterangan</td><td>{{ ae.keterangan if ae.keterangan else '-' }}</td></tr>
+            </table>
+          {% else %}
+            <div class="foto-kosong">—</div>
+          {% endif %}
+        </td>
+        <td>
+          {% if i < list_keluhan | length %}
+            {% set ak = list_keluhan[i] %}
+            <div class="foto-img-wrap">
+              <img src="data:image/jpeg;base64,{{ ak.base64 }}" alt="Keluhan {{ i + 1 }}" />
+            </div>
+            <table class="tbl-fotometa">
+              <tr><td class="fmlbl">Keterangan</td><td>{{ ak.keterangan if ak.keterangan else '-' }}</td></tr>
+            </table>
+          {% else %}
+            <div class="foto-kosong">—</div>
+          {% endif %}
+        </td>
+        <td>
+          {% if i < list_kode | length %}
+            {% set akp = list_kode[i] %}
+            <div class="foto-img-wrap">
+              <img src="data:image/jpeg;base64,{{ akp.base64 }}" alt="Kode Produksi {{ i + 1 }}" />
+            </div>
+            <table class="tbl-fotometa">
+              <tr><td class="fmlbl">Keterangan</td><td>{{ akp.keterangan if akp.keterangan else '-' }}</td></tr>
+            </table>
+          {% else %}
+            <div class="foto-kosong">—</div>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+
+    </table>
+
+    {% endif %}
+    {% endfor %}
+
+    {% else %}
+
+    <div class="lamp-kosong">
+      Tidak ada lampiran foto untuk formulir ini.
+    </div>
+
+    {% endif %}
+
+  </div>
 
 </body>
+
 </html>

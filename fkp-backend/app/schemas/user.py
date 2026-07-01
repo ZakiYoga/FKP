@@ -40,7 +40,17 @@ class PasswordChange(BaseModel):
 
 
 class UserResponse(BaseModel):
-    """Response data user (tanpa password)"""
+    """
+    Response data user (tanpa password).
+
+    [TIDAK ADA PERUBAHAN dari versi awal — dikonfirmasi tetap benar]
+    is_active di sini murni status administratif akun (dinonaktifkan admin
+    atau tidak). Tidak perlu field tambahan untuk disambiguasi dengan status
+    approval outlet, karena status approval outlet sepenuhnya hidup di
+    Outlet.status (per-outlet), bukan di User.is_active (per-user) — dan
+    keduanya memang TIDAK PERLU disatukan, mengingat 1 user bisa punya
+    beberapa outlet dengan status berbeda-beda.
+    """
     id: uuid.UUID
     nama: str
     email: str
@@ -50,6 +60,15 @@ class UserResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     role_id: uuid.UUID
+
+    class Config:
+        from_attributes = True
+        
+class UserBriefResponse(BaseModel):
+    id: uuid.UUID
+    nama: str
+    email: str
+    no_telepon: Optional[str] = None
 
     class Config:
         from_attributes = True

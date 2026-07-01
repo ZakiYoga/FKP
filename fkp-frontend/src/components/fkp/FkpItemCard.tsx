@@ -13,8 +13,8 @@ import InfoRow from './InfoRow'
 function FkpItemCard({ item, idx, canDelete, onDelete, attachments, products }: {
   item: FkpItem
   idx: number
-  canDelete: boolean
-  onDelete: () => void
+  canDelete?: boolean
+  onDelete?: () => void
   attachments: FkpAttType[]
   products: Product[]
 }) {

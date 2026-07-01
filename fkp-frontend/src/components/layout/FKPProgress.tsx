@@ -7,12 +7,9 @@ import {
   Flag,
   Check,
   User,
-  FlaskConical,
   Map,
   Crown,
   RefreshCw,
-  Scissors,
-  Trash2,
   Microscope,
   ReceiptText,
   FlameKindling,
@@ -53,10 +50,10 @@ const FKP_STEPS: FKPStep[] = [
     title: 'Review HO',
     description: 'Proses persetujuan bertahap di Head Office',
     subItems: [
-      { icon: <User size={11} />,         label: 'Admin Marketing' },
-      { icon: <Microscope size={11} />, label: 'QC'              },
-      { icon: <Map size={11} />,          label: 'RSM'             },
-      { icon: <Crown size={11} />,        label: 'Direktur'        },
+      { icon: <User size={11} />, label: 'Admin Marketing' },
+      { icon: <Microscope size={11} />, label: 'QC' },
+      { icon: <Map size={11} />, label: 'RSM' },
+      { icon: <Crown size={11} />, label: 'Direktur' },
     ],
   },
   {
@@ -65,8 +62,8 @@ const FKP_STEPS: FKPStep[] = [
     description: 'Keputusan akhir berdasarkan hasil review',
     outcomes: [
       { icon: <RefreshCw size={11} />, label: 'Pergantian Barang' },
-      { icon: <ReceiptText size={11} />, label: 'Potongan Tagihan'  },
-      { icon: <FlameKindling size={11} />,   label: 'Dimusnahkan'       },
+      { icon: <ReceiptText size={11} />, label: 'Potongan Tagihan' },
+      { icon: <FlameKindling size={11} />, label: 'Dimusnahkan' },
     ],
   },
 ]
@@ -89,50 +86,54 @@ const STATUS_CONFIG: Record<StepStatus, {
   showCheck: boolean
 }> = {
   done: {
-    dotClass:        'bg-emerald-600 border-transparent',
+    dotClass: 'bg-emerald-600 border-transparent',
     lineFilledClass: 'bg-emerald-600',
-    badgeClass:      'text-emerald-300 bg-emerald-900/40 border-emerald-600/50',
-    label:           'Selesai',
-    showCheck:       true,
+    badgeClass: 'text-emerald-300 bg-emerald-900/40 border-emerald-600/50',
+    label: 'Selesai',
+    showCheck: true,
   },
   active: {
-    dotClass:        'bg-amber-500 border-transparent',
+    dotClass: 'bg-amber-500 border-transparent',
     lineFilledClass: 'bg-amber-500',
-    badgeClass:      'text-amber-300 bg-amber-900/40 border-amber-500/50',
-    label:           'Dalam Proses',
-    showCheck:       false,
+    badgeClass: 'text-amber-300 bg-amber-900/40 border-amber-500/50',
+    label: 'Dalam Proses',
+    showCheck: false,
   },
   pending: {
-    dotClass:        'bg-white/5 border-white/20',
+    dotClass: 'bg-white/5 border-white/20',
     lineFilledClass: 'bg-white/10',
-    badgeClass:      'text-white/30 bg-white/5 border-white/10',
-    label:           'Menunggu',
-    showCheck:       false,
+    badgeClass: 'text-white/30 bg-white/5 border-white/10',
+    label: 'Menunggu',
+    showCheck: false,
   },
 }
 
 // ─── Animated Line ────────────────────────────────────────────────────────────
+// Garis menghubungkan step `index` -> `index + 1`.
+// - `filled`     : garis baru terisi SETELAH step saat ini benar-benar 'done' (hijau).
+//                  Selama step saat ini masih 'active' (kuning), garis belum terisi sama sekali.
+// - `colorClass` : kuning selama step berikutnya masih 'active', berubah hijau
+//                  begitu step berikutnya juga 'done'.
+// - `isFlowing`  : efek pulse berjalan hanya saat garis kuning (sedang menuju step aktif).
 
 function TimelineLine({
-  status,
-  isActive,
+  filled,
+  colorClass,
+  isFlowing,
 }: {
-  status: StepStatus
-  isActive: boolean
+  filled: boolean
+  colorClass: string
+  isFlowing: boolean
 }) {
-  const cfg = STATUS_CONFIG[status]
-
   return (
     <div className="flex-1 w-px my-0.5 relative overflow-hidden bg-white/10">
       <motion.div
-        className={`absolute top-0 left-0 right-0 ${cfg.lineFilledClass}`}
+        className={`absolute top-0 left-0 right-0 ${colorClass}`}
         initial={{ height: '0%' }}
-        animate={{
-          height: status === 'done' ? '100%' : isActive ? '100%' : '0%',
-        }}
+        animate={{ height: filled ? '100%' : '0%' }}
         transition={{ duration: 0.6, ease: 'easeInOut' }}
       />
-      {isActive && (
+      {isFlowing && (
         <motion.div
           className="absolute left-0 right-0 h-6 bg-linear-to-b from-amber-400/60 to-transparent"
           initial={{ top: '-20%' }}
@@ -162,10 +163,19 @@ function FKPStepItem({
   isLast: boolean
   activeIndex: number
 }) {
-  const status    = getStatus(index, activeIndex)
-  const cfg       = STATUS_CONFIG[status]
+  const status = getStatus(index, activeIndex)
+  const cfg = STATUS_CONFIG[status]
   const isPending = status === 'pending'
-  const isActive  = status === 'active'
+  const isActive = status === 'active'
+
+  // Status step SELANJUTNYA — dipakai untuk menentukan kapan & warna apa
+  // garis penghubung harus tampil.
+  const nextStatus = !isLast ? getStatus(index + 1, activeIndex) : null
+  const lineFilled = status === 'done'
+  const lineColorClass = nextStatus === 'done'
+    ? STATUS_CONFIG.done.lineFilledClass
+    : STATUS_CONFIG.active.lineFilledClass
+  const lineFlowing = lineFilled && nextStatus === 'active'
 
   return (
     <motion.div
@@ -179,7 +189,7 @@ function FKPStepItem({
 
         {/* Dot */}
         <motion.div
-          className={`w-7 h-7 rounded-full border flex items-center justify-center shrink-0 text-white ${cfg.dotClass}`}
+          className={`w-7 h-7 rounded-full border flex items-center justify-center shrink-0 text-white transition-colors duration-500 ${cfg.dotClass}`}
           animate={isActive ? { scale: [1, 1.12, 1] } : { scale: 1 }}
           transition={isActive
             ? { duration: 1.2, repeat: Infinity, ease: 'easeInOut' }
@@ -189,14 +199,14 @@ function FKPStepItem({
           {cfg.showCheck
             ? <Check size={13} strokeWidth={2.5} />
             : <span className={isPending ? 'text-white/30' : 'text-white'}>
-                {step.icon}
-              </span>
+              {step.icon}
+            </span>
           }
         </motion.div>
 
         {/* Line */}
         {!isLast && (
-          <TimelineLine status={status} isActive={isActive} />
+          <TimelineLine filled={lineFilled} colorClass={lineColorClass} isFlowing={lineFlowing} />
         )}
       </div>
 
@@ -205,9 +215,8 @@ function FKPStepItem({
 
         {/* Title + badge */}
         <div className="flex items-center gap-2 mb-1">
-          <span className={`text-sm font-medium transition-colors duration-500 ${
-            isPending ? 'text-white/40' : 'text-white'
-          }`}>
+          <span className={`text-sm font-medium transition-colors duration-500 ${isPending ? 'text-white/40' : 'text-white'
+            }`}>
             {step.title}
           </span>
           <motion.span
@@ -222,9 +231,8 @@ function FKPStepItem({
         </div>
 
         {/* Description */}
-        <p className={`text-xs leading-relaxed transition-colors duration-500 ${
-          isPending ? 'text-white/25' : 'text-white/50'
-        }`}>
+        <p className={`text-xs transition-colors duration-500 ${isPending ? 'text-white/25' : 'text-white/50'
+          }`}>
           {step.description}
         </p>
 
@@ -240,7 +248,6 @@ function FKPStepItem({
                 key={sub.label}
                 className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-md px-2 py-1"
               >
-                <span className="text-white/40">{sub.icon}</span>
                 <span className="text-[11px] text-white/40">{sub.label}</span>
               </div>
             ))}
@@ -272,18 +279,28 @@ function FKPStepItem({
 
 // ─── Main Export ──────────────────────────────────────────────────────────────
 
-const STEP_DURATION = 2000
+const STEP_DURATION = 2000 // durasi tiap step aktif (kuning)
+const COMPLETE_PAUSE = 1200 // durasi fase "semua selesai" (hijau) sebelum reset ke step pertama
+
+// Total fase = jumlah step + 1 fase virtual "semua selesai".
+// Fase virtual ini (activeIndex === FKP_STEPS.length) tidak mewakili step manapun,
+// tapi karena getStatus mengecek `stepIndex < activeIndex`, semua step otomatis
+// jadi 'done' (hijau) saat activeIndex mencapai nilai ini — termasuk step terakhir.
+const TOTAL_PHASES = FKP_STEPS.length + 1
 
 export function FKPProgress() {
   const [activeIndex, setActiveIndex] = useState(0)
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setActiveIndex((prev) => (prev + 1) % FKP_STEPS.length)
-    }, STEP_DURATION)
+    const isCompletePhase = activeIndex === FKP_STEPS.length
+    const duration = isCompletePhase ? COMPLETE_PAUSE : STEP_DURATION
 
-    return () => clearInterval(timer)
-  }, [])
+    const timer = setTimeout(() => {
+      setActiveIndex((prev) => (prev + 1) % TOTAL_PHASES)
+    }, duration)
+
+    return () => clearTimeout(timer)
+  }, [activeIndex])
 
   return (
     <div className="pt-2">
@@ -308,25 +325,6 @@ export function FKPProgress() {
           activeIndex={activeIndex}
         />
       ))}
-
-      {/* Loop indicator */}
-      <div className="flex items-center gap-1.5 mt-4 justify-center">
-        {FKP_STEPS.map((_, i) => (
-          <motion.div
-            key={i}
-            className="h-1 rounded-full"
-            animate={{
-              width: i === activeIndex ? 20 : 6,
-              backgroundColor: i === activeIndex
-                ? 'rgba(251,191,36,0.7)'
-                : i < activeIndex
-                  ? 'rgba(52,211,153,0.5)'
-                  : 'rgba(255,255,255,0.15)',
-            }}
-            transition={{ duration: 0.35 }}
-          />
-        ))}
-      </div>
 
     </div>
   )

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<p>Halo, <strong>{{ nama_penerima }}</strong>,</p>
+<p>Keluhan FKP Anda memerlukan perbaikan sebelum dapat dilanjutkan ke tahap berikutnya.</p>
+<div class="box box-yellow">
+  <p><strong>Nomor FKP</strong> &nbsp; {{ nomor_fkp }}</p>
+  <p><strong>Status</strong> &nbsp;
+     <span class="badge b-yellow">Perlu Direvisi</span></p>
+  <p><strong>Direview oleh</strong> &nbsp; {{ direview_oleh }}</p>
+</div>
+<p><strong>Catatan dari Reviewer:</strong></p>
+<div class="box box-yellow" style="font-style:italic">{{ catatan_revisi }}</div>
+<p>Silakan login, perbaiki data yang diminta, lalu submit kembali FKP Anda.</p>
+{% endblock %}

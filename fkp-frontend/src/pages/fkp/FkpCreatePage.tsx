@@ -1,17 +1,8 @@
-/**
- * FkpCreatePage
- *
- * Perubahan:
- * - onSave menerima FileWithMeta[] (bukan File[]) — mengandung tipe_dokumen & keterangan
- * - Upload loop mengirim tipe_dokumen & keterangan ke FormData
- * - lokasi_pembelian di level FKP
- * - resetKey untuk force-reset FkpItemFormModal
- */
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { ArrowLeft, Plus, Trash2, Package, Loader2, Info, AlertCircle, MapPin, Send } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Package, Loader2, Info, AlertCircle, MapPin, Send, Pencil } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useCreateFkp, useDistributors, useOutlets, useProducts } from '@/hooks/useFkp'
 import { Input } from '@/components/ui/Input'
@@ -23,22 +14,38 @@ import type { FkpItemCreatePayload } from '@/types'
 import { JENIS_KELUHAN_LABEL } from '@/types'
 import toast from 'react-hot-toast'
 import { fkpApi } from '@/api/fkp'
+import type { ItemFormData } from '@/schemas/itemFKPSchema'
+
 
 // ─── Schema header FKP ────────────────────────────────────────────────────────
-const headerSchema = z.object({
-    distributor_id: z.string().min(1, 'Distributor wajib dipilih'),
-    outlet_id: z.string().optional(),
-    lokasi_pembelian: z.string().min(3, 'Lokasi pembelian wajib diisi'),
-    // prioritas:           z.enum(['top_urgent', 'urgent', 'reguler', 'low']),
-    catatan_distributor: z.string().optional(),
-})
-type HeaderForm = z.infer<typeof headerSchema>
+// outlet_id WAJIB diisi untuk role outlet (divalidasi via superRefine, karena
+// wajib/tidaknya bergantung pada role — schema di-build ulang per render
+// dengan isOutlet sebagai closure variable).
+function buildHeaderSchema(isOutlet: boolean) {
+    return z.object({
+        distributor_id: z.string().min(1, 'Distributor wajib dipilih'),
+        outlet_id: z.string().optional(),
+        lokasi_pembelian: z.string().min(3, 'Lokasi pembelian wajib diisi'),
+        // prioritas:           z.enum(['top_urgent', 'urgent', 'reguler', 'low']),
+        catatan_distributor: z.string().optional(),
+    }).superRefine((d, ctx) => {
+        if (isOutlet && !d.outlet_id) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: 'Outlet wajib dipilih',
+                path: ['outlet_id'],
+            })
+        }
+    })
+}
+type HeaderForm = z.infer<ReturnType<typeof buildHeaderSchema>>
 
 // ─── Item lokal (belum di-POST ke BE) ────────────────────────────────────────
 interface LocalItem {
     _key: string
+    formData: ItemFormData
     payload: FkpItemCreatePayload
-    files: FileWithMeta[]          // ← sekarang FileWithMeta, bukan File[]
+    files: FileWithMeta[]
     namaLabel: string
 }
 
@@ -52,6 +59,8 @@ export function FkpCreatePage() {
     const [isSavingItem, setIsSaving] = useState(false)
     const [resetKey, setResetKey] = useState(0)
     const [lokasiMode, setLokasiMode] = useState<'hierarki' | 'lain' | null>(null)
+    const [editingKey, setEditingKey] = useState<string | null>(null)
+    const editingItem = items.find((i) => i._key === editingKey) ?? null
     const [submitMode, setSubmitMode] = useState<'draft' | 'submit'>('draft')
 
     const { mutateAsync: createFkp, isPending: isCreating } = useCreateFkp()
@@ -65,7 +74,7 @@ export function FkpCreatePage() {
         register, handleSubmit, watch, setValue,
         formState: { errors },
     } = useForm<HeaderForm>({
-        resolver: zodResolver(headerSchema),
+        resolver: zodResolver(buildHeaderSchema(isOutlet)),
         // defaultValues: { prioritas: 'reguler' },
     })
 
@@ -77,12 +86,27 @@ export function FkpCreatePage() {
             setValue('distributor_id', distributors[0].id, { shouldValidate: true })
     }, [distributors, watchDistributor, setValue])
 
+    // useOutlets sudah terfilter oleh backend: untuk role outlet, hanya
+    // mengembalikan outlet yang pic_user_id-nya = user yang sedang login.
+    // Bisa berjumlah lebih dari 1 — seorang user boleh jadi PIC di banyak
+    // outlet pada distributor yang sama (ditambahkan admin saat create outlet).
     const { data: outlets = [], isLoading: loadingOutlets } = useOutlets(watchDistributor)
 
+    // Role outlet: auto-select HANYA saat persis 1 kandidat. Jika >1, user
+    // wajib memilih sendiri lewat dropdown — jangan menebak outlet mana
+    // yang dimaksud.
     useEffect(() => {
         if (isOutlet && outlets.length === 1 && !watchOutlet)
             setValue('outlet_id', outlets[0].id, { shouldValidate: true })
     }, [isOutlet, outlets, watchOutlet, setValue])
+
+    // Saat distributor berganti, outlet yang sudah terpilih dari distributor
+    // lama jadi tidak valid lagi — reset supaya tidak terkirim outlet_id yang
+    // salah pasangan distributor.
+    useEffect(() => {
+        if (isOutlet) setValue('outlet_id', '')
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [watchDistributor])
 
     useEffect(() => {
         if (distributors.length >= 1 && lokasiMode === null) {
@@ -99,14 +123,24 @@ export function FkpCreatePage() {
     const outletBelumTerdaftar = isOutlet && !loadingDist && distributors.length === 0
     const lokasi_pembelian = watch('lokasi_pembelian')
 
-
     const openAddItemModal = () => {
+        setEditingKey(null)
+        setResetKey((k) => k + 1)
+        setModalOpen(true)
+    }
+
+    const openEditItemModal = (item: LocalItem) => {
+        setEditingKey(item._key)
         setResetKey((k) => k + 1)
         setModalOpen(true)
     }
 
     // ── Tambah item ke daftar lokal ───────────────────────────────────────────
-    const handleItemSave = async (payload: FkpItemCreatePayload, files: FileWithMeta[]) => {
+    const handleItemSave = async (
+        payload: FkpItemCreatePayload,
+        files: FileWithMeta[],
+        formData: ItemFormData,
+    ) => {
         setIsSaving(true)
         try {
             const prod = products.find((p) => p.id === payload.product_id)
@@ -114,7 +148,17 @@ export function FkpCreatePage() {
                 ? `[${prod.kode_produk}] ${prod.nama_produk}`
                 : payload.nama_produk_custom ?? 'Produk manual'
 
-            setItems((prev) => [...prev, { _key: crypto.randomUUID(), payload, files, namaLabel }])
+            if (editingKey) {
+                setItems((prev) => prev.map((i) =>
+                    i._key === editingKey ? { ...i, formData, payload, files, namaLabel } : i
+                ))
+                setEditingKey(null)
+            } else {
+                setItems((prev) => [
+                    ...prev,
+                    { _key: crypto.randomUUID(), formData, payload, files, namaLabel },
+                ])
+            }
             setModalOpen(false)
         } finally {
             setIsSaving(false)
@@ -129,6 +173,8 @@ export function FkpCreatePage() {
         try {
             const fkp = await createFkp({
                 distributor_id: header.distributor_id,
+                // outlet_id selalu dikirim eksplisit (termasuk untuk role outlet) —
+                // backend tidak lagi mengandalkan auto-fill untuk kasus multi-outlet.
                 outlet_id: header.outlet_id || null,
                 // prioritas:           header.prioritas,
                 lokasi_pembelian: header.lokasi_pembelian || null,
@@ -149,7 +195,11 @@ export function FkpCreatePage() {
                     if (f.keterangan) form.append('keterangan', f.keterangan)
                     await api.post(`/fkp/${fkp.id}/attachments`, form, {
                         headers: { 'Content-Type': 'multipart/form-data' },
-                        params: { fkp_item_id: createdItem.id },
+                        params: {
+                            fkp_item_id: createdItem.id,
+                            tipe_dokumen: f.tipe_dokumen,
+                            ...(f.keterangan ? { keterangan: f.keterangan } : {}),
+                        },
                     })
                 }
             }
@@ -228,28 +278,47 @@ export function FkpCreatePage() {
                         )}
 
                         {watchDistributor && (
-                            isOutlet && outlets.length === 1 ? (
-                                <div>
-                                    <Select label="Outlet" disabled {...register('outlet_id')}>
-                                        <option value={outlets[0].id}>
-                                            [{outlets[0].kode_outlet}] {outlets[0].nama_toko}
-                                        </option>
+                            // Role outlet: dropdown berisi HANYA outlet milik user ini
+                            // (sudah difilter backend by pic_user_id). Wajib dipilih —
+                            // divalidasi lewat superRefine di schema, bukan disabled,
+                            // karena bisa lebih dari 1 pilihan (multi-outlet PIC).
+                            isOutlet ? (
+                                outlets.length > 0 && (
+                                    <div>
+                                        <Select
+                                            label="Outlet" required
+                                            placeholder={loadingOutlets ? 'Memuat...' : '— Pilih outlet Anda —'}
+                                            error={errors.outlet_id?.message}
+                                            {...register('outlet_id')}
+                                        >
+                                            {outlets.map((o) => (
+                                                <option key={o.id} value={o.id}>
+                                                    [{o.kode_outlet}] {o.nama_toko}
+                                                </option>
+                                            ))}
+                                        </Select>
+                                        <p className="text-xs text-gray-400 mt-1">
+                                            {outlets.length === 1
+                                                ? 'Keluhan tercatat atas nama outlet Anda.'
+                                                : 'Anda terdaftar sebagai PIC di lebih dari satu outlet — pilih salah satu.'}
+                                        </p>
+                                    </div>
+                                )
+                            ) : (
+                                outlets.length > 0 && (
+                                    <Select
+                                        label={`Outlet (opsional)${loadingOutlets ? ' — Memuat...' : ''}`}
+                                        placeholder="— Keluhan dari outlet tertentu? —"
+                                        {...register('outlet_id')}
+                                    >
+                                        {outlets.map((o) => (
+                                            <option key={o.id} value={o.id}>
+                                                [{o.kode_outlet}] {o.nama_toko}
+                                            </option>
+                                        ))}
                                     </Select>
-                                    <p className="text-xs text-gray-400 mt-1">Keluhan tercatat atas nama outlet Anda.</p>
-                                </div>
-                            ) : !isOutlet && outlets.length > 0 ? (
-                                <Select
-                                    label={`Outlet (opsional)${loadingOutlets ? ' — Memuat...' : ''}`}
-                                    placeholder="— Keluhan dari outlet tertentu? —"
-                                    {...register('outlet_id')}
-                                >
-                                    {outlets.map((o) => (
-                                        <option key={o.id} value={o.id}>
-                                            [{o.kode_outlet}] {o.nama_toko}
-                                        </option>
-                                    ))}
-                                </Select>
-                            ) : null
+                                )
+                            )
                         )}
 
                         {/* <Select label="Prioritas" required error={errors.prioritas?.message}
@@ -411,6 +480,10 @@ export function FkpCreatePage() {
                                             </p>
                                         )}
                                     </div>
+                                    <button type="button" onClick={() => openEditItemModal(item)}
+                                        className="p-1.5 text-gray-400 hover:text-brand-500 hover:bg-brand-50 rounded-lg transition-colors">
+                                        <Pencil className="w-4 h-4" />
+                                    </button>
                                     <button type="button" onClick={() => removeItem(item._key)}
                                         className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                                         <Trash2 className="w-4 h-4" />
@@ -473,9 +546,12 @@ export function FkpCreatePage() {
 
             <FkpItemFormModal
                 isOpen={modalOpen}
-                onClose={() => setModalOpen(false)}
+                onClose={() => { setModalOpen(false); setEditingKey(null) }}
                 products={products}
                 resetKey={resetKey}
+                initialData={editingItem?.formData ?? null}
+                initialFiles={editingItem?.files}
+                variant={editingItem ? 'edit-saved' : 'add'}
                 onSave={handleItemSave}
                 isSaving={isSavingItem}
             />

@@ -13,7 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user_with_role, require_roles
+from app.core.dependencies import get_current_user_with_role
+from app.services.permission_service import require_permission
 from app.models.outlet import Outlet
 from app.models.user import User
 from app.schemas.outlet_register import (
@@ -31,9 +32,6 @@ from app.services.outlet_register_service import (
 )
 
 router = APIRouter()
-
-APPROVE_REJECT_ROLES = ("superadmin", "admin_ho", "distributor", "sc_spv", "apsm")
-
 
 # ─── LIST PENDAFTARAN PENDING ─────────────────────────────────────────────────
 
@@ -78,6 +76,14 @@ async def get_registration_detail(
 ):
     user, kode_role = auth
 
+    # PERBAIKAN RBAC (Kategori B): sebelumnya cek tuple hardcode inline
+    # (elif kode_role not in (...)), tidak terhubung ke dashboard RBAC.
+    # Sekarang via require_permission() — DB-driven, superadmin bypass
+    # via is_superadmin. Data-scope check untuk distributor TETAP di kode
+    # (branch di bawah), karena butuh JOIN ke DistributorUser, bukan
+    # sekadar boolean role.
+    await require_permission(kode_role, "outlet_registration.read", db)
+
     result = await db.execute(select(Outlet).where(Outlet.id == outlet_id))
     outlet = result.scalar_one_or_none()
     if not outlet:
@@ -94,9 +100,6 @@ async def get_registration_detail(
         dist_ids = du_result.scalars().all()
         if outlet.distributor_id not in dist_ids:
             raise HTTPException(status_code=403, detail="Akses ditolak.")
-
-    elif kode_role not in ("superadmin", "admin_ho", "qc", "rsm", "direktur", "sc_spv", "apsm"):
-        raise HTTPException(status_code=403, detail=f"Role '{kode_role}' tidak diizinkan.")
 
     # Ambil email dari User terkait
     email = outlet.email or ""
@@ -131,7 +134,7 @@ async def get_registration_detail(
     description=(
         "Mengubah status outlet dari `pending` → `aktif` "
         "dan mengaktifkan akun user outlet tersebut. "
-        "Role yang diizinkan: superadmin, admin_ho, distributor, sc_spv, apsm."
+        "Role yang diizinkan: lihat permission outlet_registration.approve di dashboard RBAC."
     ),
 )
 async def approve_outlet_registration(
@@ -142,11 +145,9 @@ async def approve_outlet_registration(
 ):
     user, kode_role = auth
 
-    if kode_role not in APPROVE_REJECT_ROLES:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Role '{kode_role}' tidak diizinkan melakukan persetujuan.",
-        )
+    # PERBAIKAN RBAC (Kategori B): sebelumnya cek tuple hardcode
+    # APPROVE_REJECT_ROLES. Sekarang via require_permission(), DB-driven.
+    await require_permission(kode_role, "outlet_registration.approve", db)
 
     try:
         return await approve_registration(
@@ -171,7 +172,7 @@ async def approve_outlet_registration(
     description=(
         "Mengubah status outlet dari `pending` → `ditolak`. "
         "Akun user tetap tidak aktif. Alasan penolakan wajib diisi. "
-        "Role yang diizinkan: superadmin, admin_ho, distributor, sc_spv, apsm."
+        "Role yang diizinkan: lihat permission outlet_registration.approve di dashboard RBAC."
     ),
 )
 async def reject_outlet_registration(
@@ -182,11 +183,8 @@ async def reject_outlet_registration(
 ):
     user, kode_role = auth
 
-    if kode_role not in APPROVE_REJECT_ROLES:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Role '{kode_role}' tidak diizinkan melakukan penolakan.",
-        )
+    # PERBAIKAN RBAC (Kategori B): lihat penjelasan di approve_outlet_registration.
+    await require_permission(kode_role, "outlet_registration.approve", db)
 
     try:
         return await reject_registration(

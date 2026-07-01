@@ -24,7 +24,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import require_roles
+from app.core.dependencies import require_permission_dep
 from app.schemas.hierarchy import (
     RsmApsmAssign, RsmApsmResponse,
     ApsmScSpvAssign, ApsmScSpvResponse,
@@ -40,8 +40,6 @@ from app.services import hierarchy_service
 
 router = APIRouter()
 
-ADMIN_ROLES = ("superadmin", "admin_ho")
-
 
 @router.get(
     "/users/by-role",
@@ -51,7 +49,7 @@ ADMIN_ROLES = ("superadmin", "admin_ho")
 async def list_users_by_role(
     kode_role: str,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles(*ADMIN_ROLES, "rsm", "direktur")),
+    current_user=Depends(require_permission_dep("hierarchy.read")),
 ):
     result = await db.execute(
         select(User)
@@ -69,7 +67,7 @@ async def list_users_by_role(
 )
 async def list_distributors_for_hierarchy(
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles(*ADMIN_ROLES, "rsm", "direktur")),
+    current_user=Depends(require_permission_dep("hierarchy.read")),
 ):
     result = await db.execute(
         select(Distributor)
@@ -88,7 +86,7 @@ async def list_distributors_for_hierarchy(
 async def list_rsm_apsm(
     rsm_user_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles(*ADMIN_ROLES, "rsm")),
+    current_user=Depends(require_permission_dep("hierarchy.rsm_apsm.read")),
 ):
     return await hierarchy_service.list_rsm_apsm(rsm_user_id, db)
 
@@ -102,7 +100,7 @@ async def list_rsm_apsm(
 async def assign_apsm_to_rsm(
     data: RsmApsmAssign,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles(*ADMIN_ROLES)),
+    current_user=Depends(require_permission_dep("hierarchy.manage")),
 ):
     return await hierarchy_service.assign_apsm_to_rsm(data, db)
 
@@ -115,7 +113,7 @@ async def remove_apsm_from_rsm(
     rsm_user_id: uuid.UUID,
     apsm_user_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles(*ADMIN_ROLES)),
+    current_user=Depends(require_permission_dep("hierarchy.manage")),
 ):
     return await hierarchy_service.remove_apsm_from_rsm(rsm_user_id, apsm_user_id, db)
 
@@ -128,7 +126,7 @@ async def remove_apsm_from_rsm(
 async def get_rsm_team(
     rsm_user_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles(*ADMIN_ROLES, "rsm", "direktur")),
+    current_user=Depends(require_permission_dep("hierarchy.read")),
 ):
     return await hierarchy_service.get_hierarchy_by_rsm(rsm_user_id, db)
 
@@ -143,7 +141,7 @@ async def get_rsm_team(
 async def list_apsm_sc_spv(
     apsm_user_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles(*ADMIN_ROLES, "apsm", "rsm")),
+    current_user=Depends(require_permission_dep("hierarchy.apsm_sc_spv.read")),
 ):
     return await hierarchy_service.list_apsm_sc_spv(apsm_user_id, db)
 
@@ -157,7 +155,7 @@ async def list_apsm_sc_spv(
 async def assign_sc_spv_to_apsm(
     data: ApsmScSpvAssign,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles(*ADMIN_ROLES)),
+    current_user=Depends(require_permission_dep("hierarchy.manage")),
 ):
     return await hierarchy_service.assign_sc_spv_to_apsm(data, db)
 
@@ -170,7 +168,7 @@ async def remove_sc_spv_from_apsm(
     apsm_user_id: uuid.UUID,
     sc_spv_user_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles(*ADMIN_ROLES)),
+    current_user=Depends(require_permission_dep("hierarchy.manage")),
 ):
     return await hierarchy_service.remove_sc_spv_from_apsm(apsm_user_id, sc_spv_user_id, db)
 
@@ -185,7 +183,7 @@ async def remove_sc_spv_from_apsm(
 async def list_sc_spv_distributors(
     sc_spv_user_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles(*ADMIN_ROLES, "apsm", "sc_spv", "rsm")),
+    current_user=Depends(require_permission_dep("hierarchy.sc_spv_distributor.read")),
 ):
     return await hierarchy_service.list_sc_spv_distributors(sc_spv_user_id, db)
 
@@ -199,7 +197,7 @@ async def list_sc_spv_distributors(
 async def assign_distributor_to_sc_spv(
     data: ScSpvDistributorAssign,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles(*ADMIN_ROLES)),
+    current_user=Depends(require_permission_dep("hierarchy.manage")),
 ):
     return await hierarchy_service.assign_distributor_to_sc_spv(data, db)
 
@@ -212,6 +210,6 @@ async def remove_distributor_from_sc_spv(
     sc_spv_user_id: uuid.UUID,
     distributor_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles(*ADMIN_ROLES)),
+    current_user=Depends(require_permission_dep("hierarchy.manage")),
 ):
     return await hierarchy_service.remove_distributor_from_sc_spv(sc_spv_user_id, distributor_id, db)

@@ -15,7 +15,7 @@ const floatVariants = {
   animate: {
     y: [0, -10, 0],
     transition: { duration: 5, repeat: Infinity },
-  },
+  }, 
 }
 
 const staggerContainer = {

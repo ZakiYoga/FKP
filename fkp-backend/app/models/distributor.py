@@ -1,10 +1,16 @@
 import uuid
-from typing import Optional, List
+from typing import TYPE_CHECKING, Optional, List
 from datetime import datetime, timezone
 from sqlalchemy import DateTime, Column
 from sqlmodel import SQLModel, Field, Relationship
 
-
+if TYPE_CHECKING:
+    from app.models.area import Area
+    from app.models.wilayah import Kelurahan
+    from app.models.outlet import Outlet
+    from app.models.fkp import FkpComplaint
+    from app.models.user import User
+    
 class Distributor(SQLModel, table=True):
     __tablename__ = "distributors"
 

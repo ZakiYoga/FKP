@@ -1,5 +1,5 @@
 import { NavItem } from "@/types/navItems";
-import { Bell, Building2, ClipboardList, FileText, GitBranch, LayoutDashboard, MapPin, MessageSquareQuote, Package, Route, Settings, Store, Users, } from "lucide-react";
+import { Bell, Building2, ClipboardList, FileText, FilePen, GitBranch, LayoutDashboard, MapPin, MessageSquareQuote, Package, Route, Settings, Store, Users, } from "lucide-react";
 
 
 export const NAV_ITEMS: NavItem[] = [
@@ -34,7 +34,15 @@ export const NAV_ITEMS: NavItem[] = [
         roles: ['superadmin', 'admin_ho', 'apsm', 'sc_spv', 'distributor']
     },
     {
-        label: 'Testimoni', href: '/testimoni', icon: MessageSquareQuote
+        label: 'Testimoni', href: '/testimoni', icon: MessageSquareQuote,
+        roles: ['distributor', 'outlet', 'sc_spv']
+    },
+    {
+        label: 'Penerbitan FKP', href: '/penerbitan-fkp', icon: FilePen,
+    },
+    {
+        label: 'BA Manual', href: '/penerbitan-fkp/manual', icon: FilePen,
+        roles: ['admin_ho', 'superadmin', 'qc', 'rsm', 'direktur']
     },
     {
         label: 'Track FKP', href: '/track', icon: Route

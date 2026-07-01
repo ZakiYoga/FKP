@@ -2,18 +2,19 @@ import { cn, getStatusColor, getPrioritasColor } from '@/lib/utils'
 import { FKP_STATUS_LABEL, FKP_PRIORITAS_LABEL } from '@/types'
 import type { FkpStatusKey, FkpPrioritas } from '@/types'
 
-export function StatusBadge({ status }: { status: FkpStatusKey }) {
+export function PrioritasBadge({ prioritas }: { prioritas: string }) {
   return (
-    <span className={cn('badge', getStatusColor(status))}>
-      {FKP_STATUS_LABEL[status] ?? status}
+    <span className={cn('badge', getPrioritasColor(prioritas as FkpPrioritas))}>
+      {FKP_PRIORITAS_LABEL[prioritas as FkpPrioritas] ?? prioritas}
     </span>
   )
 }
 
-export function PriorittasBadge({ prioritas }: { prioritas: FkpPrioritas }) {
+export function StatusBadge({ status }: { status: string }) {
   return (
-    <span className={cn('badge', getPrioritasColor(prioritas))}>
-      {FKP_PRIORITAS_LABEL[prioritas] ?? prioritas}
+    <span className={cn('badge', getStatusColor(status as FkpStatusKey))}>
+      {FKP_STATUS_LABEL[status as FkpStatusKey] ?? status}
     </span>
   )
 }
+

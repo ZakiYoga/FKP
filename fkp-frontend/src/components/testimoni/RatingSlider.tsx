@@ -180,10 +180,11 @@ export function RatingSlider({
             return (
               <div
                 key={r.value}
-                className="flex flex-col items-center gap-1 bg-red-500"
+                className="flex flex-col items-center gap-1"
                 style={{
                   width: 70,
                   pointerEvents: 'auto', // tiap node tetap bisa diklik
+                  zIndex: 20,
                 }}
                 onClick={() => handlePick(r.value)}
               >

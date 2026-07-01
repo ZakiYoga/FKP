@@ -1,15 +1,4 @@
-// hooks/useFkp.ts
-// ─── PATCH: ApsmReviewPayload & AdminHoReviewPayload pakai field baru ─────────
-//
-// Perubahan:
-//   - import ApsmReviewPayload & AdminHoReviewPayload dari @/types
-//     (tipe sudah diupdate di types_fkp_patch.ts)
-//   - Tidak ada perubahan lain di hooks ini — tipe payload yang berubah,
-//     bukan shape hook-nya.
-// ─────────────────────────────────────────────────────────────────────────────
-
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import toast from 'react-hot-toast'
 import { fkpApi } from '@/api/fkp'
 import type {
   FkpCreatePayload,
@@ -20,6 +9,7 @@ import type {
 } from '@/types'
 import { distributorApi, outletApi, productApi } from '@/api/masterdata'
 import { getErrorMessage } from '@/lib/utils'
+import { notifications } from '@mantine/notifications'
 
 // ── Query Keys ─────────────────────────────────────────────────────────────
 export const fkpKeys = {
@@ -51,8 +41,18 @@ export function useCreateFkp() {
     mutationFn: (data: FkpCreatePayload) => fkpApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: fkpKeys.all })
+      notifications.show({
+        message: 'FKP berhasil dibuat.',
+        color: 'green',
+      })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+
+    onError: (e) => {
+      notifications.show({
+        message: getErrorMessage(e),
+        color: 'red',
+      })
+    },
   })
 }
 
@@ -67,9 +67,17 @@ export function useUpdateFkp(fkpId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: fkpKeys.detail(fkpId) })
       queryClient.invalidateQueries({ queryKey: fkpKeys.all })
-      toast.success('FKP berhasil diupdate.')
+      notifications.show({
+        message: 'FKP berhasil diupdate.',
+        color: 'green',
+      })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => {
+      notifications.show({
+        message: getErrorMessage(e),
+        color: 'red',
+      })
+    },
   })
 }
 
@@ -80,9 +88,17 @@ export function useAddFkpItem(fkpId: string) {
     mutationFn: (data: FkpItemCreatePayload) => fkpApi.addItem(fkpId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: fkpKeys.detail(fkpId) })
-      toast.success('Item produk berhasil ditambahkan.')
+      notifications.show({
+        message: 'Item produk berhasil ditambahkan.',
+        color: 'green',
+      })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => {
+      notifications.show({
+        message: getErrorMessage(e),
+        color: 'red',
+      })
+    },
   })
 }
 
@@ -98,9 +114,17 @@ export function useUpdateFkpItem(fkpId: string) {
     }) => fkpApi.updateItem(fkpId, itemId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: fkpKeys.detail(fkpId) })
-      toast.success('Item berhasil diupdate.')
+      notifications.show({
+        message: 'Item produk berhasil diupdate.',
+        color: 'green',
+      })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => {
+      notifications.show({
+        message: getErrorMessage(e),
+        color: 'red',
+      })
+    },
   })
 }
 
@@ -110,9 +134,17 @@ export function useDeleteFkpItem(fkpId: string) {
     mutationFn: (itemId: string) => fkpApi.deleteItem(fkpId, itemId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: fkpKeys.detail(fkpId) })
-      toast.success('Item berhasil dihapus.')
+      notifications.show({
+        message: 'Item berhasil dihapus.',
+        color: 'green',
+      })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => {
+      notifications.show({
+        message: getErrorMessage(e),
+        color: 'red',
+      })
+    },
   })
 }
 
@@ -124,9 +156,17 @@ export function useUploadAttachment(fkpId: string) {
       fkpApi.uploadAttachment(fkpId, file, fkpItemId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: fkpKeys.detail(fkpId) })
-      toast.success('Foto berhasil diupload.')
+      notifications.show({
+        message: 'Foto berhasil diupload.',
+        color: 'green',
+      })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => {
+      notifications.show({
+        message: getErrorMessage(e),
+        color: 'red',
+      })
+    },
   })
 }
 
@@ -136,9 +176,17 @@ export function useDeleteAttachment(fkpId: string) {
     mutationFn: (attachmentId: string) => fkpApi.deleteAttachment(fkpId, attachmentId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: fkpKeys.detail(fkpId) })
-      toast.success('Foto dihapus.')
+      notifications.show({
+        message: 'Foto dihapus.',
+        color: 'green',
+      })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => {
+      notifications.show({
+        message: getErrorMessage(e),
+        color: 'red',
+      })
+    },
   })
 }
 
@@ -150,9 +198,17 @@ export function useSubmitFkp(fkpId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: fkpKeys.detail(fkpId) })
       queryClient.invalidateQueries({ queryKey: fkpKeys.all })
-      toast.success('FKP berhasil disubmit. Menunggu review APSM.')
+      notifications.show({
+        message: 'FKP berhasil disubmit. Menunggu review APSM.',
+        color: 'green',
+      })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => {
+      notifications.show({
+        message: getErrorMessage(e),
+        color: 'red',
+      })
+    },
   })
 }
 
@@ -168,9 +224,17 @@ function useStatusTransition(
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: fkpKeys.detail(fkpId) })
       queryClient.invalidateQueries({ queryKey: fkpKeys.all })
-      toast.success(successMessage)
+      notifications.show({
+        message: successMessage,
+        color: 'green',
+      })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => {
+      notifications.show({
+        message: getErrorMessage(e),
+        color: 'red',
+      })
+    },
   })
 }
 
@@ -184,9 +248,17 @@ export function useApsmReview(fkpId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: fkpKeys.detail(fkpId) })
       queryClient.invalidateQueries({ queryKey: fkpKeys.all })
-      toast.success('FKP diteruskan ke Admin HO.')
+      notifications.show({
+        message: 'FKP diteruskan ke Admin HO.',
+        color: 'green',
+      })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => {
+      notifications.show({
+        message: getErrorMessage(e),
+        color: 'red',
+      })
+    },
   })
 }
 
@@ -200,9 +272,17 @@ export function useAdminHoReview(fkpId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: fkpKeys.detail(fkpId) })
       queryClient.invalidateQueries({ queryKey: fkpKeys.all })
-      toast.success('FKP diteruskan ke RSM untuk persetujuan investigasi.')
+      notifications.show({
+        message: 'FKP diteruskan ke RSM untuk persetujuan investigasi.',
+        color: 'green',
+      })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => {
+      notifications.show({
+        message: getErrorMessage(e),
+        color: 'red',
+      })
+    },
   })
 }
 
@@ -215,9 +295,17 @@ export function useRsmApproveInvestigasi(fkpId: string) {
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: fkpKeys.detail(fkpId) })
       queryClient.invalidateQueries({ queryKey: fkpKeys.all })
-      toast.success(vars.disetujui ? 'Investigasi disetujui RSM.' : 'FKP ditolak RSM.')
+      notifications.show({
+        message: vars.disetujui ? 'Investigasi disetujui RSM.' : 'FKP ditolak RSM.',
+        color: 'green',
+      })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => {
+      notifications.show({
+        message: getErrorMessage(e),
+        color: 'red',
+      })
+    },
   })
 }
 
@@ -229,9 +317,17 @@ export function useQcInvestigasi(fkpId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: fkpKeys.detail(fkpId) })
       queryClient.invalidateQueries({ queryKey: fkpKeys.all })
-      toast.success('Hasil investigasi QC berhasil disimpan.')
+      notifications.show({
+        message: 'Hasil investigasi QC berhasil disimpan.',
+        color: 'green',
+      })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => {
+      notifications.show({
+        message: getErrorMessage(e),
+        color: 'red',
+      })
+    },
   })
 }
 
@@ -243,9 +339,17 @@ export function useRequestResolusiApproval(fkpId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: fkpKeys.detail(fkpId) })
       queryClient.invalidateQueries({ queryKey: fkpKeys.all })
-      toast.success('Permintaan persetujuan resolusi dikirim ke RSM.')
+      notifications.show({
+        message: 'Permintaan persetujuan resolusi dikirim ke RSM.',
+        color: 'green',
+      })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => {
+      notifications.show({
+        message: getErrorMessage(e),
+        color: 'red',
+      })
+    },
   })
 }
 
@@ -258,13 +362,19 @@ export function useRsmApproveResolusi(fkpId: string) {
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: fkpKeys.detail(fkpId) })
       queryClient.invalidateQueries({ queryKey: fkpKeys.all })
-      toast.success(
-        vars.disetujui
+      notifications.show({
+        message: vars.disetujui
           ? 'Resolusi disetujui RSM, diteruskan ke Direktur.'
           : 'FKP ditolak RSM.',
-      )
+        color: 'green',
+      })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => {
+      notifications.show({
+        message: getErrorMessage(e),
+        color: 'red',
+      })
+    },
   })
 }
 
@@ -277,9 +387,17 @@ export function useDirekturApprove(fkpId: string) {
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: fkpKeys.detail(fkpId) })
       queryClient.invalidateQueries({ queryKey: fkpKeys.all })
-      toast.success(vars.disetujui ? 'FKP disetujui Direktur.' : 'FKP ditolak Direktur.')
+      notifications.show({
+        message: vars.disetujui ? 'FKP disetujui Direktur.' : 'FKP ditolak Direktur.',
+        color: 'green',
+      })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => {
+      notifications.show({
+        message: getErrorMessage(e),
+        color: 'red',
+      })
+    },
   })
 }
 
@@ -291,9 +409,17 @@ export function useRequestRevision(fkpId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: fkpKeys.detail(fkpId) })
       queryClient.invalidateQueries({ queryKey: fkpKeys.all })
-      toast.success('FKP dikembalikan untuk revisi.')
+      notifications.show({
+        message: 'FKP dikembalikan untuk revisi.',
+        color: 'green',
+      })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => {
+      notifications.show({
+        message: getErrorMessage(e),
+        color: 'red',
+      })
+    },
   })
 }
 
@@ -305,9 +431,17 @@ export function useRejectFkp(fkpId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: fkpKeys.detail(fkpId) })
       queryClient.invalidateQueries({ queryKey: fkpKeys.all })
-      toast.success('FKP ditolak.')
+      notifications.show({
+        message: 'FKP ditolak.',
+        color: 'green',
+      })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => {
+      notifications.show({
+        message: getErrorMessage(e),
+        color: 'red',
+      })
+    },
   })
 }
 
@@ -319,9 +453,17 @@ export function useCloseFkp(fkpId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: fkpKeys.detail(fkpId) })
       queryClient.invalidateQueries({ queryKey: fkpKeys.all })
-      toast.success('FKP berhasil ditutup.')
+      notifications.show({
+        message: 'FKP berhasil ditutup.',
+        color: 'green',
+      })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => {
+      notifications.show({
+        message: getErrorMessage(e),
+        color: 'red',
+      })
+    },
   })
 }
 
@@ -348,5 +490,16 @@ export function useProducts() {
     queryKey: ['products', 'active'],
     queryFn: () => productApi.list({ is_active: true }),
     staleTime: 10 * 60 * 1000,
+  })
+}
+
+export function useFkpPenerbitan(filters?: {
+  status?: string
+  tanggal_dari?: string
+  tanggal_sampai?: string
+}) {
+  return useQuery({
+    queryKey: ['fkp', 'penerbitan', filters],
+    queryFn: () => fkpApi.listPenerbitan(filters),
   })
 }

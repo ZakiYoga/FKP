@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { Calendar, Package, Building2, ArrowRight, Paperclip } from 'lucide-react'
-import { StatusBadge, PriorittasBadge } from '@/components/ui/Badge'
+import { StatusBadge, PrioritasBadge } from '@/components/ui/Badge'
 import { formatDate, formatRelative } from '@/lib/utils'
 import type { FkpListItem } from '@/types'
 
@@ -21,7 +21,7 @@ export function FkpCard({ fkp }: FkpCardProps) {
       <div className="flex items-start justify-between gap-3 mb-3">
         <div>
           <p className="text-xs font-mono text-gray-400 mb-1">{fkp.nomor_fkp}</p>
-          {/* <PriorittasBadge prioritas={fkp.prioritas} /> */}
+          {/* <PrioritasBadge prioritas={fkp.prioritas} /> */}
         </div>
         <StatusBadge status={fkp.status} />
       </div>

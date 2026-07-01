@@ -1,9 +1,14 @@
 import uuid
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime, timezone
 from sqlalchemy import DateTime, Column
 from sqlmodel import SQLModel, Field, Relationship
 
+if TYPE_CHECKING:
+    from app.models.user import User
+    from app.models.distributor import Distributor
+    from app.models.wilayah import Provinsi
+    
 
 class Area(SQLModel, table=True):
     __tablename__ = "areas"

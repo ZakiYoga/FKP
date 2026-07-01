@@ -1,3 +1,30 @@
+"""
+Outlet Register Service — registrasi outlet publik + approval flow.
+
+[REVISI] Keputusan is_active dibalik dari fix sebelumnya, atas pertimbangan
+yang lebih tepat: User.is_active SELALU True untuk akun yang valid secara
+administratif. is_active TIDAK dipakai sebagai proxy status approval outlet.
+Gate "boleh login atau tidak" untuk role outlet sepenuhnya ditentukan oleh
+status outlet (lihat auth_service.login()) — bukan oleh is_active.
+
+Alasan: 1 user outlet boleh memiliki LEBIH DARI SATU outlet (asal distributor
+sama, lihat dokumen section 2.3). Kalau is_active dipakai sebagai proxy status
+approval, maka tidak ada cara merepresentasikan "user dengan 2 outlet: satu
+aktif, satu masih pending" — is_active itu milik User, bukan per-Outlet.
+Aturan yang benar: izinkan login jika minimal SATU outlet milik user statusnya
+'aktif', terlepas dari status outlet lain miliknya. Itu hanya bisa dicek dari
+tabel Outlet langsung, bukan dari User.is_active.
+
+[FIX #3] Tidak lagi memakai string "superadmin" untuk cek superadmin.
+  Memakai authz_helpers.is_superadmin() yang membaca Role.is_superadmin,
+  sesuai dokumen section 3.7. String "superadmin" sebelumnya tidak akan
+  pernah match jika kode_role sebenarnya "super_admin" di tabel roles.
+
+[FIX #4] Validasi scope ditambahkan untuk sc_spv & apsm saat approve/reject,
+  tidak hanya untuk distributor seperti sebelumnya. Sebelumnya sc_spv/apsm
+  bisa approve/reject outlet milik distributor manapun, di luar scope
+  mereka — sekarang dibatasi via authz_helpers.assert_distributor_in_scope().
+"""
 import uuid
 from datetime import datetime, timezone
 
@@ -19,8 +46,18 @@ from app.schemas.outlet_register import (
     OutletRejectRequest,
     OutletRejectResponse,
 )
+from app.services.authz_helpers import (
+    is_superadmin,
+    has_global_access,
+    get_scoped_distributor_ids,
+    assert_distributor_in_scope,
+)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# Role yang berhak mengelola registrasi outlet (selain superadmin, yang selalu
+# dicek lewat is_superadmin()).
+REGISTRATION_MANAGER_ROLES = ("admin_ho", "distributor", "sc_spv", "apsm")
 
 
 async def _generate_kode_outlet(session: AsyncSession) -> str:
@@ -73,14 +110,17 @@ async def register_outlet(
     if not role_outlet:
         raise RuntimeError("Role 'outlet' belum dikonfigurasi di sistem")
 
-    # 4. Buat User (is_active=False, tunggu approval)
+    # 4. Buat User — is_active=True. Status "menunggu approval" direpresentasikan
+    #    SEPENUHNYA oleh Outlet.status="pending", bukan oleh User.is_active.
+    #    Gate login ada di auth_service.login() yang mengecek status outlet,
+    #    bukan di sini.
     new_user = User(
         role_id=role_outlet.id,
         nama=payload.pemilik_toko,
         email=payload.email,
         password_hash=pwd_context.hash(payload.password),
         no_telepon=payload.no_hp,
-        is_active=True, # Bisa langsung aktif, karena aksesnya dibatasi oleh status outlet
+        is_active=True,
     )
     session.add(new_user)
     await session.flush()   # dapatkan new_user.id sebelum commit
@@ -121,27 +161,26 @@ async def list_pending_registrations(
 ) -> OutletRegistrationListResponse:
     """
     Kembalikan daftar outlet dengan status 'pending'.
-    - superadmin / admin_ho : semua pending outlet
-    - distributor           : hanya pending outlet di bawah distributornya
-    - sc_spv / apsm         : akses melalui hierarki (opsional, bisa dikembangkan)
+    - superadmin (flag) / admin_ho / qc / rsm / direktur : semua pending outlet
+    - distributor : hanya pending outlet di distributornya
+    - sc_spv      : hanya pending outlet di distributor yang dia kelola
+    - apsm        : hanya pending outlet di distributor pada area yang dia PIC-i
     """
     query = select(Outlet).where(Outlet.status == "pending")
- 
-    # Batasi berdasarkan role
-    if kode_role in ("superadmin", "admin_ho", "qc", "rsm", "direktur"):
-        pass  # akses penuh
- 
-    elif kode_role == "distributor":
-        du_result = await session.execute(
-            select(DistributorUser.distributor_id).where(
-                DistributorUser.user_id == requesting_user.id
-            )
-        )
-        dist_ids = du_result.scalars().all()
+
+    # [FIX #3] Akses global lewat flag is_superadmin + daftar role HO terpusat,
+    # bukan string "superadmin" yang rawan typo / mismatch dengan "super_admin".
+    if await has_global_access(requesting_user, kode_role, session):
+        pass  # akses penuh, tidak perlu filter distributor
+
+    elif kode_role in ("distributor", "sc_spv", "apsm"):
+        # [FIX #1 turunan] dist_ids sekarang dihitung lewat resolver terpusat
+        # sehingga APSM ikut mendapat distributor tanpa SC_SPV (scoping via Area).
+        dist_ids = await get_scoped_distributor_ids(requesting_user, kode_role, session)
         if not dist_ids:
             return OutletRegistrationListResponse(total=0, items=[])
         query = query.where(Outlet.distributor_id.in_(dist_ids))
- 
+
     else:
         raise PermissionError(
             f"Role '{kode_role}' tidak diizinkan melihat daftar registrasi outlet."
@@ -198,8 +237,11 @@ async def approve_registration(
 ) -> OutletApproveResponse:
     """
     Setujui registrasi outlet pending.
-    - Outlet.status  → 'aktif'
-    - User.is_active → True
+    - Outlet.status → 'aktif'
+    - User.is_active TIDAK diubah di sini — is_active sudah True sejak
+      registrasi dan tidak merepresentasikan status approval outlet.
+      Login untuk role outlet digerbang oleh status outlet itu sendiri
+      (lihat auth_service.login()), bukan oleh User.is_active.
     """
     outlet = await _get_outlet_or_404(outlet_id, session)
  
@@ -208,47 +250,56 @@ async def approve_registration(
             f"Outlet tidak dalam status 'pending' (status saat ini: '{outlet.status}'). "
             "Hanya outlet berstatus 'pending' yang bisa disetujui."
         )
- 
-    # Validasi hak akses berdasarkan role
-    if kode_role not in ("superadmin", "admin_ho", "distributor", "sc_spv", "apsm"):
+
+    superadmin = await is_superadmin(requesting_user, session)
+
+    # [FIX #3] cek role berbasis flag, bukan string "superadmin"
+    if not superadmin and kode_role not in REGISTRATION_MANAGER_ROLES:
         raise PermissionError(f"Role '{kode_role}' tidak berhak menyetujui registrasi outlet.")
- 
-    # Untuk role distributor: pastikan outlet berada di bawah distributornya
-    if kode_role == "distributor":
-        du_result = await session.execute(
-            select(DistributorUser.distributor_id).where(
-                DistributorUser.user_id == requesting_user.id
+
+    # [FIX #4] Validasi scope untuk distributor, sc_spv, DAN apsm.
+    # Sebelumnya hanya distributor yang divalidasi; sc_spv & apsm bisa approve
+    # outlet milik distributor mana pun. Sekarang semua role non-global wajib
+    # lolos assert_distributor_in_scope().
+    if not superadmin and kode_role in ("distributor", "sc_spv", "apsm"):
+        try:
+            await assert_distributor_in_scope(
+                outlet.distributor_id,
+                requesting_user,
+                kode_role,
+                session,
+                forbidden_message="Anda tidak berhak menyetujui outlet di luar scope Anda.",
             )
-        )
-        dist_ids = du_result.scalars().all()
-        if outlet.distributor_id not in dist_ids:
-            raise PermissionError("Anda tidak berhak menyetujui outlet di luar distributor Anda.")
- 
-    # Aktifkan outlet
+        except PermissionError:
+            raise PermissionError("Anda tidak berhak menyetujui outlet di luar scope Anda.")
+
+    # Aktifkan outlet. User pemiliknya TIDAK disentuh — is_active-nya
+    # sudah True sejak awal dan tetap True di sini.
     outlet.status = "aktif"
     outlet.updated_at = datetime.now(timezone.utc)
     session.add(outlet)
- 
-    # Aktifkan user terkait
-    if outlet.pic_user_id:
-        u_result = await session.execute(
-            select(User).where(User.id == outlet.pic_user_id)
-        )
-        user = u_result.scalar_one_or_none()
-        if user:
-            user.is_active = True
-            user.updated_at = datetime.now(timezone.utc)
-            session.add(user)
- 
+
     await session.commit()
     await session.refresh(outlet)
- 
+
+    # Ambil is_active user saat ini untuk response (murni informatif,
+    # bukan hasil perubahan oleh fungsi ini).
+    user_is_active = True
+    if outlet.pic_user_id:
+        user_result = await session.execute(
+            select(User.is_active).where(User.id == outlet.pic_user_id)
+        )
+        user_is_active = user_result.scalar_one_or_none()
+        if user_is_active is None:
+            user_is_active = True
+
     return OutletApproveResponse(
         message=f"Registrasi outlet '{outlet.nama_toko}' telah disetujui.",
         outlet_id=outlet.id,
         user_id=outlet.pic_user_id,
         kode_outlet=outlet.kode_outlet,
         status=outlet.status,
+        user_is_active=user_is_active,
     )
  
  
@@ -263,8 +314,12 @@ async def reject_registration(
 ) -> OutletRejectResponse:
     """
     Tolak registrasi outlet pending.
-    - Outlet.status tetap bisa dicatat sebagai 'ditolak'
-    - User tetap is_active=False (tidak bisa login)
+    - Outlet.status → 'ditolak'
+    - User.is_active TIDAK diubah (tetap True) — yang mencegah user ini
+      login bukan is_active, melainkan tidak ada satupun outlet miliknya
+      yang berstatus 'aktif' (lihat auth_service.login()). Jika user yang
+      sama punya outlet LAIN yang sudah aktif, dia tetap bisa login —
+      ini disengaja, sesuai aturan "minimal satu outlet aktif = boleh login".
     """
     outlet = await _get_outlet_or_404(outlet_id, session)
  
@@ -273,20 +328,25 @@ async def reject_registration(
             f"Outlet tidak dalam status 'pending' (status saat ini: '{outlet.status}'). "
             "Hanya outlet berstatus 'pending' yang bisa ditolak."
         )
- 
-    if kode_role not in ("superadmin", "admin_ho", "distributor", "sc_spv", "apsm"):
+
+    superadmin = await is_superadmin(requesting_user, session)
+
+    if not superadmin and kode_role not in REGISTRATION_MANAGER_ROLES:
         raise PermissionError(f"Role '{kode_role}' tidak berhak menolak registrasi outlet.")
- 
-    if kode_role == "distributor":
-        du_result = await session.execute(
-            select(DistributorUser.distributor_id).where(
-                DistributorUser.user_id == requesting_user.id
+
+    # [FIX #4] Validasi scope juga untuk sc_spv & apsm, sama seperti approve.
+    if not superadmin and kode_role in ("distributor", "sc_spv", "apsm"):
+        try:
+            await assert_distributor_in_scope(
+                outlet.distributor_id,
+                requesting_user,
+                kode_role,
+                session,
+                forbidden_message="Anda tidak berhak menolak outlet di luar scope Anda.",
             )
-        )
-        dist_ids = du_result.scalars().all()
-        if outlet.distributor_id not in dist_ids:
-            raise PermissionError("Anda tidak berhak menolak outlet di luar distributor Anda.")
- 
+        except PermissionError:
+            raise PermissionError("Anda tidak berhak menolak outlet di luar scope Anda.")
+
     # Tandai outlet sebagai ditolak
     outlet.status = "ditolak"
     outlet.updated_at = datetime.now(timezone.utc)
@@ -300,4 +360,3 @@ async def reject_registration(
         outlet_id=outlet.id,
         status=outlet.status,
     )
- 

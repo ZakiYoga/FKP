@@ -22,6 +22,7 @@ from app.models.distributor import DistributorUser
 from app.models.outlet import Outlet
 from app.models.user import User
 from app.schemas.testimoni import TestimoniCreate, TestimoniUpdate
+from app.services.authz_helpers import is_superadmin
 
 
 # Role yang boleh membuat testimoni
@@ -38,8 +39,8 @@ async def _get_fkp_or_404(fkp_id: uuid.UUID, db: AsyncSession) -> FkpComplaint:
 
 async def _validasi_akses_fkp(fkp: FkpComplaint, user: User, kode_role: str, db: AsyncSession):
     """Pastikan user benar-benar terkait dengan FKP ini."""
-    if kode_role == "superadmin":
-        return  # superadmin bisa akses semua
+    if await is_superadmin(user, db):
+        return # superadmin bisa akses semua
 
     if kode_role == "distributor":
         r = await db.execute(select(DistributorUser).where(
@@ -92,7 +93,7 @@ async def buat_testimoni(
     """Buat testimoni baru untuk FKP."""
 
     # Validasi role
-    if kode_role not in TESTIMONI_CREATOR_ROLES and kode_role != "superadmin":
+    if kode_role not in TESTIMONI_CREATOR_ROLES and not await is_superadmin(user, db):
         raise HTTPException(
             status_code=403,
             detail=f"Role '{kode_role}' tidak bisa memberikan testimoni."
@@ -134,8 +135,7 @@ async def buat_testimoni(
     await db.commit()
     await db.refresh(testimoni)
 
-    # Enrich dengan nama user
-    testimoni.nama_pemberi = user.nama  # ditangani di response via join
+    # nama_pemberi bukan field DB — di-enrich di router, bukan di sini
     return testimoni
 
 
@@ -156,7 +156,8 @@ async def update_testimoni(
     if not testimoni:
         raise HTTPException(status_code=404, detail="Testimoni tidak ditemukan.")
 
-    if kode_role != "superadmin" and testimoni.user_id != user.id:
+    # PERBAIKAN Kategori C: literal "superadmin" → is_superadmin().
+    if not await is_superadmin(user, db) and testimoni.user_id != user.id:
         raise HTTPException(status_code=403, detail="Hanya pembuat testimoni yang bisa mengubahnya.")
 
     for k, v in data.model_dump(exclude_none=True).items():
@@ -184,7 +185,8 @@ async def hapus_testimoni(
     if not testimoni:
         raise HTTPException(status_code=404, detail="Testimoni tidak ditemukan.")
 
-    if kode_role != "superadmin" and testimoni.user_id != user.id:
+    # PERBAIKAN Kategori C: literal "superadmin" → is_superadmin().
+    if not await is_superadmin(user, db) and testimoni.user_id != user.id:
         raise HTTPException(status_code=403, detail="Hanya pembuat testimoni atau superadmin yang bisa menghapus.")
 
     await db.delete(testimoni)

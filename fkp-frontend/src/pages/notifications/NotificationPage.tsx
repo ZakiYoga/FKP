@@ -9,15 +9,18 @@ import toast from 'react-hot-toast'
 
 export function NotificationPage() {
   const navigate = useNavigate()
-
-  // useNotifications mengembalikan { data: NotificationListResponse }
-  // data.notifications adalah array, data.unread_count adalah angka
   const { data, isLoading } = useNotifications({ limit: 100 })
   const notifications = data?.notifications ?? []
   const unreadCount = data?.unread_count ?? 0
 
   const { mutate: markRead } = useMarkRead()
   const { mutate: markAllRead, isPending } = useMarkAllRead()
+
+  function getUnreadIdsByFkp(fkpId: string): string[] {
+    return notifications
+      .filter((n) => n.fkp_id === fkpId && !n.is_read)
+      .map((n) => n.id)
+  }
 
   const TIPE_COLOR: Record<string, string> = {
     status_change: 'bg-brand-100 text-brand-700',
@@ -56,8 +59,15 @@ export function NotificationPage() {
             <div
               key={n.id}
               onClick={() => {
-                if (!n.is_read) markRead(n.id)
-                if (n.fkp_id) navigate(`/fkp/${n.fkp_id}`)
+                if (n.fkp_id) {
+                  // Bulk mark semua notif FKP ini yang belum dibaca
+                  const unreadIds = getUnreadIdsByFkp(n.fkp_id)
+                  if (unreadIds.length > 0) markRead(unreadIds)
+                  navigate(`/fkp/${n.fkp_id}`)
+                } else {
+                  // Notif tanpa FKP — mark satu saja
+                  if (!n.is_read) markRead([n.id])
+                }
               }}
               className={cn(
                 'card p-4 transition-all duration-150',
@@ -77,7 +87,7 @@ export function NotificationPage() {
                     <span className={cn('badge text-xs', TIPE_COLOR[n.tipe] ?? 'bg-gray-100 text-gray-600')}>
                       {n.tipe === 'status_change' ? 'Perubahan Status'
                         : n.tipe === 'need_action' ? 'Perlu Tindakan'
-                        : 'Info'}
+                          : 'Info'}
                     </span>
                   </div>
                   <p className="text-sm text-gray-600 mt-0.5 leading-relaxed">{n.pesan}</p>

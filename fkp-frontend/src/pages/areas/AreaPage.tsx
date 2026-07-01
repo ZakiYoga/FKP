@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Plus, MapPin, Pencil, ChevronDown, ChevronUp } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 import { useAreas, useProvinsi, useCreateArea, useUpdateArea } from '@/hooks/useMasterData'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
@@ -10,13 +9,7 @@ import { PageLoader } from '@/components/ui/Spinner'
 import { StatusToggleBadge } from '@/components/ui/StatusToggle'
 import { useKodeRole } from '@/store/authStore'
 import type { Area } from '@/types'
-
-const schema = z.object({
-  kode_area: z.string().min(1, 'Kode area wajib diisi'),
-  nama_area: z.string().min(1, 'Nama area wajib diisi'),
-  provinsi_ids: z.array(z.number()).min(1, 'Pilih minimal 1 provinsi'),
-})
-type FormData = z.infer<typeof schema>
+import { AreaFormData, areaSchema } from '@/schemas/areaSchema'
 
 const CAN_MANAGE = ['superadmin', 'admin_ho']
 
@@ -40,8 +33,8 @@ export function AreaPage() {
     setValue,
     watch,
     formState: { errors },
-  } = useForm<FormData>({
-    resolver: zodResolver(schema),
+  } = useForm<AreaFormData>({
+    resolver: zodResolver(areaSchema),
     defaultValues: { provinsi_ids: [] },
   })
 
@@ -71,7 +64,7 @@ export function AreaPage() {
     )
   }
 
-  const onSubmit = (data: FormData) => {
+  const onSubmit = (data: AreaFormData) => {
     if (editing) {
       update(
         { nama_area: data.nama_area, provinsi_ids: data.provinsi_ids },

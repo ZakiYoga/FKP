@@ -1,23 +1,10 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 import { Eye, EyeOff, Loader2, Lock } from 'lucide-react'
 import { useState } from 'react'
 import { useChangePassword } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
-
-const schema = z
-  .object({
-    password_lama: z.string().min(1, 'Password lama wajib diisi'),
-    password_baru: z.string().min(8, 'Password baru minimal 8 karakter'),
-    password_baru_konfirmasi: z.string().min(1, 'Konfirmasi password wajib diisi'),
-  })
-  .refine((d) => d.password_baru === d.password_baru_konfirmasi, {
-    message: 'Konfirmasi password tidak cocok',
-    path: ['password_baru_konfirmasi'],
-  })
-
-type FormData = z.infer<typeof schema>
+import { ChangePasswordFormData, changePasswordSchema } from '@/schemas/authSchema'
 
 export function ChangePasswordPage() {
   const [show, setShow] = useState({ lama: false, baru: false, konfirmasi: false })
@@ -28,9 +15,9 @@ export function ChangePasswordPage() {
     handleSubmit,
     reset,
     formState: { errors },
-  } = useForm<FormData>({ resolver: zodResolver(schema) })
+  } = useForm<ChangePasswordFormData>({ resolver: zodResolver(changePasswordSchema) })
 
-  const onSubmit = (data: FormData) => {
+  const onSubmit = (data: ChangePasswordFormData) => {
     changePassword(data, { onSuccess: () => reset() })
   }
 
@@ -44,7 +31,7 @@ export function ChangePasswordPage() {
     showKey,
     error,
   }: {
-    id: keyof FormData
+    id: keyof ChangePasswordFormData
     label: string
     field: keyof typeof show
     showKey: keyof typeof show

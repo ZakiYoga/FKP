@@ -23,6 +23,21 @@ export const fkpApi = {
     return res.data
   },
 
+  // ── Penerbitan Formulir ────────────────────────────────────────────────
+  listPenerbitan: async (params?: {
+    status?: string
+    tanggal_dari?: string
+    tanggal_sampai?: string
+  }): Promise<FkpListItem[]> => {
+    const res = await api.get<FkpListItem[]>('/fkp/penerbitan', { params })
+    return res.data
+  },
+
+  downloadFormulirPdf: (fkpId: string): string => {
+    // Return URL langsung — buka di tab baru agar download native
+    return `${api.defaults.baseURL}/fkp/${fkpId}/formulir-pdf`
+  },
+
   // ── CRUD Master FKP ────────────────────────────────────────────────────
   create: async (data: FkpCreatePayload): Promise<FkpDetail> => {
     const res = await api.post<FkpDetail>('/fkp', data)
@@ -170,3 +185,4 @@ export const fkpApi = {
       .patch<FkpDetail>(`/fkp/${id}/surat-jalan`, { nomor_surat_jalan })
       .then((r) => r.data),
 }
+

@@ -235,13 +235,13 @@ export function FkpItemReviewForm(props: Props) {
                     />
 
                     {/* ── [4] Catatan ──────────────────────────────────────── */}
-                    <Textarea
+                    {/* <Textarea
                         label="Catatan Review (opsional)"
                         rows={2}
                         placeholder="Tambahkan catatan spesifik untuk item ini..."
                         value={val[keys.catatan] ?? ''}
                         onChange={(e) => set(keys.catatan, e.target.value)}
-                    />
+                    /> */}
                 </div>
             )}
         </div>

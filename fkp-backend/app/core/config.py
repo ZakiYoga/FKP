@@ -26,6 +26,14 @@ class Settings(BaseSettings):
     SUPERADMIN_PASSWORD: str
     SUPERADMIN_NAMA: str
 
+    SMTP_HOST: str = "smtp.hostinger.com"
+    SMTP_PORT: int = 465
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_NAME: str = "FKP SaktiFood"
+    SMTP_FROM_EMAIL: str = ""
+    FRONTEND_BASE_URL: str = "http://localhost:5173"
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

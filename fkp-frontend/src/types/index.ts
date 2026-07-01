@@ -94,14 +94,14 @@ export const FKP_PRIORITAS_LABEL: Record<FkpPrioritas, string> = {
 }
 
 export const JENIS_KELUHAN_LABEL: Record<string, string> = {
-  produk_rusak_cacat:    'Produk rusak / cacat fisik',
-  expired:               'Produk kadaluarsa',
-  benda_asing:           'Ditemukan benda asing',
+  menggumpal:            'Produk menggumpal',
+  berkutu:               'Berkutu / berjamur',
+  bau_apek:              'Bau tidak sedap / apek',
   kemasan_bocor:         'Kemasan bocor / digigit tikus / berlubang',
+  benda_asing:           'Ditemukan benda asing',
+  expired:               'Produk kadaluarsa',
   salah_produk:          'Produk tidak sesuai pesanan',
   kualitas_tidak_sesuai: 'Kualitas tidak sesuai standar',
-  bau_apek:              'Bau tidak sedap / apek',
-  berkutu:               'Berkutu / berjamur',
   lainnya:               'Lainnya',
 }
 
@@ -236,6 +236,7 @@ export interface FkpItem {
   tanggal_pembelian: string | null
   tanggal_dikonsumsi: string | null
   jenis_keluhan: string
+  jenis_keluhan_custom: string | null
   deskripsi_keluhan: string | null
 
   // PERUBAHAN: was rekomendasi_apsm (single) → dipecah jadi dua field
@@ -260,19 +261,19 @@ export interface FkpItem {
   updated_at: string
 }
 
-export interface FkpItemCreatePayload {
-  product_id?: string | null
-  nama_produk_custom?: string | null
-  jenis_kemasan?: string | null
-  qty: number
-  batch_number?: string | null
-  expired_date?: string | null
-  ada_sample_keluhan: string
-  ada_foto_sample: boolean
-  tanggal_pembelian?: string | null
-  tanggal_dikonsumsi?: string | null
-  jenis_keluhan: string
-  deskripsi_keluhan?: string | null
+  export interface FkpItemCreatePayload {
+    product_id?: string | null
+    nama_produk_custom?: string | null
+    jenis_kemasan?: string | null
+    qty: number
+    batch_number?: string | null
+    expired_date?: string | null
+    ada_sample_keluhan: string
+    ada_foto_sample: boolean
+    tanggal_pembelian?: string | null
+    tanggal_dikonsumsi?: string | null
+    jenis_keluhan: string
+    deskripsi_keluhan?: string | null
 }
 
 // ─── FKP ──────────────────────────────────────────────────────────────────────
@@ -478,4 +479,43 @@ export interface HeaderProps {
   sidebarOpen: boolean
   onToggleSidebar: () => void
   pageTitle?: string
+}
+export interface BeritaAcaraItemManual {
+  nama_barang: string
+  batch_no_ed?: string | null
+  jumlah?:      string | null
+  keterangan?:  string | null
+}
+
+export interface BeritaAcaraManualPayload {
+  fkp_id?:              string | null
+  nomor_dokumen?:       string | null
+  tanggal_pelaksanaan?: string | null   // YYYY-MM-DD
+  hari?:                string | null
+  lokasi_pelaksanaan?:  string | null
+  metode_pemusnahan?:   string | null
+  lokasi_pemusnahan?:   string | null
+  pihak_pelaksana?:     string | null
+  dokumentasi_lampiran?: string | null
+  tindak_lanjut?:       string | null
+  nama_pengaju?:        string | null
+  nama_saksi_internal?: string | null
+  nama_saksi_eksternal?: string | null
+  nama_penyetuju?:      string | null
+  items?:               BeritaAcaraItemManual[]
+}
+
+export interface BeritaAcaraGenerateResponse {
+  message:       string
+  nomor_dokumen: string
+  fkp_id?:       string | null
+  doc_id?:       string | null
+  url_download?: string | null
+}
+
+export interface DistributorOption {
+  id: string
+  nama_perusahaan: string
+  kode_distributor: string
+  alamat_lengkap: string | null
 }

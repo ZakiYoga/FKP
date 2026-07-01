@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user, require_roles
+from app.core.dependencies import get_current_user, require_permission_dep
 from app.models.wilayah import Provinsi
 from app.schemas.area import AreaCreate, AreaUpdate, AreaResponse, ProvinsiResponse
 from app.services import area_service
@@ -39,7 +39,7 @@ async def list_areas(
 async def create_area(
     data: AreaCreate,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles("superadmin")),
+    current_user=Depends(require_permission_dep("area.manage")),
 ):
     return await area_service.create_area(data, db)
 
@@ -62,7 +62,7 @@ async def update_area(
     area_id: uuid.UUID,
     data: AreaUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles("superadmin", "admin_ho")),
+    current_user=Depends(require_permission_dep("area.update")),
 ):
     return await area_service.update_area(area_id, data, db)
 

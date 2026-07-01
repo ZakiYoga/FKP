@@ -29,13 +29,14 @@ _BULAN_ID = [
 
 
 def format_date(value: Any) -> str:
-    """
-    Render date/datetime → 'DD Bulan YYYY' (Bahasa Indonesia).
-    Aman terhadap None dan tipe string.
-    Contoh: date(2026, 5, 15) → '15 Mei 2026'
-    """
     if value is None:
         return "—"
+    # Guard: kalau SQLModel/Pydantic serialize ke string ISO
+    if isinstance(value, str):
+        try:
+            value = date.fromisoformat(value[:10])  # ambil YYYY-MM-DD saja
+        except ValueError:
+            return value
     if isinstance(value, datetime):
         value = value.date()
     if isinstance(value, date):
@@ -83,32 +84,24 @@ def load_file_base64(upload_dir: str, url: str) -> Optional[str]:
 
 # ─── Jinja2 Environment builder ───────────────────────────────────────────────
 
+def _filter_attachments(attachments: list, tipe: str) -> list:
+    """Kembalikan SEMUA attachment dengan tipe_dokumen tertentu."""
+    return [att for att in (attachments or []) if att.get("tipe_dokumen") == tipe]
+
 def _has_attachments(items: list) -> bool:
-    """Filter Jinja2: cek apakah ada item yang punya lampiran foto."""
-    return any(item.get("attachments") for item in items)
+    return any(item.get("attachments") for item in (items or []))
 
-
-def _find_attachment(attachments: list, tipe: str) -> Optional[dict]:
-    """Filter Jinja2: cari attachment pertama yang cocok dengan tipe_dokumen."""
-    for att in (attachments or []):
-        if att.get("tipe_dokumen") == tipe:
-            return att
-    return None
-
-
-def build_jinja_env(templates_dir: str | Path) -> Environment:
-    """
-    Buat Jinja2 Environment dengan filter standar PT Sakti Pangan Perkasa.
-    Setiap service memanggil ini dengan TEMPLATES_DIR miliknya masing-masing.
-    """
+def build_jinja_env(templates_dir) -> Environment:
     env = Environment(
         loader=FileSystemLoader(str(templates_dir)),
         autoescape=select_autoescape(["html"]),
     )
-    env.filters["format_date"]      = format_date
-    env.filters["format_date_long"] = format_date_long
-    env.filters["has_attachments"]  = _has_attachments
-    env.filters["find_attachment"]  = _find_attachment
+    env.filters["format_date"]        = format_date
+    env.filters["format_date_long"]   = format_date_long
+    env.filters["has_attachments"]    = _has_attachments
+    env.filters["filter_attachments"] = _filter_attachments   # ← INI yang kurang
+    # Kalau ada find_attachment lama, tetap pertahankan:
+    # env.filters["find_attachment"]  = _find_attachment
     return env
 
 
@@ -116,17 +109,12 @@ def build_jinja_env(templates_dir: str | Path) -> Environment:
 
 def render_html_to_pdf(html_str: str) -> bytes:
     """
-    Render HTML string → PDF bytes menggunakan xhtml2pdf.
-    Satu titik perubahan jika kelak ganti ke WeasyPrint / pdfkit.
+    Render HTML string → PDF bytes menggunakan WeasyPrint.
     """
-    from xhtml2pdf import pisa
+    from weasyprint import HTML
 
     buffer = BytesIO()
-    result = pisa.CreatePDF(src=html_str, dest=buffer, encoding="utf-8")
-
-    if result.err:
-        raise RuntimeError(f"xhtml2pdf error code: {result.err}")
-
+    HTML(string=html_str).write_pdf(buffer)
     return buffer.getvalue()
 
 

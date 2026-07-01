@@ -30,17 +30,16 @@ export function useUnreadCount() {
   })
 }
 
-// FIX BUG 2: markRead mengirim array UUID string — sesuai MarkReadRequest BE
 export function useMarkRead() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => notificationsApi.markRead([id]),
-    // Optimistic update agar badge langsung turun tanpa nunggu refetch
-    onMutate: async (id: string) => {
+    // Sekarang menerima array IDs sekaligus (bulk)
+    mutationFn: (ids: string[]) => notificationsApi.markRead(ids),
+
+    onMutate: async (ids: string[]) => {
       await qc.cancelQueries({ queryKey: notifKeys.all })
       const prevList = qc.getQueriesData({ queryKey: notifKeys.all })
 
-      // Update SEMUA query list yang sedang di-cache, apapun params-nya
       qc.setQueriesData(
         { queryKey: notifKeys.all, type: 'active' },
         (old: unknown) => {
@@ -48,31 +47,36 @@ export function useMarkRead() {
             typeof old !== 'object' ||
             old === null ||
             !('notifications' in old)
-          ) {
-            return old
-          }
+          ) return old
 
           const data = old as {
             notifications: Array<{ id: string; is_read?: boolean }>
             unread_count?: number
           }
 
+          // Hitung berapa yang benar-benar unread dari ids yang dikirim
+          const idsSet = new Set(ids)
+          const jumlahYangDiRead = data.notifications.filter(
+            (n) => idsSet.has(n.id) && !n.is_read
+          ).length
+
           return {
             ...data,
-            unread_count: Math.max(0, (data.unread_count ?? 1) - 1),
+            unread_count: Math.max(0, (data.unread_count ?? 0) - jumlahYangDiRead),
             notifications: data.notifications.map((n) =>
-              n.id === id ? { ...n, is_read: true } : n
+              idsSet.has(n.id) ? { ...n, is_read: true } : n
             ),
           }
         }
       )
       return { prevList }
     },
-    onError: (_err, _id, ctx) => {
-      // Rollback jika gagal
+
+    onError: (_err, _ids, ctx) => {
       ctx?.prevList?.forEach(([key, data]) => qc.setQueryData(key, data))
       toast.error('Gagal menandai notifikasi.')
     },
+
     onSettled: () => {
       qc.invalidateQueries({ queryKey: notifKeys.all })
     },

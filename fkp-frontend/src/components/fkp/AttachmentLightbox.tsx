@@ -1,32 +1,22 @@
-/**
- * AttachmentLightbox.tsx
- *
- * Lightbox modal untuk menampilkan detail attachment FKP:
- * - Klik thumbnail → modal besar dengan foto, tipe dokumen, keterangan
- * - Navigasi prev/next antar attachment
- * - Keyboard support (Esc, ArrowLeft, ArrowRight)
- * - Backdrop blur + smooth transition
- */
-
 import { useEffect, useCallback, useState } from 'react'
 import { X, ChevronLeft, ChevronRight, FileImage, Info, Download, ExternalLink } from 'lucide-react'
 import type { FkpAttachment } from '@/types'
 
 // ─── Tipe Dokumen Labels ──────────────────────────────────────────────────────
 const TIPE_DOKUMEN_LABEL: Record<string, string> = {
-  foto_produk:          'Foto Produk',
-  foto_kemasan:         'Foto Kemasan',
-  foto_label:           'Foto Label',
-  foto_batch:           'Foto Batch / Kode Produksi',
-  foto_kerusakan:       'Foto Kerusakan',
-  foto_benda_asing:     'Foto Benda Asing',
-  foto_expired:         'Foto Tanggal Kadaluarsa',
-  foto_sample:          'Foto Sample Keluhan',
-  foto_pengiriman:      'Foto Pengiriman',
-  nota_pembelian:       'Nota / Faktur Pembelian',
-  surat_jalan:          'Surat Jalan',
-  bukti_pembayaran:     'Bukti Pembayaran',
-  lainnya:              'Dokumen Lainnya',
+  foto_produk: 'Foto Produk',
+  foto_kemasan: 'Foto Kemasan',
+  foto_label: 'Foto Label',
+  foto_batch: 'Foto Batch / Kode Produksi',
+  foto_kerusakan: 'Foto Kerusakan',
+  foto_benda_asing: 'Foto Benda Asing',
+  foto_expired: 'Foto Tanggal Kadaluarsa',
+  foto_sample: 'Foto Sample Keluhan',
+  foto_pengiriman: 'Foto Pengiriman',
+  nota_pembelian: 'Nota / Faktur Pembelian',
+  surat_jalan: 'Surat Jalan',
+  bukti_pembayaran: 'Bukti Pembayaran',
+  lainnya: 'Dokumen Lainnya',
 }
 
 function getTipeLabel(tipe: string | null | undefined): string {
@@ -34,23 +24,22 @@ function getTipeLabel(tipe: string | null | undefined): string {
   return TIPE_DOKUMEN_LABEL[tipe] ?? tipe.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
-// ─── Badge warna per tipe dokumen ────────────────────────────────────────────
-const TIPE_COLOR: Record<string, string> = {
-  foto_produk:      'bg-blue-100 text-blue-700',
-  foto_kemasan:     'bg-indigo-100 text-indigo-700',
-  foto_kerusakan:   'bg-red-100 text-red-700',
-  foto_benda_asing: 'bg-orange-100 text-orange-700',
-  foto_expired:     'bg-amber-100 text-amber-700',
-  foto_sample:      'bg-violet-100 text-violet-700',
-  nota_pembelian:   'bg-emerald-100 text-emerald-700',
-  surat_jalan:      'bg-teal-100 text-teal-700',
-  lainnya:          'bg-gray-100 text-gray-600',
-}
+// const TIPE_COLOR: Record<string, string> = {
+//   foto_produk:      'bg-blue-100 text-blue-700',
+//   foto_kemasan:     'bg-indigo-100 text-indigo-700',
+//   foto_kerusakan:   'bg-red-100 text-red-700',
+//   foto_benda_asing: 'bg-orange-100 text-orange-700',
+//   foto_expired:     'bg-amber-100 text-amber-700',
+//   foto_sample:      'bg-violet-100 text-violet-700',
+//   nota_pembelian:   'bg-emerald-100 text-emerald-700',
+//   surat_jalan:      'bg-teal-100 text-teal-700',
+//   lainnya:          'bg-gray-100 text-gray-600',
+// }
 
-function getTipeBadgeClass(tipe: string | null | undefined): string {
-  if (!tipe) return 'bg-gray-100 text-gray-600'
-  return TIPE_COLOR[tipe] ?? 'bg-gray-100 text-gray-600'
-}
+// function getTipeBadgeClass(tipe: string | null | undefined): string {
+//   if (!tipe) return 'bg-gray-100 text-gray-600'
+//   return TIPE_COLOR[tipe] ?? 'bg-gray-100 text-gray-600'
+// }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface AttachmentLightboxProps {
@@ -175,7 +164,7 @@ export function AttachmentLightbox({ attachments, initialIndex = 0, isOpen, onCl
           {/* Prev button */}
           {hasMultiple && (
             <button
-                type="button"
+              type="button"
               onClick={(e) => { e.stopPropagation(); goPrev() }}
               className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full
                          bg-black/40 hover:bg-black/70 text-white flex items-center justify-center
@@ -189,7 +178,7 @@ export function AttachmentLightbox({ attachments, initialIndex = 0, isOpen, onCl
           {/* Next button */}
           {hasMultiple && (
             <button
-            type="button"
+              type="button"
               onClick={(e) => { e.stopPropagation(); goNext() }}
               className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full
                          bg-black/40 hover:bg-black/70 text-white flex items-center justify-center
@@ -219,7 +208,7 @@ export function AttachmentLightbox({ attachments, initialIndex = 0, isOpen, onCl
               <span className="text-sm font-semibold">Detail Lampiran</span>
             </div>
             <button
-            type="button"
+              type="button"
               onClick={onClose}
               className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400
                          hover:text-gray-700 hover:bg-gray-100 transition-colors"
@@ -271,8 +260,7 @@ export function AttachmentLightbox({ attachments, initialIndex = 0, isOpen, onCl
               <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
                 Tipe Dokumen
               </p>
-              <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium
-                                ${getTipeBadgeClass(current.tipe_dokumen)}`}>
+              <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-gray-100 text-gray-600">
                 {getTipeLabel(current.tipe_dokumen)}
               </span>
             </div>
@@ -330,8 +318,8 @@ export function AttachmentLightbox({ attachments, initialIndex = 0, isOpen, onCl
                     onClick={() => goTo(idx)}
                     className={`w-10 h-10 rounded-lg overflow-hidden border-2 transition-all shrink-0
                                 ${idx === currentIndex
-                                  ? 'border-brand-500 ring-2 ring-brand-200'
-                                  : 'border-transparent hover:border-gray-300 opacity-60 hover:opacity-100'}`}
+                        ? 'border-brand-500 ring-2 ring-brand-200'
+                        : 'border-transparent hover:border-gray-300 opacity-60 hover:opacity-100'}`}
                     aria-label={`Lihat lampiran ${idx + 1}`}
                     title={getTipeLabel(att.tipe_dokumen)}
                   >
@@ -410,9 +398,8 @@ export function AttachmentGrid({ attachments, cols = 4 }: AttachmentGridProps) {
 
             {/* Tipe dokumen badge */}
             {att.tipe_dokumen && (
-              <span className={`text-[10px] text-center px-1.5 py-0.5 rounded truncate
-                                leading-tight w-full font-medium
-                                ${getTipeBadgeClass(att.tipe_dokumen)}`}>
+              <span className="text-[10px] text-center px-1.5 py-0.5 rounded truncate
+                   leading-tight w-full font-medium bg-gray-100 text-gray-600">
                 {getTipeLabel(att.tipe_dokumen)}
               </span>
             )}

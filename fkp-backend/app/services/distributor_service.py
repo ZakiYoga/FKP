@@ -1,9 +1,16 @@
 """
 Distributor Service — logika bisnis untuk manajemen distributor.
 
+[FIX] Scoping APSM sebelumnya salah: mengambil distributor lewat rantai
+ApsmScSpv -> ScSpvDistributor, padahal dokumen desain (section 3.4) eksplisit
+menetapkan scoping APSM harus PRIMARY via Area, supaya distributor yang belum
+punya SC_SPV tidak menjadi blind spot. Sekarang menggunakan
+authz_helpers.get_scoped_distributor_ids() sebagai satu sumber kebenaran,
+konsisten dengan fkp_service & outlet_register_service.
+
 Fungsi list_distributors_by_role() menangani filtering berdasarkan role:
-  - superadmin / admin_ho / qc / rsm / direktur / finance  → semua distributor
-  - apsm    → semua distributor yang ada di bawah sc_spv bawahannya
+  - superadmin (is_superadmin=True) / admin_ho / qc / rsm / direktur / finance → semua distributor
+  - apsm    → semua distributor di Area yang dia PIC-i (TERMASUK yang belum punya SC_SPV)
   - sc_spv  → hanya distributor yang dia handle (ScSpvDistributor)
   - distributor (user pemilik) → hanya distributor yang dia terdaftar (DistributorUser)
   - outlet  → hanya distributor tempat outlet-nya terdaftar (Outlet.distributor_id via pic_user_id)
@@ -17,14 +24,13 @@ from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.distributor import Distributor, DistributorUser
-from app.models.outlet import Outlet
-from app.models.sc_spv import ScSpvDistributor, ApsmScSpv
 from app.models.area import Area
 from app.models.user import User
 from app.schemas.distributor import (
     DistributorCreate, DistributorUpdate, DistributorResponse,
     DistributorUserAdd, DistributorUserResponse,
 )
+from app.services.authz_helpers import get_scoped_distributor_ids
 
 
 # ─── LIST (dengan filter role) ────────────────────────────────────────────────
@@ -38,105 +44,28 @@ async def list_distributors_by_role(
 ) -> List[Distributor]:
     """
     Mengembalikan list distributor yang bisa dilihat oleh user sesuai rolenya.
-
-    Hierarki akses:
-    - superadmin / admin_ho / qc / rsm / direktur → semua distributor
-    - apsm    → distributor yang dikelola sc_spv di bawahnya
-    - sc_spv  → distributor yang dia handle langsung (ScSpvDistributor)
-    - distributor → distributor tempat dia terdaftar sebagai user (DistributorUser)
-    - outlet  → 1 distributor tempat outlet-nya terdaftar (Outlet.pic_user_id)
+    Scope ditentukan oleh authz_helpers.get_scoped_distributor_ids() — satu
+    sumber kebenaran yang dipakai juga oleh service lain (outlet_register,
+    upload, dst) agar tidak ada lagi inkonsistensi scoping antar-modul.
     """
+    scoped_ids = await get_scoped_distributor_ids(current_user, kode_role, db)
 
-    # ── Role dengan akses penuh ──────────────────────────────────────────────
-    if kode_role in ("superadmin", "admin_ho", "qc", "rsm", "direktur", "finance"):
+    # None = akses global (superadmin/admin_ho/qc/rsm/direktur/finance)
+    if scoped_ids is None:
         return await list_distributors(db, area_id=area_id, status=status)
 
-    # ── APSM: distributor di bawah semua sc_spv bawahannya ──────────────────
-    if kode_role == "apsm":
-        sc_result = await db.execute(
-            select(ApsmScSpv.sc_spv_user_id).where(
-                ApsmScSpv.apsm_user_id == current_user.id
-            )
-        )
-        sc_spv_ids = sc_result.scalars().all()
-        if not sc_spv_ids:
-            return []
+    # [] = tidak ada distributor dalam scope user (mis. APSM belum punya area,
+    # SC_SPV belum di-assign distributor, outlet belum tercantum, dst)
+    if not scoped_ids:
+        return []
 
-        dist_result = await db.execute(
-            select(ScSpvDistributor.distributor_id).where(
-                ScSpvDistributor.sc_spv_user_id.in_(sc_spv_ids)
-            )
-        )
-        dist_ids = dist_result.scalars().all()
-        if not dist_ids:
-            return []
-
-        query = select(Distributor).where(Distributor.id.in_(dist_ids))
-        if area_id:
-            query = query.where(Distributor.area_id == area_id)
-        if status:
-            query = query.where(Distributor.status == status)
-        result = await db.execute(query.order_by(Distributor.nama_perusahaan))
-        return result.scalars().all()
-
-    # ── SC/SPV: hanya distributor yang dia handle (ScSpvDistributor) ─────────
-    if kode_role == "sc_spv":
-        dist_result = await db.execute(
-            select(ScSpvDistributor.distributor_id).where(
-                ScSpvDistributor.sc_spv_user_id == current_user.id
-            )
-        )
-        dist_ids = dist_result.scalars().all()
-        if not dist_ids:
-            return []
-
-        query = select(Distributor).where(Distributor.id.in_(dist_ids))
-        if area_id:
-            query = query.where(Distributor.area_id == area_id)
-        if status:
-            query = query.where(Distributor.status == status)
-        result = await db.execute(query.order_by(Distributor.nama_perusahaan))
-        return result.scalars().all()
-
-    # ── Distributor: lewat tabel DistributorUser ──────────────────────────────
-    if kode_role == "distributor":
-        du_result = await db.execute(
-            select(DistributorUser.distributor_id).where(
-                DistributorUser.user_id == current_user.id
-            )
-        )
-        dist_ids = du_result.scalars().all()
-        if not dist_ids:
-            return []
-
-        query = select(Distributor).where(Distributor.id.in_(dist_ids))
-        if area_id:
-            query = query.where(Distributor.area_id == area_id)
-        if status:
-            query = query.where(Distributor.status == status)
-        result = await db.execute(query.order_by(Distributor.nama_perusahaan))
-        return result.scalars().all()
-
-    # ── Outlet: Outlet.pic_user_id → Outlet.distributor_id ───────────────────
-    if kode_role == "outlet":
-        outlet_result = await db.execute(
-            select(Outlet).where(Outlet.pic_user_id == current_user.id)
-        )
-        outlet = outlet_result.scalar_one_or_none()
-        if not outlet:
-            # Outlet belum tercantum di distributor manapun
-            # Frontend menampilkan banner informatif, tombol submit di-disable
-            return []
-
-        query = select(Distributor).where(Distributor.id == outlet.distributor_id)
-        if status:
-            query = query.where(Distributor.status == status)
-        result = await db.execute(query)
-        distributor = result.scalar_one_or_none()
-        return [distributor] if distributor else []
-
-    # Fallback
-    return []
+    query = select(Distributor).where(Distributor.id.in_(scoped_ids))
+    if area_id:
+        query = query.where(Distributor.area_id == area_id)
+    if status:
+        query = query.where(Distributor.status == status)
+    result = await db.execute(query.order_by(Distributor.nama_perusahaan))
+    return result.scalars().all()
 
 
 # ─── LIST SEMUA (tanpa filter role) ──────────────────────────────────────────

@@ -54,10 +54,12 @@ function NotificationItem({
     notification,
     onMarkRead,
     onClose,
+    getUnreadIdsByFkp,
 }: {
     notification: Notification
-    onMarkRead: (id: string) => void
+    onMarkRead: (ids: string[]) => void
     onClose: () => void
+    getUnreadIdsByFkp: (fkpId: string) => string[]
 }) {
     const { id, judul, pesan, nomor_fkp, tipe, is_read, created_at } = notification
     const target = resolveTarget(notification)
@@ -66,8 +68,14 @@ function NotificationItem({
     const [hovered, setHovered] = useState(false)
 
     function handleClick() {
-        if (!is_read) onMarkRead(id)
         if (target) {
+            // Bulk mark semua notif FKP ini
+            if (notification.fkp_id) {
+                const unreadIds = getUnreadIdsByFkp(notification.fkp_id)
+                if (unreadIds.length > 0) onMarkRead(unreadIds)
+            } else if (!is_read) {
+                onMarkRead([id])
+            }
             onClose()
             navigate(target)
         }
@@ -143,10 +151,10 @@ function NotificationItem({
                 {/* Tombol mark read — muncul saat hover */}
                 {!is_read && (
                     <ActionIcon
+                        onClick={(e) => { e.stopPropagation(); onMarkRead([id]) }}
                         size="sm"
                         variant="subtle"
                         color="blue"
-                        onClick={(e) => { e.stopPropagation(); onMarkRead(id) }}
                         title="Tandai sudah dibaca"
                         style={{ opacity: hovered ? 1 : 0, transition: 'opacity 150ms', flexShrink: 0 }}
                     >
@@ -164,11 +172,13 @@ function NotificationList({
     onMarkRead,
     onClose,
     emptyLabel,
+    getUnreadIdsByFkp,
 }: {
     notifications: Notification[]
-    onMarkRead: (id: string) => void
+    onMarkRead: (ids: string[]) => void  // ← ubah
     onClose: () => void
     emptyLabel: string
+    getUnreadIdsByFkp: (fkpId: string) => string[]  // ← prop baru
 }) {
     if (notifications.length === 0) {
         return (
@@ -193,6 +203,7 @@ function NotificationList({
                         notification={notif}
                         onMarkRead={onMarkRead}
                         onClose={onClose}
+                        getUnreadIdsByFkp={getUnreadIdsByFkp}
                     />
                 ))}
             </Stack>
@@ -214,6 +225,12 @@ export function NotificationDropdown() {
 
     const { mutate: markRead } = useMarkRead()
     const { mutate: markAllRead, isPending: isMarkingAll } = useMarkAllRead()
+
+    function getUnreadIdsByFkp(fkpId: string): string[] {
+        return allNotifications
+            .filter((n) => n.fkp_id === fkpId && !n.is_read)
+            .map((n) => n.id)
+    }
 
     const handleClose = useCallback(() => setOpen(false), [])
 
@@ -297,12 +314,12 @@ export function NotificationDropdown() {
 
                 {/* Tabs */}
                 <Tabs defaultValue="unread" px="xs" pt="xs">
-                    <Tabs.List grow mb="xs">
+                    <Tabs.List grow>
                         <Tabs.Tab
                             value="unread"
                             rightSection={
                                 unreadCount > 0 ? (
-                                    <Badge size="xs" color="red" variant="filled" circle>
+                                    <Badge size="xs" color="red" variant="filled">
                                         {unreadCount > 99 ? '99+' : unreadCount}
                                     </Badge>
                                 ) : undefined
@@ -324,7 +341,8 @@ export function NotificationDropdown() {
                                     notifications={unreadNotifications}
                                     onMarkRead={markRead}
                                     onClose={handleClose}
-                                    emptyLabel="Tidak ada notifikasi yang belum dibaca"
+                                    emptyLabel="semua notifikasi sudah dibaca"
+                                    getUnreadIdsByFkp={getUnreadIdsByFkp}
                                 />
                             </Tabs.Panel>
                             <Tabs.Panel value="all">
@@ -332,7 +350,8 @@ export function NotificationDropdown() {
                                     notifications={allNotifications}
                                     onMarkRead={markRead}
                                     onClose={handleClose}
-                                    emptyLabel="Belum ada notifikasi"
+                                    emptyLabel="..."
+                                    getUnreadIdsByFkp={getUnreadIdsByFkp}
                                 />
                             </Tabs.Panel>
                         </>

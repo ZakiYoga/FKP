@@ -1,12 +1,12 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from contextlib import asynccontextmanager
+"""
+FKP API — entry point aplikasi FastAPI.
+"""
 import os
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 
@@ -26,12 +26,12 @@ app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     description="API untuk sistem Formulir Keluhan Produk SaktiFood",
-    docs_url="/docs",       # Swagger UI
-    redoc_url="/redoc",     # ReDoc UI
+    docs_url="/docs",
+    redoc_url="/redoc",
     lifespan=lifespan,
 )
 
-# ─── CORS (izinkan frontend React dev server) ─────────────────────────────────
+# ─── CORS ─────────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -43,17 +43,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ─── Static files untuk uploads ──────────────────────────────────────────────
+# ─── Static files ─────────────────────────────────────────────────────────────
 if os.path.exists(settings.UPLOAD_DIR):
     app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
-# ─── Routers (akan ditambahkan di tahap berikutnya) ──────────────────────────
+# ─── Routers ──────────────────────────────────────────────────────────────────
 from app.api.endpoints import (
-    auth, users, roles, areas, distributors, 
-    products, fkp, outlets, 
-    outlet_registrations, hierarchy, notifications, 
-    testimoni, public_tracking
+    auth, users, roles, areas, distributors,
+    products, fkp, outlets,
+    outlet_registrations, hierarchy, notifications,
+    testimoni, public_tracking,
+    debug, rbac_admin
 )
+
+if os.getenv("APP_ENV", "development") != "production":
+    app.include_router(debug.router, prefix="/api/debug", tags=["Debug"])
 
 app.include_router(auth.router,                     prefix="/api/auth",                 tags=["Auth"])
 app.include_router(users.router,                    prefix="/api/users",                tags=["Users"])
@@ -66,9 +70,12 @@ app.include_router(hierarchy.router,                prefix="/api/hierarchy",    
 app.include_router(fkp.router,                      prefix="/api/fkp",                  tags=["FKP"])
 app.include_router(notifications.router,            prefix="/api/notifications",        tags=["Notifications"])
 app.include_router(outlet_registrations.router,     prefix="/api/outlet-registrations", tags=["Outlet Registrations"])
+
 app.include_router(testimoni.router,                prefix="/api/fkp",                  tags=["Testimoni"])
-app.include_router(testimoni.router,                prefix="/api/testimoni",            tags=["Testimoni"])
+app.include_router(testimoni.router_admin,          prefix="/api/testimoni",            tags=["Testimoni"])
+
 app.include_router(public_tracking.router,          prefix="/api/public/fkp",           tags=["Public Tracking"])
+app.include_router(rbac_admin.router,               prefix="/api",                      tags=["RBAC Admin"])
 
 
 # ─── Health check ─────────────────────────────────────────────────────────────

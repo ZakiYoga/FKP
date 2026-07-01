@@ -117,6 +117,20 @@ export function TestimoniFormFields({
                 />
               )}
             />
+              <TextareaField
+                label="Ulasan"
+                placeholder="Bagikan pengalaman Anda secara keseluruhan..."
+                registration={register('komentar')}
+                error={errors.komentar?.message}
+                charCount={(watch('komentar') ?? '').length}
+              />
+            <TextareaField
+              label="Kritik & Saran untuk Tim"
+              placeholder="Ada masukan spesifik untuk tim APSM, Admin HO, QC, atau RSM?"
+              registration={register('kritik_saran_tim')}
+              error={errors.kritik_saran_tim?.message}
+              charCount={(watch('kritik_saran_tim') ?? '').length}
+            />
             <TextareaField
               label="Kritik & Saran untuk Aplikasi"
               placeholder="Fitur apa yang perlu diperbaiki atau ditambahkan?"
@@ -124,21 +138,6 @@ export function TestimoniFormFields({
               error={errors.kritik_saran_app?.message}
               charCount={(watch('kritik_saran_app') ?? '').length}
               focusRing="focus:ring-violet-400"
-            />
-
-            <TextareaField
-              label="Ulasan"
-              placeholder="Bagikan pengalaman Anda secara keseluruhan..."
-              registration={register('komentar')}
-              error={errors.komentar?.message}
-              charCount={(watch('komentar') ?? '').length}
-            />
-            <TextareaField
-              label="Kritik & Saran untuk Tim"
-              placeholder="Ada masukan spesifik untuk tim APSM, Admin HO, QC, atau RSM?"
-              registration={register('kritik_saran_tim')}
-              error={errors.kritik_saran_tim?.message}
-              charCount={(watch('kritik_saran_tim') ?? '').length}
             />
           </div>
 

@@ -4,11 +4,12 @@ import {
   ArrowLeft, FileText, Clock, CheckCircle2, Loader2, Send,
   AlertTriangle, ShieldCheck, XCircle, Edit2, Plus, Package,
   QrCode, Download, Copy, Check, ExternalLink,
+  Paperclip,
 } from 'lucide-react'
 import { useState, useRef, useCallback } from 'react'
 import { QRCodeCanvas } from 'qrcode.react'
 import { useFkpDetail, useSubmitFkp, useProducts, useAddFkpItem, useDeleteFkpItem } from '@/hooks/useFkp'
-import { StatusBadge, PriorittasBadge } from '@/components/ui/Badge'
+import { StatusBadge, PrioritasBadge } from '@/components/ui/Badge'
 import { PageLoader } from '@/components/ui/Spinner'
 import { Modal } from '@/components/ui/Modal'
 import { Textarea } from '@/components/ui/Textarea'
@@ -27,6 +28,7 @@ import toast from 'react-hot-toast'
 import InfoRow from '@/components/fkp/InfoRow'
 import CatatanItem from '@/components/fkp/FkpItemCatatan'
 import FkpItemCard from '@/components/fkp/FkpItemCard'
+import { useCanWriteFkp } from '@/hooks/useCanWriteFkp'
 
 // ── Tipe modal ────────────────────────────────────────────────────────────────
 
@@ -40,8 +42,7 @@ type ModalTipe =
   | 'direktur_ok' | 'direktur_tolak'
   | 'proses_pengiriman'
   | 'revision' | 'reject' | 'close'
-  | 'add_item'
-  | 'qr_code'          // ← TAMBAH
+  | 'qr_code'
 
 type QcItemResult = {
   status_item: string
@@ -70,11 +71,11 @@ function QrCodeModalContent({
 
     // Buat canvas baru dengan padding + label nomor FKP di bawah
     const padding = 24
-    const labelH  = 44
-    const off     = document.createElement('canvas')
-    off.width  = canvas.width  + padding * 2
+    const labelH = 44
+    const off = document.createElement('canvas')
+    off.width = canvas.width + padding * 2
     off.height = canvas.height + padding * 2 + labelH
-    const ctx  = off.getContext('2d')!
+    const ctx = off.getContext('2d')!
 
     ctx.fillStyle = '#ffffff'
     ctx.fillRect(0, 0, off.width, off.height)
@@ -91,9 +92,9 @@ function QrCodeModalContent({
     ctx.font = '10px monospace'
     ctx.fillText(trackingUrl, off.width / 2, canvas.height + padding + 38)
 
-    const link     = document.createElement('a')
-    link.download  = `QR-FKP-${nomorFkp.replace(/\//g, '-')}.png`
-    link.href      = off.toDataURL('image/png')
+    const link = document.createElement('a')
+    link.download = `QR-FKP-${nomorFkp.replace(/\//g, '-')}.png`
+    link.href = off.toDataURL('image/png')
     link.click()
     toast.success('QR Code berhasil didownload.')
   }, [nomorFkp, trackingUrl])
@@ -281,17 +282,16 @@ export function FkpDetailPage() {
 
   const { data: fkp, isLoading, isError } = useFkpDetail(id)
   const { data: products = [] } = useProducts()
+  const canWrite = useCanWriteFkp(fkp)
 
   const [modal, setModal] = useState<ModalTipe | null>(null)
   const [catatan, setCatatan] = useState('')
   const [isConfirming, setIsConfirming] = useState(false)
-  const [isSavingItem, setIsSavingItem] = useState(false)
-  const [itemResetKey, setItemResetKey] = useState(0)
 
-  const [apsmReviews, setApsmReviews]       = useState<Record<string, ApsmReviewState>>({})
+  const [apsmReviews, setApsmReviews] = useState<Record<string, ApsmReviewState>>({})
   const [adminHoReviews, setAdminHoReviews] = useState<Record<string, AdminHoReviewState>>({})
-  const [qcResults, setQcResults]           = useState<Record<string, QcItemResult>>({})
-  const [sumber, setSumber]                 = useState<'internal' | 'pelanggan'>('internal')
+  const [qcResults, setQcResults] = useState<Record<string, QcItemResult>>({})
+  const [sumber, setSumber] = useState<'internal' | 'pelanggan'>('internal')
 
   const [tipeResolusi, setTipeResolusi] = useState('tukar_barang')
   const [resolusiForm, setResolusiForm] = useState({
@@ -313,8 +313,6 @@ export function FkpDetailPage() {
   const [itemQtyDisetujui, setItemQtyDisetujui] = useState<Record<string, string>>({})
 
   const { mutate: submit, isPending: isSubmitting } = useSubmitFkp(id ?? '')
-  const { mutateAsync: addItem }  = useAddFkpItem(id ?? '')
-  const { mutate: deleteItem }    = useDeleteFkpItem(id ?? '')
 
   const closeModal = () => { setModal(null); setCatatan('') }
 
@@ -387,30 +385,6 @@ export function FkpDetailPage() {
       })
     setItemQtyDisetujui(initialQty)
     setModal('proses_pengiriman')
-  }
-
-  const handleAddItem = async (payload: FkpItemCreatePayload, files: FileWithMeta[]) => {
-    setIsSavingItem(true)
-    try {
-      const newItem = await addItem(payload)
-      if (files.length > 0) {
-        const { default: api } = await import('@/lib/axios')
-        for (const f of files) {
-          const form = new FormData()
-          form.append('file', f.file)
-          form.append('tipe_dokumen', f.tipe_dokumen)
-          if (f.keterangan) form.append('keterangan', f.keterangan)
-          await api.post(`/fkp/${id}/attachments`, form, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-            params: { fkp_item_id: newItem.id },
-          })
-        }
-        qc.invalidateQueries({ queryKey: fkpKeys.detail(id!) })
-      }
-      setModal(null)
-    } finally {
-      setIsSavingItem(false)
-    }
   }
 
   const handleConfirm = () => {
@@ -503,10 +477,10 @@ export function FkpDetailPage() {
           nomor_surat_jalan: detailForm.nomor_surat_jalan || null,
           item_qty_disetujui: fkp?.resolution?.tipe_resolusi === 'tukar_barang'
             ? fkp.items.filter((item) => item.status_item === 'diterima')
-                .map((item) => ({
-                  item_id: item.id,
-                  qty_disetujui: Number(itemQtyDisetujui[item.id] ?? item.qty),
-                }))
+              .map((item) => ({
+                item_id: item.id,
+                qty_disetujui: Number(itemQtyDisetujui[item.id] ?? item.qty),
+              }))
             : null,
           nilai_nota_penjualan: detailForm.nilai_nota_penjualan ? Number(detailForm.nilai_nota_penjualan) : null,
           nama_bank: detailForm.nama_bank || null,
@@ -538,11 +512,11 @@ export function FkpDetailPage() {
     </div>
   )
 
-  const canEdit            = fkp.status === 'draft' || fkp.status === 'need_revision'
-  const hasResolusi        = !!fkp.resolution
-  const canCreateResolusi  = kodeRole === 'admin_ho' && fkp.status === 'investigated' && !fkp.resolution
-  const canEditResolusi    = kodeRole === 'admin_ho' && ['investigated', 'rsm_approval_resolusi'].includes(fkp.status) && !!fkp.resolution
-  const resolusiTerkunci   = !!fkp.resolution && ['direktur_approval', 'accepted', 'in_process', 'closed', 'rejected'].includes(fkp.status)
+  const canEdit = canWrite && (fkp.status === 'draft' || fkp.status === 'need_revision')
+  const hasResolusi = !!fkp.resolution
+  const canCreateResolusi = kodeRole === 'admin_ho' && fkp.status === 'investigated' && !fkp.resolution
+  const canEditResolusi = kodeRole === 'admin_ho' && ['investigated', 'rsm_approval_resolusi'].includes(fkp.status) && !!fkp.resolution
+  const resolusiTerkunci = !!fkp.resolution && ['direktur_approval', 'accepted', 'in_process', 'closed', 'rejected'].includes(fkp.status)
 
   const hasAnyAction =
     canEdit ||
@@ -571,7 +545,7 @@ export function FkpDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <PriorittasBadge prioritas={fkp.prioritas} />
+          <PrioritasBadge prioritas={fkp.prioritas} />
           <StatusBadge status={fkp.status} />
         </div>
       </div>
@@ -623,12 +597,6 @@ export function FkpDetailPage() {
                 <h2 className="font-semibold text-gray-900 flex items-center gap-2">
                   <Package className="w-4 h-4 text-brand-500" /> Item Produk ({fkp.items.length})
                 </h2>
-                {canEdit && (
-                  <button onClick={() => { setItemResetKey(k => k + 1); setModal('add_item') }}
-                    className="btn-secondary btn-sm flex items-center gap-1.5">
-                    <Plus className="w-3.5 h-3.5" /> Tambah Item
-                  </button>
-                )}
               </div>
             </div>
             <div className="card-body space-y-4">
@@ -637,8 +605,6 @@ export function FkpDetailPage() {
                 : fkp.items.map((item, idx) => (
                   <FkpItemCard
                     key={item.id} item={item} idx={idx} products={products}
-                    canDelete={canEdit && fkp.items.length > 1}
-                    onDelete={() => deleteItem(item.id)}
                     attachments={fkp.attachments.filter((a) => a.fkp_item_id === item.id)}
                   />
                 ))}
@@ -649,19 +615,19 @@ export function FkpDetailPage() {
           {(fkp.catatan_sc_spv || fkp.catatan_apsm || fkp.catatan_admin ||
             fkp.catatan_qc || fkp.catatan_rsm_investigasi ||
             fkp.catatan_rsm_resolusi || fkp.catatan_direktur) && (
-            <div className="card">
-              <div className="card-header"><h2 className="font-semibold text-gray-900">Catatan Proses</h2></div>
-              <div className="card-body space-y-3">
-                <CatatanItem label="SC / SPV"         value={fkp.catatan_sc_spv} />
-                <CatatanItem label="APSM"             value={fkp.catatan_apsm} />
-                <CatatanItem label="Admin HO"         value={fkp.catatan_admin} />
-                <CatatanItem label="QC"               value={fkp.catatan_qc} />
-                <CatatanItem label="RSM (Investigasi)"value={fkp.catatan_rsm_investigasi} />
-                <CatatanItem label="RSM (Resolusi)"   value={fkp.catatan_rsm_resolusi} />
-                <CatatanItem label="Direktur"         value={fkp.catatan_direktur} />
+              <div className="card">
+                <div className="card-header"><h2 className="font-semibold text-gray-900">Catatan Proses</h2></div>
+                <div className="card-body space-y-3">
+                  <CatatanItem label="SC / SPV" value={fkp.catatan_sc_spv} />
+                  <CatatanItem label="APSM" value={fkp.catatan_apsm} />
+                  <CatatanItem label="Admin HO" value={fkp.catatan_admin} />
+                  <CatatanItem label="QC" value={fkp.catatan_qc} />
+                  <CatatanItem label="RSM (Investigasi)" value={fkp.catatan_rsm_investigasi} />
+                  <CatatanItem label="RSM (Resolusi)" value={fkp.catatan_rsm_resolusi} />
+                  <CatatanItem label="Direktur" value={fkp.catatan_direktur} />
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
           {/* Resolusi */}
           {fkp.resolution && (
@@ -720,8 +686,9 @@ export function FkpDetailPage() {
           {fkp.attachments.filter((a) => !a.fkp_item_id).length > 0 && (
             <div className="card">
               <div className="card-header">
-                <h2 className="font-semibold text-gray-900">
-                  Foto Umum ({fkp.attachments.filter((a) => !a.fkp_item_id).length})
+                <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                  <Paperclip className="w-4 h-4 text-brand-500" />
+                  Dokumen / Foto Lampiran ({fkp.attachments.filter((a) => !a.fkp_item_id).length})
                 </h2>
               </div>
               <div className="card-body">
@@ -949,16 +916,6 @@ export function FkpDetailPage() {
       >
         <QrCodeModalContent fkpId={fkp.id} nomorFkp={fkp.nomor_fkp} />
       </Modal>
-
-      {/* Tambah Item */}
-      <FkpItemFormModal
-        isOpen={modal === 'add_item'}
-        onClose={closeModal}
-        products={products}
-        resetKey={itemResetKey}
-        onSave={handleAddItem}
-        isSaving={isSavingItem}
-      />
 
       {/* APSM review */}
       <Modal isOpen={modal === 'apsm_review'} onClose={closeModal} title="Review APSM" size="lg">
@@ -1213,15 +1170,15 @@ export function FkpDetailPage() {
 
 // ─── Modal Titles ─────────────────────────────────────────────────────────────
 const MODAL_TITLES: Partial<Record<ModalTipe, string>> = {
-  rsm_investigasi_ok:    'Setujui Investigasi',
+  rsm_investigasi_ok: 'Setujui Investigasi',
   rsm_investigasi_tolak: 'Tolak FKP',
-  rsm_resolusi_ok:       'Setujui Resolusi → Ke Direktur',
-  rsm_resolusi_tolak:    'Tolak FKP',
-  direktur_ok:           'Setujui FKP',
-  direktur_tolak:        'Tolak FKP',
-  revision:              'Minta Revisi / Kembalikan',
-  reject:                'Tolak FKP',
-  close:                 'Tutup FKP',
+  rsm_resolusi_ok: 'Setujui Resolusi → Ke Direktur',
+  rsm_resolusi_tolak: 'Tolak FKP',
+  direktur_ok: 'Setujui FKP',
+  direktur_tolak: 'Tolak FKP',
+  revision: 'Minta Revisi / Kembalikan',
+  reject: 'Tolak FKP',
+  close: 'Tutup FKP',
 }
 
 // ─── ModalFooter ──────────────────────────────────────────────────────────────
