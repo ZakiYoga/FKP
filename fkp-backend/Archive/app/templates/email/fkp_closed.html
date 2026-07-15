@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<p>Halo, <strong>{{ nama_penerima }}</strong>,</p>
+<p>Keluhan produk Anda telah <strong>selesai diproses</strong>. Terima kasih atas kesabaran Anda.</p>
+<div class="box box-green">
+  <p><strong>Nomor FKP</strong> &nbsp; {{ nomor_fkp }}</p>
+  <p><strong>Status</strong> &nbsp;
+     <span class="badge b-green">Selesai / Ditutup</span></p>
+  <p><strong>Resolusi</strong> &nbsp; {{ tipe_resolusi_label }}</p>
+</div>
+<p>Seluruh proses penanganan keluhan telah selesai. Lihat riwayat lengkap via link di bawah.</p>
+{% endblock %}

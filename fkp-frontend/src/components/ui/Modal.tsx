@@ -45,7 +45,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
       {/* Panel */}
       <div
         className={cn(
-          'relative w-full bg-white rounded-2xl shadow-modal animate-slide-up',
+          'relative w-full bg-white rounded-2xl shadow-modal animate-slide-up max-h-[80vh] overflow-y-auto',
           SIZE_MAP[size],
         )}
       >

@@ -4,6 +4,7 @@ import { authApi } from '@/api/auth'
 import { notifications } from '@mantine/notifications'
 import { useAuthStore } from '@/store/authStore'
 import { getErrorMessage } from '@/lib/utils'
+import { clearAuthenticatedImageCache } from '@/hooks/useAuthenticatedImage' // ← BARU
 import type { LoginRequest } from '@/types'
 
 export function useLogin() {
@@ -44,6 +45,10 @@ export function useLogout() {
       // Selalu bersihkan state meskipun request gagal
       clearAuth()
       queryClient.clear()
+      // [BARU] Bersihkan blob URL gambar attachment milik user ini —
+      // supaya tidak nyangkut di memori & tidak ter-reuse kalau user lain
+      // login di browser/device yang sama. Lihat useAuthenticatedImage.ts.
+      clearAuthenticatedImageCache()
       navigate('/login', { replace: true })
       notifications.show({
         message: 'Berhasil logout.',

@@ -72,15 +72,21 @@ export const fkpApi = {
   },
 
   // ── Upload Attachment ──────────────────────────────────────────────────
-  // fkpItemId opsional — jika diisi, foto dikaitkan ke item tertentu
+  // fkpItemId opsional — jika diisi, foto dikaitkan ke item tertentu.
+  // tipeDokumen opsional — default backend: 'foto_keluhan' kalau tidak diisi.
+  // [FIX] tipe_dokumen sebelumnya tidak pernah dikirim FE sama sekali
+  // (endpoint BE menerimanya sebagai query param, bukan bagian FormData).
   uploadAttachment: async (
     fkpId: string,
     file: File,
     fkpItemId?: string | null,
+    tipeDokumen?: string | null,
   ): Promise<unknown> => {
     const form = new FormData()
     form.append('file', file)
-    const params = fkpItemId ? { fkp_item_id: fkpItemId } : {}
+    const params: Record<string, string> = {}
+    if (fkpItemId) params.fkp_item_id = fkpItemId
+    if (tipeDokumen) params.tipe_dokumen = tipeDokumen
     const res = await api.post(`/fkp/${fkpId}/attachments`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
       params,
@@ -142,6 +148,10 @@ export const fkpApi = {
     api.post<FkpDetail>(`/fkp/${id}/direktur-approve`, data).then((r) => r.data),
 
   // accepted → in_process | closed (pemusnahan langsung closed)
+  // [DEPRECATED] Backend sekarang stub yang forward ke buat_resolusi() dan
+  // TIDAK PERNAH lagi memindahkan status (lihat catatan di
+  // fkp_service.update_pengiriman()). Untuk tukar_barang pakai
+  // warehouseApi.create(), untuk resolusi lain pakai fkpApi.confirmResolusi().
   updatePengiriman: (
     id: string,
     data: {
@@ -179,7 +189,23 @@ export const fkpApi = {
   createResolusi: (id: string, data: ResolusiPayload) =>
     api.post<FkpDetail>(`/fkp/${id}/resolusi`, data).then((r) => r.data),
 
+  // [BARU — Modul Sample Shipment] Trigger accepted → in_process untuk
+  // resolusi SELAIN tukar_barang & potong_tagihan (tidak_ada_kompensasi,
+  // dengan/tanpa metode_penanganan_fisik = dimusnahkan). Hanya admin_ho/
+  // superadmin. catatan WAJIB kalau tipe_resolusi = tidak_ada_kompensasi.
+  // Kalau metode = dimusnahkan, dokumen 'berita_acara_pemusnahan_tukar_barang'
+  // harus sudah diupload dulu lewat uploadAttachment(), atau request ini 400.
+  confirmResolusi: (id: string, catatan?: string | null) =>
+    api
+      .post<FkpDetail>(`/fkp/${id}/confirm-resolusi`, null, {
+        params: catatan ? { catatan } : undefined,
+      })
+      .then((r) => r.data),
+
   // Input nomor surat jalan (resolusi tukar_barang)
+  // [DEPRECATED] Menulis ke fkp_complaints.nomor_surat_jalan yang sudah tidak
+  // dipakai lagi — gantinya lihat warehouseApi (api/warehouse.ts). Endpoint BE
+  // masih ada untuk backward-compat tapi jangan dipakai di alur baru.
   inputSuratJalan: (id: string, nomor_surat_jalan: string) =>
     api
       .patch<FkpDetail>(`/fkp/${id}/surat-jalan`, { nomor_surat_jalan })

@@ -58,7 +58,7 @@ export function FkpCreatePage() {
     const [modalOpen, setModalOpen] = useState(false)
     const [isSavingItem, setIsSaving] = useState(false)
     const [resetKey, setResetKey] = useState(0)
-    const [lokasiMode, setLokasiMode] = useState<'hierarki' | 'lain' | null>(null)
+    const [lokasiMode, setLokasiMode] = useState<'hierarki' | 'online' | 'lain' | null>(null)
     const [editingKey, setEditingKey] = useState<string | null>(null)
     const editingItem = items.find((i) => i._key === editingKey) ?? null
     const [submitMode, setSubmitMode] = useState<'draft' | 'submit'>('draft')
@@ -308,7 +308,7 @@ export function FkpCreatePage() {
                                 outlets.length > 0 && (
                                     <Select
                                         label={`Outlet (opsional)${loadingOutlets ? ' — Memuat...' : ''}`}
-                                        placeholder="— Keluhan dari outlet tertentu? —"
+                                        placeholder="— Pilih Outlet —"
                                         {...register('outlet_id')}
                                     >
                                         {outlets.map((o) => (
@@ -350,6 +350,19 @@ export function FkpCreatePage() {
                                             }`}
                                     >
                                         Dari distributor outlet
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setLokasiMode('online')
+                                            setValue('lokasi_pembelian', 'Online / E-commerce', { shouldValidate: true })
+                                        }}
+                                        className={`flex-1 py-2 text-sm border-l border-gray-200 transition-colors ${lokasiMode === 'online'
+                                            ? 'bg-brand-600 text-white font-medium'
+                                            : 'bg-white text-gray-500 hover:bg-gray-50'
+                                            }`}
+                                    >
+                                        Online / E-commerce
                                     </button>
                                     <button
                                         type="button"
@@ -405,6 +418,26 @@ export function FkpCreatePage() {
                                         {errors.lokasi_pembelian && (
                                             <p className="text-xs text-red-500 mt-1">{errors.lokasi_pembelian.message}</p>
                                         )}
+                                    </div>
+                                )}
+                                
+                                {lokasiMode === 'online' && (
+                                    <div className="space-y-2">
+                                        <label className="flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors bg-brand-50 border-brand-400">
+                                            <input
+                                                type="radio"
+                                                name="lokasi_radio"
+                                                className="accent-brand-600"
+                                                checked
+                                                onChange={() => { }}
+                                            />
+                                            <div>
+                                                <p className="text-sm font-medium text-gray-800">Online / E-commerce</p>
+                                                <p className="text-xs text-gray-400">Shopee, Tokopedia, Lazada, dll.</p>
+                                            </div>
+                                        </label>
+                                        {/* Field tersembunyi — hanya untuk registrasi; value diisi via setValue di onClick */}
+                                        <input type="hidden" {...register('lokasi_pembelian')} />
                                     </div>
                                 )}
 

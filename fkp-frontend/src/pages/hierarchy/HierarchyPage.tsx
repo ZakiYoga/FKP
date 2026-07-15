@@ -22,10 +22,10 @@ export function HierarchyPage() {
   const kodeRole = useKodeRole()
   const canManage = CAN_MANAGE.includes(kodeRole)
 
-const { data: rsmList = [], isLoading: loadingUsers } = useUsersByRole('rsm')
-const { data: apsmList = [] } = useUsersByRole('apsm')
-const { data: scList = [] } = useUsersByRole('sc_spv')
-const { data: distributors = [] } = useHierarchyDistributors()
+  const { data: rsmList = [], isLoading: loadingUsers } = useUsersByRole('rsm')
+  const { data: apsmList = [] } = useUsersByRole('apsm')
+  const { data: scList = [] } = useUsersByRole('sc_spv')
+  const { data: distributors = [] } = useHierarchyDistributors()
 
   const [selectedRsmId, setSelectedRsmId] = useState<string>('')
   const [modal, setModal] = useState<{
@@ -120,13 +120,140 @@ const { data: distributors = [] } = useHierarchyDistributors()
             </div>
 
             {/* APSM list */}
-            
+            <div className="ml-6 space-y-3">
+              {team.apsm_list?.map((apsmNode) => (
+                <div key={apsmNode.apsm.id} className="space-y-3">
+                  {/* APSM Node */}
+                  <div className="card p-4 border-l-4 border-emerald-500">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
+                          <span className="text-emerald-700 font-bold text-xs">
+                            {apsmNode.apsm.nama.charAt(0)}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900 text-sm">{apsmNode.apsm.nama}</p>
+                          <p className="text-xs text-gray-400">{apsmNode.apsm.email}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="badge bg-emerald-100 text-emerald-700">APSM</span>
+                        {canManage && (
+                          <>
+                            <button
+                              onClick={() => setModal({ type: 'apsm_sc', parentId: apsmNode.apsm.id, parentName: apsmNode.apsm.nama })}
+                              className="btn-ghost btn-sm p-1.5 text-emerald-600"
+                              title="Tambah SC/SPV"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => removeApsm({ rsmId: team.rsm.id, apsmId: apsmNode.apsm.id })}
+                              className="btn-ghost btn-sm p-1.5 text-red-500"
+                              title="Lepas APSM dari RSM"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SC/SPV list di bawah APSM ini */}
+                  <div className="ml-6 space-y-3">
+                    {(!apsmNode.sc_spv_list || apsmNode.sc_spv_list.length === 0) && (
+                      <div className="card card-body text-center py-6 text-gray-400 text-xs">
+                        Belum ada SC/SPV di bawah APSM ini.
+                      </div>
+                    )}
+                    {apsmNode.sc_spv_list?.map((scNode) => (
+                      <div key={scNode.sc_spv.id} className="space-y-3">
+                        {/* SC/SPV Node */}
+                        <div className="card p-3 border-l-4 border-amber-500">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center">
+                                <span className="text-amber-700 font-bold text-xs">
+                                  {scNode.sc_spv.nama.charAt(0)}
+                                </span>
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-900 text-sm">{scNode.sc_spv.nama}</p>
+                                <p className="text-xs text-gray-400">{scNode.sc_spv.email}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="badge bg-amber-100 text-amber-700">SC/SPV</span>
+                              {canManage && (
+                                <>
+                                  <button
+                                    onClick={() => setModal({ type: 'sc_dist', parentId: scNode.sc_spv.id, parentName: scNode.sc_spv.nama })}
+                                    className="btn-ghost btn-sm p-1.5 text-amber-600"
+                                    title="Assign Distributor"
+                                  >
+                                    <Plus className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => removeSc({ apsmId: apsmNode.apsm.id, scId: scNode.sc_spv.id })}
+                                    className="btn-ghost btn-sm p-1.5 text-red-500"
+                                    title="Lepas SC/SPV dari APSM"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Distributor list di bawah SC/SPV ini */}
+                        <div className="ml-6 space-y-2">
+                          {(!scNode.distributors || scNode.distributors.length === 0) && (
+                            <div className="card card-body text-center py-4 text-gray-400 text-xs">
+                              Belum ada distributor untuk SC/SPV ini.
+                            </div>
+                          )}
+                          {scNode.distributors?.map((dist) => (
+                            <div
+                              key={dist.id}
+                              className="card p-3 flex items-center justify-between border-l-4 border-gray-300"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Building2 className="w-4 h-4 text-gray-400" />
+                                <div>
+                                  <p className="text-sm font-medium text-gray-800">
+                                    [{dist.kode_distributor}] {dist.nama_perusahaan}
+                                  </p>
+                                  <p className="text-xs text-gray-400">{dist.status}</p>
+                                </div>
+                              </div>
+                              {canManage && (
+                                <button
+                                  onClick={() => removeDist({ scId: scNode.sc_spv.id, distId: dist.id })}
+                                  className="btn-ghost btn-sm p-1.5 text-red-500"
+                                  title="Lepas Distributor dari SC/SPV"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
 
             {(!team.apsm_list || team.apsm_list.length === 0) && (
               <div className="ml-6 card card-body text-center py-8 text-gray-400 text-sm">
                 Belum ada APSM di bawah RSM ini.
               </div>
             )}
+
           </div>
         ) : null
       )}
@@ -137,8 +264,8 @@ const { data: distributors = [] } = useHierarchyDistributors()
         onClose={() => { setModal(null); setSelectValue('') }}
         title={
           modal?.type === 'rsm_apsm' ? `Tambah APSM ke ${modal.parentName}` :
-          modal?.type === 'apsm_sc' ? `Tambah SC/SPV ke ${modal.parentName}` :
-          `Assign Distributor ke ${modal?.parentName}`
+            modal?.type === 'apsm_sc' ? `Tambah SC/SPV ke ${modal.parentName}` :
+              `Assign Distributor ke ${modal?.parentName}`
         }
         size="sm"
       >

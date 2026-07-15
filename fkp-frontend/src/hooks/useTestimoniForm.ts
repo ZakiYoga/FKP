@@ -50,17 +50,21 @@ export function useTestimoniForm(fkpId: string) {
 
   const onSubmit = async (values: TestimoniFormValues) => {
     const payload: TestimoniCreatePayload = {
-      rating_keseluruhan: values.rating_keseluruhan,
-      rating_kecepatan:   values.rating_kecepatan,
-      rating_komunikasi:  values.rating_komunikasi,
-      rating_solusi:      values.rating_solusi,
-      rating_aplikasi:    values.rating_aplikasi,
+      rating_keseluruhan: values.rating_keseluruhan ?? null,
+      rating_kecepatan:   values.rating_kecepatan ?? null,
+      rating_komunikasi:  values.rating_komunikasi ?? null,
+      rating_solusi:      values.rating_solusi ?? null,
+      rating_aplikasi:    values.rating_aplikasi ?? null,
       komentar:           values.komentar         ?? null,
       kritik_saran_tim:   values.kritik_saran_tim ?? null,
       kritik_saran_app:   values.kritik_saran_app ?? null,
       is_public:          values.is_public,
     }
-    existing ? await update(payload) : await create(payload)
+    if (existing) {
+      await update(payload)
+    } else {
+      await create(payload)
+    }
     setIsEditing(false)
   }
 

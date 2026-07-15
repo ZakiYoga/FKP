@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<p>Halo, <strong>{{ nama_penerima }}</strong>,</p>
+<p>Keluhan produk Anda telah berhasil disubmit dan sedang menunggu review dari APSM.</p>
+<div class="box box-blue">
+  <p><strong>Nomor FKP</strong> &nbsp; {{ nomor_fkp }}</p>
+  <p><strong>Prioritas</strong> &nbsp;
+     <span class="badge b-blue">{{ prioritas | upper | replace("_"," ") }}</span></p>
+  <p><strong>Status</strong> &nbsp;
+     <span class="badge b-blue">Menunggu Review APSM</span></p>
+</div>
+<p>Pantau progres keluhan Anda kapan saja melalui QR Code atau link di bawah ini.</p>
+{% endblock %}

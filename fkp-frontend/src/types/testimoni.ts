@@ -7,15 +7,15 @@ export interface Testimoni {
   nama_pemberi: string | null
 
   // Penanganan keluhan
-  rating_keseluruhan: number
-  rating_kecepatan: number
-  rating_komunikasi: number
-  rating_solusi: number
+  rating_keseluruhan: number | null
+  rating_kecepatan: number | null
+  rating_komunikasi: number | null
+  rating_solusi: number | null
   komentar: string | null
   kritik_saran_tim: string | null
 
   // Aplikasi
-  rating_aplikasi: number
+  rating_aplikasi: number | null
   kritik_saran_app: string | null
 
   // Meta
@@ -39,11 +39,11 @@ export interface TestimoniRingkasan {
 }
 
 export interface TestimoniCreatePayload {
-  rating_keseluruhan: number
-  rating_kecepatan: number
-  rating_komunikasi: number
-  rating_solusi: number
-  rating_aplikasi: number
+  rating_keseluruhan: number | null
+  rating_kecepatan: number | null
+  rating_komunikasi: number | null
+  rating_solusi: number | null
+  rating_aplikasi: number | null
   komentar?: string | null
   kritik_saran_tim?: string | null
   kritik_saran_app?: string | null

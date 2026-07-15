@@ -152,8 +152,15 @@ export function useDeleteFkpItem(fkpId: string) {
 export function useUploadAttachment(fkpId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ file, fkpItemId }: { file: File; fkpItemId?: string | null }) =>
-      fkpApi.uploadAttachment(fkpId, file, fkpItemId),
+    mutationFn: ({
+      file,
+      fkpItemId,
+      tipeDokumen,
+    }: {
+      file: File
+      fkpItemId?: string | null
+      tipeDokumen?: string | null
+    }) => fkpApi.uploadAttachment(fkpId, file, fkpItemId, tipeDokumen),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: fkpKeys.detail(fkpId) })
       notifications.show({
@@ -455,6 +462,30 @@ export function useCloseFkp(fkpId: string) {
       queryClient.invalidateQueries({ queryKey: fkpKeys.all })
       notifications.show({
         message: 'FKP berhasil ditutup.',
+        color: 'green',
+      })
+    },
+    onError: (e) => {
+      notifications.show({
+        message: getErrorMessage(e),
+        color: 'red',
+      })
+    },
+  })
+}
+
+// ── Confirm Resolusi (accepted → in_process, tipe SELAIN tukar_barang & potong_tagihan) ──
+// Untuk tukar_barang pakai useCreateSuratJalan (hooks/useWarehouse.ts).
+// Untuk potong_tagihan pakai useTerbitkanInvoice (hooks/useFinance.ts).
+export function useConfirmResolusi(fkpId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (catatan?: string | null) => fkpApi.confirmResolusi(fkpId, catatan),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: fkpKeys.detail(fkpId) })
+      queryClient.invalidateQueries({ queryKey: fkpKeys.all })
+      notifications.show({
+        message: 'Resolusi dikonfirmasi, FKP masuk tahap diproses.',
         color: 'green',
       })
     },

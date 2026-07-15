@@ -56,7 +56,7 @@ export function LoginPage() {
       variants={containerVariants}
       initial="initial"
       animate="animate"
-      className="w-full space-y-6 p-4 md:p-6 lg:max-w-xl xl:max-w-2xl"
+      className="w-full space-y-6 p-6 md:p-12 lg:max-w-xl xl:max-w-2xl"
     >
       {/* Header */}
       <motion.div variants={itemVariants} className="mb-8">

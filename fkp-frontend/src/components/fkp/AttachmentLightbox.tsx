@@ -1,6 +1,13 @@
 import { useEffect, useCallback, useState } from 'react'
 import { X, ChevronLeft, ChevronRight, FileImage, Info, Download, ExternalLink } from 'lucide-react'
 import type { FkpAttachment } from '@/types'
+import { useAuthStore } from '@/store/authStore'
+import {
+  useAuthenticatedImage,
+  openAuthenticatedFile,
+  downloadAuthenticatedFile,
+} from '@/hooks/useAuthenticatedImage'
+import { AuthenticatedImage } from '@/components/AuthenticatedImage'
 
 // ─── Tipe Dokumen Labels ──────────────────────────────────────────────────────
 const TIPE_DOKUMEN_LABEL: Record<string, string> = {
@@ -24,23 +31,6 @@ function getTipeLabel(tipe: string | null | undefined): string {
   return TIPE_DOKUMEN_LABEL[tipe] ?? tipe.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
-// const TIPE_COLOR: Record<string, string> = {
-//   foto_produk:      'bg-blue-100 text-blue-700',
-//   foto_kemasan:     'bg-indigo-100 text-indigo-700',
-//   foto_kerusakan:   'bg-red-100 text-red-700',
-//   foto_benda_asing: 'bg-orange-100 text-orange-700',
-//   foto_expired:     'bg-amber-100 text-amber-700',
-//   foto_sample:      'bg-violet-100 text-violet-700',
-//   nota_pembelian:   'bg-emerald-100 text-emerald-700',
-//   surat_jalan:      'bg-teal-100 text-teal-700',
-//   lainnya:          'bg-gray-100 text-gray-600',
-// }
-
-// function getTipeBadgeClass(tipe: string | null | undefined): string {
-//   if (!tipe) return 'bg-gray-100 text-gray-600'
-//   return TIPE_COLOR[tipe] ?? 'bg-gray-100 text-gray-600'
-// }
-
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface AttachmentLightboxProps {
   attachments: FkpAttachment[]
@@ -50,24 +40,21 @@ interface AttachmentLightboxProps {
 }
 
 // ─── Hook: useLightbox ───────────────────────────────────────────────────────
+// [FIX] imageLoaded/imageError DIHAPUS dari sini — status loading & error
+// gambar sekarang sepenuhnya dikelola oleh useAuthenticatedImage() per URL
+// (lihat pemakaiannya di komponen di bawah), jadi tidak perlu di-track manual
+// lagi lewat onLoad/onError native <img>.
 function useLightbox(attachments: FkpAttachment[], initialIndex: number, isOpen: boolean, onClose: () => void) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex)
-  const [imageLoaded, setImageLoaded] = useState(false)
-  const [imageError, setImageError] = useState(false)
 
-  // Sync initial index when opened
   useEffect(() => {
     if (isOpen) {
       setCurrentIndex(initialIndex)
-      setImageLoaded(false)
-      setImageError(false)
     }
   }, [isOpen, initialIndex])
 
   const goTo = useCallback((index: number) => {
     setCurrentIndex(index)
-    setImageLoaded(false)
-    setImageError(false)
   }, [])
 
   const goPrev = useCallback(() => {
@@ -80,7 +67,6 @@ function useLightbox(attachments: FkpAttachment[], initialIndex: number, isOpen:
     goTo((currentIndex + 1) % attachments.length)
   }, [currentIndex, attachments.length, goTo])
 
-  // Keyboard handler
   useEffect(() => {
     if (!isOpen) return
     const handleKey = (e: KeyboardEvent) => {
@@ -94,16 +80,18 @@ function useLightbox(attachments: FkpAttachment[], initialIndex: number, isOpen:
 
   const current = attachments[currentIndex] ?? null
 
-  return { currentIndex, current, imageLoaded, imageError, setImageLoaded, setImageError, goPrev, goNext, goTo }
+  return { currentIndex, current, goPrev, goNext, goTo }
 }
 
 // ─── AttachmentLightbox ───────────────────────────────────────────────────────
 export function AttachmentLightbox({ attachments, initialIndex = 0, isOpen, onClose }: AttachmentLightboxProps) {
-  const {
-    currentIndex, current, imageLoaded, imageError,
-    setImageLoaded, setImageError,
-    goPrev, goNext, goTo,
-  } = useLightbox(attachments, initialIndex, isOpen, onClose)
+  const { currentIndex, current, goPrev, goNext, goTo } = useLightbox(attachments, initialIndex, isOpen, onClose)
+  const token = useAuthStore((s) => s.token)
+
+  // [FIX #1] Gambar utama — sebelumnya <img src={current.url} onLoad onError>.
+  // Sekarang pakai hook auth langsung (bukan komponen AuthenticatedImage)
+  // supaya skeleton spinner & error state custom di bawah tetap bisa dipakai.
+  const { src: mainBlobSrc, isLoading: mainLoading, error: mainError } = useAuthenticatedImage(current?.url)
 
   if (!isOpen || !current) return null
 
@@ -124,40 +112,43 @@ export function AttachmentLightbox({ attachments, initialIndex = 0, isOpen, onCl
 
       {/* Modal container */}
       <div className="relative z-10 w-full max-w-4xl mx-4 flex flex-col lg:flex-row
-                      bg-white rounded-2xl shadow-2xl overflow-hidden max-h-[90vh]">
+                      bg-white rounded-2xl shadow-2xl overflow-hidden max-h-[76vh]">
 
         {/* ── Kiri: Foto ──────────────────────────────────────────────── */}
         <div className="relative flex-1 bg-gray-100 flex items-center justify-center min-h-[280px] lg:min-h-[500px]">
 
           {/* Loading skeleton */}
-          {!imageLoaded && !imageError && (
+          {mainLoading && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="w-12 h-12 rounded-full border-2 border-white/20 border-t-white animate-spin" />
             </div>
           )}
 
           {/* Error state */}
-          {imageError && (
+          {!mainLoading && mainError && (
             <div className="flex flex-col items-center gap-3 text-white/50 px-8 text-center">
               <FileImage className="w-12 h-12" />
               <p className="text-sm">Gagal memuat gambar</p>
-              <a href={current.url} target="_blank" rel="noreferrer"
-                className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors">
+              {/* [FIX #2] href langsung ke current.url diganti onClick,
+                  karena browser tidak bisa kirim header Authorization
+                  lewat navigasi <a href> biasa. */}
+              <button
+                type="button"
+                onClick={() => openAuthenticatedFile(current.url, token)}
+                className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors"
+              >
                 <ExternalLink className="w-3.5 h-3.5" /> Buka di tab baru
-              </a>
+              </button>
             </div>
           )}
 
           {/* Image */}
-          {!imageError && (
+          {!mainLoading && !mainError && mainBlobSrc && (
             <img
               key={current.id}
-              src={current.url}
+              src={mainBlobSrc}
               alt={current.nama_file}
-              onLoad={() => setImageLoaded(true)}
-              onError={() => { setImageLoaded(true); setImageError(true) }}
-              className={`max-w-full max-h-[70vh] lg:max-h-[80vh] object-contain transition-opacity duration-300
-                          ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+              className="w-full h-auto max-h-[70vh] lg:max-h-[80vh] object-contain"
             />
           )}
 
@@ -281,27 +272,30 @@ export function AttachmentLightbox({ attachments, initialIndex = 0, isOpen, onCl
 
           {/* Actions */}
           <div className="px-5 py-4 border-t border-gray-100 flex gap-2">
-            <a
-              href={current.url}
-              target="_blank"
-              rel="noreferrer"
+            {/* [FIX #3] "Buka" — href langsung diganti onClick */}
+            <button
+              type="button"
+              onClick={() => openAuthenticatedFile(current.url, token)}
               className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2
                          text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200
                          rounded-lg transition-colors"
             >
               <ExternalLink className="w-3.5 h-3.5" />
               Buka
-            </a>
-            <a
-              href={current.url}
-              download={current.nama_file}
+            </button>
+            {/* [FIX #4] "Unduh" — atribut `download` di <a href> juga tidak
+                bisa kirim Authorization header, jadi diganti onClick yang
+                fetch blob dulu baru trigger download. */}
+            <button
+              type="button"
+              onClick={() => downloadAuthenticatedFile(current.url, token, current.nama_file)}
               className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2
                          text-sm font-medium text-white bg-brand-600 hover:bg-brand-700
                          rounded-lg transition-colors"
             >
               <Download className="w-3.5 h-3.5" />
               Unduh
-            </a>
+            </button>
           </div>
 
           {/* Thumbnail strip — hanya tampil jika ada lebih dari 1 */}
@@ -323,7 +317,10 @@ export function AttachmentLightbox({ attachments, initialIndex = 0, isOpen, onCl
                     aria-label={`Lihat lampiran ${idx + 1}`}
                     title={getTipeLabel(att.tipe_dokumen)}
                   >
-                    <img
+                    {/* [FIX #5] thumbnail strip — pakai komponen wrapper,
+                        cukup default loading/error bawaannya (tidak perlu
+                        state custom seperti gambar utama). */}
+                    <AuthenticatedImage
                       src={att.url}
                       alt={att.nama_file}
                       className="w-full h-full object-cover"
@@ -382,7 +379,8 @@ export function AttachmentGrid({ attachments, cols = 4 }: AttachmentGridProps) {
             {/* Thumbnail */}
             <div className="aspect-square relative overflow-hidden rounded-lg border border-gray-200
                             group-hover:border-brand-300 transition-colors">
-              <img
+              {/* [FIX #6] thumbnail grid utama */}
+              <AuthenticatedImage
                 src={att.url}
                 alt={att.nama_file}
                 className="w-full h-full object-cover transition-transform duration-200

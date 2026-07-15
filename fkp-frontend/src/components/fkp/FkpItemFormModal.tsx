@@ -12,6 +12,7 @@ import { JENIS_KELUHAN_LABEL } from '@/types'
 import toast from 'react-hot-toast'
 import { format, toZonedTime } from 'date-fns-tz'
 import { TIPE_FOTO_OPTIONS, getDefaultTipe } from '@/constants/fkpAttachment'
+import { AuthenticatedImage } from '../AuthenticatedImage'
 
 
 // ─── Tipe file dengan metadata ────────────────────────────────────────────────
@@ -386,18 +387,22 @@ export function FkpItemFormModal({
                                 <div className="grid grid-cols-3 gap-2">
                                     {localExisting.map((att) => (
                                         <div key={att.id} className="relative group rounded-lg overflow-hidden border border-gray-200">
-                                            <img src={att.url} alt={att.nama_file} className="w-full h-20 object-cover" />
+                                            <AuthenticatedImage
+                                                src={att.url}
+                                                alt={att.nama_file}
+                                                className="w-full h-20 object-cover"
+                                            />
                                             <button
                                                 type="button"
                                                 onClick={() => handleDeleteExisting(att)}
                                                 className="absolute top-1 right-1 bg-red-500 text-white rounded-md p-1
-                                       opacity-0 group-hover:opacity-100 transition-opacity"
+                       opacity-0 group-hover:opacity-100 transition-opacity"
                                             >
                                                 <Trash className="w-3 h-3" />
                                             </button>
                                             {att.tipe_dokumen && (
                                                 <span className="absolute bottom-0 inset-x-0 bg-black/50 text-white
-                                              text-[9px] text-center py-0.5">
+                              text-[9px] text-center py-0.5">
                                                     {att.tipe_dokumen}
                                                 </span>
                                             )}
