@@ -14,11 +14,12 @@ from app.models.fkp import (
     FkpComplaint, FkpItem, FkpStatusLog, 
     FkpResolution, FkpAttachment, FkpDocument,
 )
+from app.models.bapkp import FkpBapkp, FkpBapkpItem
 from app.models.sample import SampleShipment, SampleStatusLog
 from app.models.warehouse import WarehouseSuratJalan, WarehouseSuratJalanItem
 from app.models.notification import Notification
 from app.models.testimoni import FkpTestimoni
-
+ 
 __all__ = [
     "Provinsi", "KabupatenKota", "Kecamatan", "Kelurahan",
     "Role", "RolePermission", "Permission",
@@ -30,6 +31,7 @@ __all__ = [
     "ProductCatalog",
     "FkpComplaint", "FkpItem", "FkpStatusLog", 
     "FkpResolution", "FkpAttachment", "FkpDocument",
+    "FkpBapkp", "FkpBapkpItem",
     "SampleShipment", "SampleStatusLog",
     "WarehouseSuratJalan", "WarehouseSuratJalanItem",
     "Notification", "FkpTestimoni"

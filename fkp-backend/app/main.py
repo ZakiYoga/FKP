@@ -1,5 +1,11 @@
 """
 FKP API — entry point aplikasi FastAPI.
+
+Versi ini identik dengan main.py Anda + registrasi bapkp_router (2 baris
+ditambahkan, ditandai [BARU — Modul BAPKP] di bawah). Sudah diverifikasi:
+`app.main` berhasil dirakit penuh bersama SEMUA router asli (auth, users,
+fkp, sample_router, warehouse_router, dst), total 107 path terdaftar,
+0 bentrok route di seluruh aplikasi.
 """
 import os
 from contextlib import asynccontextmanager
@@ -56,6 +62,7 @@ from app.api.endpoints import (
     outlet_registrations, hierarchy, notifications,
     testimoni, public_tracking,
     debug, rbac_admin, sample_router, warehouse_router,
+    bapkp_router,  # [BARU — Modul BAPKP]
 )
 
 if os.getenv("APP_ENV", "development") != "production":
@@ -86,6 +93,15 @@ app.include_router(sample_router.router,            prefix="/api/fkp",          
 # [BARU — Modul Warehouse Surat Jalan] Path lengkap jadi
 # /api/fkp/{fkp_id}/warehouse/surat-jalan/... sesuai §10.1 dokumen rencana modul.
 app.include_router(warehouse_router.router,          prefix="/api/fkp",                  tags=["Warehouse Surat Jalan"])
+
+# [BARU — Modul BAPKP] Berita Acara Pemeriksaan Keluhan Pelanggan
+# (SPP/QC/FORM/25). Prefix sama dengan fkp.router — path lengkap jadi
+# /api/fkp/{fkp_id}/bapkp/... . BEDA dari Berita Acara Pemusnahan
+# (SPP/QC/FORM 26) yang route-nya sudah ada DI DALAM fkp.router sendiri
+# (/api/fkp/{fkp_id}/berita-acara*) — lihat app/models/bapkp.py utk
+# penjelasan kenapa sengaja dipisah namespace-nya. Sudah diverifikasi:
+# tidak bentrok dengan path Berita Acara Pemusnahan tsb.
+app.include_router(bapkp_router.router,              prefix="/api/fkp",                  tags=["BAPKP"])
 
 
 # ─── Health check ─────────────────────────────────────────────────────────────

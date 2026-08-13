@@ -1,3 +1,6 @@
+BREW_PREFIX := $(shell brew --prefix)
+export DYLD_FALLBACK_LIBRARY_PATH := $(BREW_PREFIX)/lib
+
 dev:
 	uvicorn app.main:app --reload
 
