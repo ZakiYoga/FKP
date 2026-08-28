@@ -1,17 +1,3 @@
-/**
- * TestimoniPage.tsx
- *
- * Halaman riwayat & input testimoni untuk pelanggan (distributor / outlet / sc_spv).
- *
- * Fitur:
- *   - Daftar semua FKP milik user yang sudah 'closed'
- *   - Badge status testimoni: sudah diisi / belum diisi
- *   - Klik FKP → buka panel testimoni (form baru atau tampilan + edit existing)
- *   - Filter: semua | belum diisi | sudah diisi
- *
- * Route: /testimoni
- * Akses: distributor | outlet | sc_spv
- */
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -201,7 +187,7 @@ function FilteredItem({
 // ─── Page utama ───────────────────────────────────────────────────────────────
 
 export function TestimoniPage() {
-  const [filter, setFilter]       = useState<FilterType>('semua')
+  const [filter, setFilter] = useState<FilterType>('semua')
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   // Ambil hanya FKP yang sudah closed
@@ -214,7 +200,7 @@ export function TestimoniPage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto animate-fade-in space-y-6">
+    <div className="space-y-6 animate-fade-in">
 
       {/* Page header */}
       <div>

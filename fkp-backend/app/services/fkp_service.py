@@ -318,6 +318,11 @@ async def _validasi_konsistensi_rekomendasi(fkp_id, tipe_resolusi_baru, db):
     Pastikan semua item yang sudah punya rekomendasi kompensasi
     konsisten dengan tipe_resolusi yang dipilih Admin HO.
     Jika tidak konsisten → tolak dengan pesan jelas.
+
+    PERUBAHAN: Admin HO tidak lagi mengisi rekomendasi_kompensasi_admin_ho
+    (langkah rekomendasi admin_ho dihilangkan — admin_ho sekarang murni
+    meneruskan ke RSM). Sumber rekomendasi untuk validasi ini dialihkan ke
+    rekomendasi_kompensasi_apsm.
     """
     from app.models.fkp import TipeResolusi
 
@@ -336,9 +341,9 @@ async def _validasi_konsistensi_rekomendasi(fkp_id, tipe_resolusi_baru, db):
     items = r.scalars().all()
 
     tipe_dari_rekomendasi = {
-        MAPPING[i.rekomendasi_kompensasi_admin_ho]
+        MAPPING[i.rekomendasi_kompensasi_apsm]
         for i in items
-        if i.rekomendasi_kompensasi_admin_ho in MAPPING
+        if i.rekomendasi_kompensasi_apsm in MAPPING
     }
 
     # Lebih dari 1 tipe → item tidak konsisten satu sama lain
@@ -1036,29 +1041,19 @@ async def apsm_review(fkp_id, data: ApsmReviewRequest, user, kode_role, db):
 
 
 async def admin_ho_review(fkp_id, data: AdminHoReviewRequest, user, kode_role, db):
-    """Apsm Reviewed → Rsm Approval Investigasi."""
+    """
+    Apsm Reviewed → Rsm Approval Investigasi.
+
+    PERUBAHAN: Admin HO tidak lagi mengisi rekomendasi per item (dulu:
+    rekomendasi_penanganan_admin_ho / rekomendasi_kompensasi_admin_ho /
+    catatan_admin_ho / persentase_disetujui_admin_ho). Fungsi ini sekarang
+    murni meneruskan FKP dari APSM ke RSM — hanya catatan_admin (level FKP,
+    bukan per item) yang dicatat. Rekomendasi yang dipakai untuk validasi
+    konsistensi resolusi (lihat _validasi_konsistensi_rekomendasi) diambil
+    dari rekomendasi APSM.
+    """
     fkp = await _get_or_404(fkp_id, db)
     await _validate_transition(fkp, FkpStatus.RSM_APPROVAL_INVESTIGASI, kode_role, db)
-
-    if data.item_reviews:
-        for review in data.item_reviews:
-            r = await db.execute(select(FkpItem).where(
-                FkpItem.id == review.item_id,
-                FkpItem.fkp_id == fkp_id,
-            ))
-            item = r.scalar_one_or_none()
-            if item:
-                # PERUBAHAN: gunakan field baru rekomendasi_penanganan_admin_ho & rekomendasi_kompensasi_admin_ho
-                if review.rekomendasi_penanganan_admin_ho is not None:
-                    item.rekomendasi_penanganan_admin_ho = review.rekomendasi_penanganan_admin_ho
-                if review.rekomendasi_kompensasi_admin_ho is not None:
-                    item.rekomendasi_kompensasi_admin_ho = review.rekomendasi_kompensasi_admin_ho
-                if review.catatan_admin_ho is not None:
-                    item.catatan_admin_ho = review.catatan_admin_ho
-                if review.persentase_disetujui_admin_ho is not None:
-                    item.persentase_disetujui_admin_ho = review.persentase_disetujui_admin_ho
-                item.updated_at = datetime.now(timezone.utc)
-                db.add(item)
 
     lama = fkp.status
     fkp.status = FkpStatus.RSM_APPROVAL_INVESTIGASI
@@ -1280,6 +1275,31 @@ async def close_fkp(fkp_id, catatan, user, kode_role, db):
                 f"Status harus 'in_process' sebelum bisa ditutup."
             )
         )
+
+    # Gate BA pemusnahan — SATU-SATUNYA titik gate ini, berlaku generik
+    # untuk semua tipe_resolusi. Kalau barangnya ditandai dimusnahkan,
+    # bukti Berita Acara yang SUDAH DITANDATANGANI (diupload sebagai
+    # FkpAttachment, bukan draft PDF di FkpDocument) wajib ada sebelum
+    # FKP benar-benar ditutup.
+    r_resolusi = await db.execute(select(FkpResolution).where(FkpResolution.fkp_id == fkp_id))
+    resolusi = r_resolusi.scalar_one_or_none()
+    if resolusi and resolusi.metode_penanganan_fisik == MetodePenangananFisik.DIMUSNAHKAN:
+        r_bukti = await db.execute(
+            select(FkpAttachment).where(
+                FkpAttachment.fkp_id == fkp_id,
+                FkpAttachment.tipe_dokumen == TipeDokumen.BERITA_ACARA_PEMUSNAHAN_TUKAR_BARANG,
+            )
+        )
+        if not r_bukti.scalar_one_or_none():
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "FKP tidak bisa ditutup — dokumen Berita Acara Pemusnahan "
+                    "& Tukar Barang yang sudah ditandatangani belum diupload. "
+                    "Generate draft BA, minta tanda tangan pihak terkait, lalu "
+                    "upload hasilnya sebelum menutup FKP."
+                ),
+            )
 
     await _validate_transition(fkp, FkpStatus.CLOSED, kode_role, db)
     lama = fkp.status
@@ -1585,18 +1605,6 @@ async def confirm_resolusi(fkp_id, catatan, user, kode_role, db):
     Trigger accepted → in_process untuk resolusi SELAIN tukar_barang dan
     potong_tagihan — yaitu pemusnahan (tidak_ada_kompensasi + metode
     dimusnahkan) dan tidak_ada_kompensasi murni tanpa pemusnahan.
-
-    [KEPUTUSAN — hasil diskusi Kontradiksi A & B]
-    Dispatch di sini SENGAJA composite, BUKAN match/case eksklusif satu
-    field: tipe_resolusi (tukar_barang/potong_tagihan/tidak_ada_kompensasi)
-    dan metode_penanganan_fisik (dimusnahkan/dst) adalah dua kolom
-    independen yang BISA berlaku bersamaan — misal barang berkutu/menjamur:
-    tipe_resolusi=tukar_barang + metode=dimusnahkan (kasus ini TIDAK lewat
-    endpoint ini, lihat penolakan di bawah — lewat create_surat_jalan(),
-    Phase 6). Endpoint ini menangani kombinasi:
-      - tipe_resolusi=tidak_ada_kompensasi, metode=apa pun (termasuk dimusnahkan)
-    Gate metode=dimusnahkan & gate tipe=tidak_ada_kompensasi dicek TERPISAH
-    dan bisa berlaku BERSAMAAN, bukan salah satu.
     """
     await require_permission(kode_role, "fkp.confirm_resolusi", db)
 
@@ -1627,28 +1635,6 @@ async def confirm_resolusi(fkp_id, catatan, user, kode_role, db):
             status_code=400,
             detail="Resolusi potong_tagihan diproses lewat POST /fkp/{fkp_id}/finance/invoice.",
         )
-
-    # ── Gate composite #1: metode_penanganan_fisik == DIMUSNAHKAN ──────────
-    # [KEPUTUSAN] Hard gate — wajib upload "Berita Acara Pemusnahan dan
-    # Tukar Barang" dulu, TERLEPAS dari tipe_resolusi-nya (di endpoint ini
-    # tipe_resolusi sudah pasti tidak_ada_kompensasi setelah 2 pengecekan
-    # di atas, tapi gate ditulis generik terhadap metode agar konsisten
-    # kalau nanti ada tipe_resolusi baru).
-    if resolusi.metode_penanganan_fisik == MetodePenangananFisik.DIMUSNAHKAN:
-        r_bukti = await db.execute(
-            select(FkpAttachment).where(
-                FkpAttachment.fkp_id == fkp_id,
-                FkpAttachment.tipe_dokumen == TipeDokumen.BERITA_ACARA_PEMUSNAHAN_TUKAR_BARANG,
-            )
-        )
-        if not r_bukti.scalar_one_or_none():
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "Upload dokumen 'Berita Acara Pemusnahan dan Tukar Barang' "
-                    "terlebih dahulu sebelum melanjutkan."
-                ),
-            )
 
     # ── Gate composite #2: tipe_resolusi == TIDAK_ADA_KOMPENSASI ───────────
     if resolusi.tipe_resolusi == TipeResolusi.TIDAK_ADA_KOMPENSASI:
@@ -1723,26 +1709,6 @@ async def terbitkan_invoice(fkp_id, nomor_invoice, nilai_nota_penjualan, catatan
     # service bisa dipanggil dari jalur lain di luar endpoint HTTP).
     if nilai_nota_penjualan is None or nilai_nota_penjualan <= 0:
         raise HTTPException(status_code=400, detail="nilai_nota_penjualan harus lebih dari 0.")
-
-    # [KONSISTENSI dengan confirm_resolusi() & create_surat_jalan() —
-    # dijanjikan di Phase 5] metode_penanganan_fisik == DIMUSNAHKAN adalah
-    # hard gate independen dari tipe_resolusi — barang bisa dimusnahkan
-    # SEKALIGUS distributor tetap dapat potongan tagihan sebagai kompensasi.
-    if resolusi.metode_penanganan_fisik == MetodePenangananFisik.DIMUSNAHKAN:
-        r_bukti = await db.execute(
-            select(FkpAttachment).where(
-                FkpAttachment.fkp_id == fkp_id,
-                FkpAttachment.tipe_dokumen == TipeDokumen.BERITA_ACARA_PEMUSNAHAN_TUKAR_BARANG,
-            )
-        )
-        if not r_bukti.scalar_one_or_none():
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "Upload dokumen 'Berita Acara Pemusnahan dan Tukar Barang' "
-                    "terlebih dahulu sebelum menerbitkan invoice."
-                ),
-            )
 
     if not nomor_invoice or not nomor_invoice.strip():
         raise HTTPException(status_code=400, detail="nomor_invoice wajib diisi.")

@@ -119,7 +119,7 @@ export const router = createBrowserRouter([
               {
                 element: <ProtectedRoute allowedRoles={['admin_ho', 'superadmin', 'qc', 'rsm', 'direktur']} />,
                 children: [
-                  { path: '/penerbitan-fkp/manual', element: <BaManualPage /> },
+                  { path: '/buat-berita-acara', element: <BaManualPage /> },
                 ],
               },
             ],

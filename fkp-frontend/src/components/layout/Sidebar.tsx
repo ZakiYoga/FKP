@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ShieldCheck, LogOut, ChevronLeft, ChevronRight, X, PanelLeftClose } from 'lucide-react'
+import { ShieldCheck, LogOut, ChevronLeft, ChevronRight, X, PanelLeftClose, PanelLeftOpen, PanelRightOpen } from 'lucide-react'
 import {
   Stack,
   Text,
@@ -45,45 +45,47 @@ function NavItem_({
   const Icon = item.icon
 
   const btn = (
-    <UnstyledButton
-      onClick={onClick}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: collapsed ? 0 : 10,
-        justifyContent: collapsed ? 'center' : 'flex-start',
-        width: '100%',
-        height: 40,
-        padding: collapsed ? 0 : '0 10px',
-        borderRadius: 8,
-        background: isActive ? ACTIVE_BG : 'transparent',
-        color: isActive ? '#fff' : NAV_COLOR,
-        fontSize: '0.8125rem',
-        fontWeight: isActive ? 600 : 400,
-        transition: 'background 120ms, color 120ms',
-        overflow: 'hidden',
-        whiteSpace: 'nowrap',
-      }}
-      onMouseEnter={(e) => {
-        if (!isActive) {
-          e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
-          e.currentTarget.style.color = '#fff'
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!isActive) {
-          e.currentTarget.style.background = 'transparent'
-          e.currentTarget.style.color = NAV_COLOR
-        }
-      }}
-    >
-      <Icon size={collapsed ? 17 : 15} style={{ flexShrink: 0 }} />
-      {!collapsed && (
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {item.label}
-        </span>
-      )}
-    </UnstyledButton>
+    <div className="">
+      <UnstyledButton
+        onClick={onClick}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: collapsed ? 0 : 10,
+          justifyContent: collapsed ? 'center' : 'flex-start',
+          width: '100%',
+          height: 40,
+          padding: collapsed ? 0 : '0 10px',
+          borderRadius: 8,
+          background: isActive ? ACTIVE_BG : 'transparent',
+          color: isActive ? '#fff' : NAV_COLOR,
+          fontSize: '0.8125rem',
+          fontWeight: isActive ? 600 : 400,
+          transition: 'background 120ms, color 120ms',
+          overflow: 'hidden',
+          whiteSpace: 'nowrap',
+        }}
+        onMouseEnter={(e) => {
+          if (!isActive) {
+            e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
+            e.currentTarget.style.color = '#fff'
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!isActive) {
+            e.currentTarget.style.background = 'transparent'
+            e.currentTarget.style.color = NAV_COLOR
+          }
+        }}
+      >
+        <Icon size={collapsed ? 17 : 15} style={{ flexShrink: 0 }} />
+        {!collapsed && (
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {item.label}
+          </span>
+        )}
+      </UnstyledButton>
+    </div>
   )
 
   if (collapsed) {
@@ -140,10 +142,6 @@ export function Sidebar({ collapsed, onToggle, isMobile = false }: SidebarProps)
         }}
       >
 
-        <ThemeIcon size={34} radius="md" color="blue" variant="filled" style={{ flexShrink: 0 }}>
-          <ShieldCheck size={17} />
-        </ThemeIcon>
-
         {!collapsed && (
           <Box style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <Box style={{ minWidth: 0, flex: 1 }}>
@@ -159,39 +157,14 @@ export function Sidebar({ collapsed, onToggle, isMobile = false }: SidebarProps)
             onClick={onToggle}
             size={26}
             radius="md"
-            variant="subtle"
+            variant="transparent"
             aria-label={toggleLabel}
-            style={
-              // Desktop collapsed/expanded: mengapung di sisi kanan border
-              !isMobile && !collapsed
-                ? {
-                  position: 'absolute',
-                  right: -12,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: BG,
-                  color: NAV_COLOR,
-                  zIndex: 10,
-                }
-                : !isMobile && collapsed
-                  ? {
-                    position: 'absolute',
-                    right: -12,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    background: BG,
-                      color: NAV_COLOR,
-                    zIndex: 10,
-                  }
-                  : {
-                    // Mobile: tombol X di kanan header
-                    flexShrink: 0,
-                    color: NAV_COLOR,
-                    background: 'rgba(255,255,255,0.06)',
-                  }
-            }
           >
-            <ToggleIcon size={18} />
+            {!isMobile && collapsed ? (
+              <PanelLeftOpen size={18} className="text-white" />
+            ) : (
+              <PanelRightOpen size={18} className="text-white"/>
+            )}
           </ActionIcon>
         </Tooltip>
       </Box>
@@ -280,33 +253,35 @@ export function Sidebar({ collapsed, onToggle, isMobile = false }: SidebarProps)
             </UnstyledButton>
           </Tooltip>
         ) : (
-          <UnstyledButton
-            onClick={() => logout()}
-            disabled={isPending}
-            w="100%"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '8px 10px',
-              borderRadius: 8,
-              color: NAV_COLOR,
-              fontSize: '0.8125rem',
-              fontWeight: 500,
-              transition: 'background 120ms, color 120ms',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(239,68,68,0.12)'
-              e.currentTarget.style.color = '#fca5a5'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent'
-              e.currentTarget.style.color = NAV_COLOR
-            }}
-          >
-            <LogOut size={15} />
-            <span>{isPending ? 'Keluar...' : 'Keluar'}</span>
-          </UnstyledButton>
+          <>
+            <UnstyledButton
+              onClick={() => logout()}
+              disabled={isPending}
+              w="100%"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 10px',
+                borderRadius: 8,
+                color: NAV_COLOR,
+                fontSize: '0.8125rem',
+                fontWeight: 500,
+                transition: 'background 120ms, color 120ms',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(239,68,68,0.12)'
+                e.currentTarget.style.color = '#fca5a5'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent'
+                e.currentTarget.style.color = NAV_COLOR
+              }}
+            >
+              <LogOut size={15} />
+              <span>{isPending ? 'Keluar...' : 'Keluar'}</span>
+            </UnstyledButton>
+          </>
         )}
       </Box>
     </Stack>

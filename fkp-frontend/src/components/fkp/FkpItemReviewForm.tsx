@@ -3,7 +3,6 @@ import { z } from 'zod'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { Select } from '@/components/ui/Select'
 import { Input } from '@/components/ui/Input'
-import { Textarea } from '@/components/ui/Textarea'
 import { JENIS_KELUHAN_LABEL } from '@/types'
 import type { FkpItem, Product } from '@/types'
 
@@ -24,17 +23,15 @@ export const apsmReviewSchema = z.object({
     persentase_disetujui_apsm:    persentaseField,
 })
 
-export const adminHoReviewSchema = z.object({
-    rekomendasi_penanganan_admin_ho: z.string().min(1, 'Penanganan fisik wajib dipilih'),
-    rekomendasi_kompensasi_admin_ho: z.string().min(1, 'Kompensasi wajib dipilih'),
-    catatan_admin_ho:                z.string().optional(),
-    persentase_disetujui_admin_ho:   persentaseField,
-})
+// DIHAPUS: adminHoReviewSchema, AdminHoReviewState, ADMIN_HO_REVIEW_BLANK,
+// AdminHoReviewErrors, validateAdminHoReview.
+// Admin HO tidak lagi mengisi rekomendasi per item — aksinya sekarang murni
+// "teruskan ke RSM" (lihat Modal admin_ho_review di FkpDetailPage.tsx, cukup
+// field catatan_admin level FKP, tanpa form per item).
 
 // ── Tipe state (dari schema, bukan definisi manual) ───────────────────────────
 
 export type ApsmReviewState    = z.infer<typeof apsmReviewSchema>
-export type AdminHoReviewState = z.infer<typeof adminHoReviewSchema>
 
 export const APSM_REVIEW_BLANK: ApsmReviewState = {
     rekomendasi_penanganan_apsm:  '',
@@ -43,17 +40,9 @@ export const APSM_REVIEW_BLANK: ApsmReviewState = {
     persentase_disetujui_apsm:    '',
 }
 
-export const ADMIN_HO_REVIEW_BLANK: AdminHoReviewState = {
-    rekomendasi_penanganan_admin_ho: '',
-    rekomendasi_kompensasi_admin_ho: '',
-    catatan_admin_ho:                '',
-    persentase_disetujui_admin_ho:   '',
-}
-
 // ── Tipe errors per state ─────────────────────────────────────────────────────
 
 export type ApsmReviewErrors    = Partial<Record<keyof ApsmReviewState,    string>>
-export type AdminHoReviewErrors = Partial<Record<keyof AdminHoReviewState, string>>
 
 // ── Helper: parse dan kembalikan errors (gunakan di parent saat submit) ────────
 //
@@ -70,39 +59,22 @@ export function validateApsmReview(value: ApsmReviewState): ApsmReviewErrors | n
     ) as ApsmReviewErrors
 }
 
-export function validateAdminHoReview(value: AdminHoReviewState): AdminHoReviewErrors | null {
-    const result = adminHoReviewSchema.safeParse(value)
-    if (result.success) return null
-    const flat = result.error.flatten().fieldErrors
-    return Object.fromEntries(
-        Object.entries(flat).map(([k, v]) => [k, v?.[0]])
-    ) as AdminHoReviewErrors
-}
-
 // ── Props ─────────────────────────────────────────────────────────────────────
+// Sekarang hanya untuk APSM — Admin HO tidak lagi punya form rekomendasi per item.
 
-type Props =
-    | {
-        prefix: 'apsm'
-        item: FkpItem
-        products: Product[]
-        value: ApsmReviewState
-        onChange: (v: ApsmReviewState) => void
-        errors?: ApsmReviewErrors
-    }
-    | {
-        prefix: 'admin_ho'
-        item: FkpItem
-        products: Product[]
-        value: AdminHoReviewState
-        onChange: (v: AdminHoReviewState) => void
-        errors?: AdminHoReviewErrors
-    }
+type Props = {
+    prefix: 'apsm'
+    item: FkpItem
+    products: Product[]
+    value: ApsmReviewState
+    onChange: (v: ApsmReviewState) => void
+    errors?: ApsmReviewErrors
+}
 
 // ── Komponen ──────────────────────────────────────────────────────────────────
 
 export function FkpItemReviewForm(props: Props) {
-    const { prefix, item, products, value, onChange, errors = {} } = props
+    const { item, products, value, onChange, errors = {} } = props
     const [expanded, setExpanded] = useState(true)
 
     const produk     = products.find((p) => p.id === item.product_id)
@@ -111,21 +83,13 @@ export function FkpItemReviewForm(props: Props) {
     // Akses error sebagai Record biasa agar tidak perlu casting berulang
     const err = errors as Record<string, string | undefined>
 
-    // ── Key helpers berdasarkan prefix ───────────────────────────────────────
-    const keys =
-        prefix === 'apsm'
-            ? {
-                penanganan: 'rekomendasi_penanganan_apsm'  as const,
-                kompensasi: 'rekomendasi_kompensasi_apsm'  as const,
-                catatan:    'catatan_apsm'                 as const,
-                persen:     'persentase_disetujui_apsm'    as const,
-            }
-            : {
-                penanganan: 'rekomendasi_penanganan_admin_ho' as const,
-                kompensasi: 'rekomendasi_kompensasi_admin_ho' as const,
-                catatan:    'catatan_admin_ho'                as const,
-                persen:     'persentase_disetujui_admin_ho'   as const,
-            }
+    // ── Key helpers (apsm-only) ────────────────────────────────────────────
+    const keys = {
+        penanganan: 'rekomendasi_penanganan_apsm'  as const,
+        kompensasi: 'rekomendasi_kompensasi_apsm'  as const,
+        catatan:    'catatan_apsm'                 as const,
+        persen:     'persentase_disetujui_apsm'    as const,
+    }
 
     const val = value as Record<string, string>
     const set = (k: string, v: string) =>

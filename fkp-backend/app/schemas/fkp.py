@@ -49,41 +49,11 @@ class ItemApsmReview(BaseModel):
         return v
 
 
-class ItemAdminHoReview(BaseModel):
-    """Sub-schema untuk review Admin HO per item."""
-    item_id: uuid.UUID
-
-    # PERUBAHAN: rekomendasi_admin_ho dipecah menjadi dua field
-    rekomendasi_penanganan_admin_ho: Optional[str] = None   # apa yang dilakukan thd barang fisik
-    rekomendasi_kompensasi_admin_ho: Optional[str] = None   # kompensasi finansial ke distributor
-
-    catatan_admin_ho: Optional[str] = None
-    persentase_disetujui_admin_ho: Optional[int] = None
-
-    @field_validator("rekomendasi_penanganan_admin_ho")
-    @classmethod
-    def validate_rekomendasi_penanganan(cls, v):
-        if v is not None and v not in RekomendasiTipe.ALL:
-            raise ValueError(
-                f"rekomendasi_penanganan_admin_ho harus salah satu dari: {RekomendasiTipe.ALL}"
-            )
-        return v
-
-    @field_validator("rekomendasi_kompensasi_admin_ho")
-    @classmethod
-    def validate_rekomendasi_kompensasi(cls, v):
-        if v is not None and v not in RekomendasiTipe.ALL:
-            raise ValueError(
-                f"rekomendasi_kompensasi_admin_ho harus salah satu dari: {RekomendasiTipe.ALL}"
-            )
-        return v
-
-    @field_validator("persentase_disetujui_admin_ho")
-    @classmethod
-    def validate_persentase(cls, v):
-        if v is not None and not (0 <= v <= 100):
-            raise ValueError("persentase_disetujui_admin_ho harus antara 0 dan 100")
-        return v
+# DIHAPUS: ItemAdminHoReview
+# Admin HO tidak lagi mengisi rekomendasi per item (rekomendasi_penanganan_admin_ho /
+# rekomendasi_kompensasi_admin_ho). Admin HO sekarang hanya meneruskan FKP dari
+# apsm_reviewed -> rsm_approval_investigasi (lihat AdminHoReviewRequest di bawah).
+# Kolom DB terkait tetap ada (backward compat / data historis), hanya berhenti diisi.
 
 class ItemQtyDisetujui(BaseModel):
     """Sub-schema untuk mengisi qty_disetujui per item saat fase accepted (tukar_barang)."""
@@ -364,23 +334,20 @@ class ApsmReviewRequest(BaseModel):
 
 
 class AdminHoReviewRequest(BaseModel):
-    """Admin HO submit review + rekomendasi per item sebelum ke RSM."""
+    """
+    Admin HO meneruskan FKP ke RSM. Status: apsm_reviewed -> rsm_approval_investigasi.
+
+    PERUBAHAN: Admin HO tidak lagi mengisi rekomendasi per item — rekomendasi
+    yang dipakai untuk validasi konsistensi resolusi (lihat
+    _validasi_konsistensi_rekomendasi di fkp_service.py) sekarang bersumber
+    dari rekomendasi APSM (rekomendasi_kompensasi_apsm), bukan admin_ho lagi.
+    """
     catatan_admin: Optional[str] = None
-    item_reviews: Optional[List[ItemAdminHoReview]] = None
 
     class Config:
         json_schema_extra = {
             "example": {
                 "catatan_admin": "Dokumen lengkap, diteruskan ke RSM.",
-                "item_reviews": [
-                    {
-                        "item_id": "uuid-item",
-                        "rekomendasi_penanganan_admin_ho": "musnahkan",
-                        "rekomendasi_kompensasi_admin_ho": "ganti_barang",
-                        "catatan_admin_ho": "Setuju dengan rekomendasi APSM.",
-                        "persentase_disetujui_admin_ho": 100
-                    }
-                ]
             }
         }
 

@@ -12,8 +12,6 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // Semua request ke /api/... akan diteruskan ke FastAPI
-      // Ini menghindari masalah CORS saat development
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,

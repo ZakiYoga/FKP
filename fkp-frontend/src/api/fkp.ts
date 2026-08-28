@@ -9,6 +9,7 @@ import type {
   AdminHoReviewPayload,
   QcInvestigasiPayload,
   ResolusiPayload,
+  BeritaAcaraGenerateResponse,
 } from '@/types'
 
 export const fkpApi = {
@@ -193,14 +194,27 @@ export const fkpApi = {
   // resolusi SELAIN tukar_barang & potong_tagihan (tidak_ada_kompensasi,
   // dengan/tanpa metode_penanganan_fisik = dimusnahkan). Hanya admin_ho/
   // superadmin. catatan WAJIB kalau tipe_resolusi = tidak_ada_kompensasi.
-  // Kalau metode = dimusnahkan, dokumen 'berita_acara_pemusnahan_tukar_barang'
-  // harus sudah diupload dulu lewat uploadAttachment(), atau request ini 400.
+  // [Phase 9] Gate BA pemusnahan TIDAK dicek di endpoint ini — dipindah ke
+  // close(). Generate/upload BA boleh dilakukan kapan saja selama
+  // accepted/in_process, tidak memblokir konfirmasi resolusi.
   confirmResolusi: (id: string, catatan?: string | null) =>
     api
       .post<FkpDetail>(`/fkp/${id}/confirm-resolusi`, null, {
         params: catatan ? { catatan } : undefined,
       })
       .then((r) => r.data),
+
+  // ── Berita Acara Pemusnahan ────────────────────────────────────────────
+  // Tahap 1 — generate draft PDF (belum TTD) via WeasyPrint, disimpan
+  // idempotent ke FkpDocument (tipe_dokumen = 'berita_acara_pemusnahan').
+  // Panggilan berulang meng-overwrite dokumen yang sama, bukan duplikat.
+  generateBeritaAcara: (id: string): Promise<BeritaAcaraGenerateResponse> =>
+    api.post<BeritaAcaraGenerateResponse>(`/fkp/${id}/berita-acara`).then((r) => r.data),
+
+  // URL untuk trigger download PDF draft (regenerate-on-demand, streaming).
+  // Selalu pakai openAuthenticatedFile() — endpoint ini butuh Authorization
+  // header, bukan url_file mentah dari FkpDocumentResponse.
+  beritaAcaraPdfPath: (id: string): string => `/fkp/${id}/berita-acara/pdf`,
 
   // Input nomor surat jalan (resolusi tukar_barang)
   // [DEPRECATED] Menulis ke fkp_complaints.nomor_surat_jalan yang sudah tidak

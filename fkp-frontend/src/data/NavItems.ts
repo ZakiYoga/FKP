@@ -41,7 +41,7 @@ export const NAV_ITEMS: NavItem[] = [
         label: 'Penerbitan FKP', href: '/penerbitan-fkp', icon: FilePen,
     },
     {
-        label: 'BA Manual', href: '/penerbitan-fkp/manual', icon: FilePen,
+        label: 'Buat BA', href: '/buat-berita-acara', icon: FilePen,
         roles: ['admin_ho', 'superadmin', 'qc', 'rsm', 'direktur']
     },
     {

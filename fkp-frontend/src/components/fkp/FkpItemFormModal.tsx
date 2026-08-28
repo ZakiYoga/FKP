@@ -243,7 +243,7 @@ export function FkpItemFormModal({
                     >
                         {products.map((p) => (
                             <option key={p.id} value={p.id}>
-                                [{p.kode_produk}] {p.nama_produk} — {p.jenis_kemasan}
+                                {p.nama_produk}
                             </option>
                         ))}
                     </Select>
@@ -327,7 +327,7 @@ export function FkpItemFormModal({
 
                     <Textarea
                         label="Deskripsi Keluhan"
-                        placeholder="Jelaskan kondisi produk, kapan ditemukan, dampak yang ditimbulkan..."
+                        placeholder="Jelaskan kondisi produk, kapan ditemukan, kondisi gudang distributor dan dampak yang ditimbulkan..."
                         rows={3}
                         className='min-h-36'
                         required

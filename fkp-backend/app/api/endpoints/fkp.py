@@ -722,7 +722,12 @@ async def review_admin_ho(
     user:      User = Depends(get_current_user),
     kode_role: str  = Depends(get_kode_role),
 ):
-    """Admin HO review + rekomendasi, teruskan ke RSM. Status: apsm_reviewed → rsm_approval_investigasi."""
+    """
+    Admin HO teruskan FKP ke RSM. Status: apsm_reviewed → rsm_approval_investigasi.
+
+    PERUBAHAN: Admin HO tidak lagi mengisi rekomendasi per item — aksi ini
+    sekarang murni "teruskan ke RSM" (hanya catatan_admin level FKP).
+    """
     return await admin_ho_review(fkp_id, data, user, kode_role, db)
 
 
@@ -878,9 +883,9 @@ async def confirm_resolusi(
     tidak_ada_kompensasi, dengan atau tanpa metode_penanganan_fisik =
     dimusnahkan). Hanya admin_ho/superadmin.
 
-    Gate: kalau metode_penanganan_fisik = dimusnahkan, wajib sudah ada
-    attachment 'Berita Acara Pemusnahan dan Tukar Barang'. Kalau
-    tipe_resolusi = tidak_ada_kompensasi, `catatan` wajib diisi.
+    Gate: kalau tipe_resolusi = tidak_ada_kompensasi, `catatan` wajib diisi.
+    Gate BA pemusnahan TIDAK lagi di sini — dipindah ke close_fkp() supaya
+    BA boleh menyusul selama status in_process.
     """
     return await fkp_service.confirm_resolusi(fkp_id, catatan, user, kode_role, db)
 

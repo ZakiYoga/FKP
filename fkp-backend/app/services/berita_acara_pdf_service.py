@@ -3,9 +3,13 @@ app/services/berita_acara_pdf_service.py
 
 Service generate PDF Berita Acara Pemusnahan dan Tukar Barang.
 
-PERUBAHAN: fallback rekomendasi per item sekarang membaca
-  item.rekomendasi_penanganan_admin_ho  (was: item.rekomendasi_admin_ho)
-  item.rekomendasi_kompensasi_admin_ho  (tersedia untuk konteks tambahan)
+PERUBAHAN: langkah rekomendasi Admin HO dihilangkan dari alur FKP (admin_ho
+sekarang murni meneruskan ke RSM, lihat admin_ho_review() di fkp_service.py).
+Fallback metode pemusnahan per item jadi dua lapis:
+  Prioritas 3 (legacy): item.rekomendasi_penanganan_admin_ho — dipertahankan
+    hanya untuk data historis FKP lama.
+  Prioritas 4 (baru):   item.rekomendasi_penanganan_apsm — sumber utama
+    sekarang karena admin_ho tidak lagi mengisi rekomendasi.
 """
 
 from __future__ import annotations
@@ -17,6 +21,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional
 from uuid import UUID
 
 from sqlalchemy.orm import selectinload
+from sqlmodel import select
 
 from app.models.fkp import (
     FkpAttachment,
@@ -166,11 +171,22 @@ def build_berita_acara_context(
         # Prioritas 2: fallback ke tipe_resolusi (backward compat)
         if not metode_val:
             metode_val = _METODE_MAP.get(resolution.tipe_resolusi or "")
-        # Prioritas 3: fallback ke rekomendasi penanganan per item
-        # PERUBAHAN: gunakan rekomendasi_penanganan_admin_ho (was: rekomendasi_admin_ho)
+        # Prioritas 3: fallback ke rekomendasi penanganan admin_ho per item
+        # CATATAN: Admin HO tidak lagi mengisi field ini (langkah rekomendasi
+        # admin_ho dihilangkan). Dipertahankan hanya untuk data historis FKP
+        # lama yang sudah terlanjur punya nilai di kolom ini.
         if not metode_val:
             for item in items:
                 mapped = _METODE_MAP.get(item.rekomendasi_penanganan_admin_ho or "")
+                if mapped:
+                    metode_val = mapped
+                    break
+        # Prioritas 4: fallback ke rekomendasi penanganan APSM per item
+        # PERUBAHAN: sumber rekomendasi utama sekarang APSM, karena admin_ho
+        # tidak lagi mengisi rekomendasi.
+        if not metode_val:
+            for item in items:
+                mapped = _METODE_MAP.get(item.rekomendasi_penanganan_apsm or "")
                 if mapped:
                     metode_val = mapped
                     break
@@ -318,26 +334,49 @@ def generate_berita_acara_pdf_from_context(context: Dict) -> bytes:
 
 async def _save_to_fkp_document(
     db,
-    fkp_id:        UUID,
+    fkp_id: UUID,
     nomor_dokumen: str,
-    pdf_bytes:     bytes,
-    uploaded_by:   UUID,
-    upload_dir:    str = "uploads",
+    pdf_bytes: bytes,
+    uploaded_by: UUID,
+    upload_dir: str = "uploads",
 ) -> FkpDocument:
-    filename  = f"BA_{nomor_dokumen.replace('/', '-')}_{_uuid_module.uuid4().hex[:8]}.pdf"
+    filename = f"BA_{nomor_dokumen.replace('/', '-')}_{_uuid_module.uuid4().hex[:8]}.pdf"
     save_path = Path(upload_dir) / "berita_acara" / filename
     save_path.parent.mkdir(parents=True, exist_ok=True)
     save_path.write_bytes(pdf_bytes)
 
-    doc = FkpDocument(
-        fkp_id          = fkp_id,
-        tipe_dokumen    = TipeDokumen.BERITA_ACARA_PEMUSNAHAN,
-        nomor_dokumen   = nomor_dokumen,
-        tanggal_dokumen = datetime.now(timezone.utc).date(),
-        url_file        = f"/uploads/berita_acara/{filename}",
-        dibuat_oleh     = uploaded_by,
+    # Idempotent — cek dulu apakah FKP ini sudah punya draft BA. Kalau ada,
+    # overwrite row yang sama (regenerate = update), bukan insert baru,
+    # supaya tidak menumpuk row/file duplikat setiap kali user klik generate
+    # atau download ulang.
+    r = await db.execute(
+        select(FkpDocument).where(
+            FkpDocument.fkp_id == fkp_id,
+            FkpDocument.tipe_dokumen == TipeDokumen.BERITA_ACARA_PEMUSNAHAN,
+        )
     )
-    db.add(doc)
+    doc = r.scalar_one_or_none()
+
+    if doc:
+        old_path = Path(upload_dir) / doc.url_file.replace("/uploads/", "", 1)
+        if old_path.exists():
+            old_path.unlink()
+        doc.nomor_dokumen = nomor_dokumen
+        doc.tanggal_dokumen = datetime.now(timezone.utc).date()
+        doc.url_file = f"/uploads/berita_acara/{filename}"
+        doc.dibuat_oleh = uploaded_by
+        db.add(doc)
+    else:
+        doc = FkpDocument(
+            fkp_id=fkp_id,
+            tipe_dokumen=TipeDokumen.BERITA_ACARA_PEMUSNAHAN,
+            nomor_dokumen=nomor_dokumen,
+            tanggal_dokumen=datetime.now(timezone.utc).date(),
+            url_file=f"/uploads/berita_acara/{filename}",
+            dibuat_oleh=uploaded_by,
+        )
+        db.add(doc)
+
     await db.commit()
     await db.refresh(doc)
     return doc

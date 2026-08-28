@@ -33,56 +33,52 @@ export function FkpFilterBar({
     <div className="space-y-3">
       {/* Search + count */}
       <div className="flex items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Cari nomor FKP atau jenis keluhan..."
-            value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="input-base pl-9 py-2"
-          />
+        <div className="flex items-center gap-3 flex-1">
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Cari nomor FKP atau jenis keluhan..."
+              value={search}
+              onChange={(e) => onSearchChange(e.target.value)}
+              className="input-base pl-9 py-2"
+            />
+          </div>
+
+
+          {/* Filter chips row */}
+          {/* Status filter */}
+          <select
+            value={statusFilter}
+            onChange={(e) => onStatusChange(e.target.value)}
+            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white
+                     text-gray-700 focus:outline-hidden focus:ring-2 focus:ring-brand-500/20
+                     focus:border-brand-400 cursor-pointer"
+          >
+            <option value="">Semua Status</option>
+            {(Object.keys(FKP_STATUS_LABEL) as FkpStatusKey[]).map((key) => (
+              <option key={key} value={key}>
+                {FKP_STATUS_LABEL[key]}
+              </option>
+            ))}
+          </select>
+
+          {/* Prioritas filter */}
+          <select
+            value={prioritasFilter}
+            onChange={(e) => onPrioritasChange(e.target.value)}
+            className="text-sm border border-gray-200 rounded-lg px-3 pr-8 py-1.5 bg-white
+                     text-gray-700 focus:outline-hidden focus:ring-2 focus:ring-brand-500/20
+                     focus:border-brand-400 cursor-pointer"
+          >
+            <option value="">Semua Prioritas</option>
+            {(Object.keys(FKP_PRIORITAS_LABEL) as FkpPrioritas[]).map((key) => (
+              <option key={key} value={key}>
+                {FKP_PRIORITAS_LABEL[key]}
+              </option>
+            ))}
+          </select>
         </div>
-        <p className="text-sm text-gray-500 shrink-0">
-          <span className="font-semibold text-gray-900">{totalCount}</span> FKP
-        </p>
-      </div>
-
-      {/* Filter chips row */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <SlidersHorizontal className="w-4 h-4 text-gray-400 shrink-0" />
-
-        {/* Status filter */}
-        <select
-          value={statusFilter}
-          onChange={(e) => onStatusChange(e.target.value)}
-          className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white
-                     text-gray-700 focus:outline-hidden focus:ring-2 focus:ring-brand-500/20
-                     focus:border-brand-400 cursor-pointer"
-        >
-          <option value="">Semua Status</option>
-          {(Object.keys(FKP_STATUS_LABEL) as FkpStatusKey[]).map((key) => (
-            <option key={key} value={key}>
-              {FKP_STATUS_LABEL[key]}
-            </option>
-          ))}
-        </select>
-
-        {/* Prioritas filter */}
-        <select
-          value={prioritasFilter}
-          onChange={(e) => onPrioritasChange(e.target.value)}
-          className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white
-                     text-gray-700 focus:outline-hidden focus:ring-2 focus:ring-brand-500/20
-                     focus:border-brand-400 cursor-pointer"
-        >
-          <option value="">Semua Prioritas</option>
-          {(Object.keys(FKP_PRIORITAS_LABEL) as FkpPrioritas[]).map((key) => (
-            <option key={key} value={key}>
-              {FKP_PRIORITAS_LABEL[key]}
-            </option>
-          ))}
-        </select>
 
         {/* Clear all */}
         {hasFilter && (
@@ -96,7 +92,13 @@ export function FkpFilterBar({
             Reset
           </button>
         )}
+
       </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-xs text-gray-500 shrink-0">
+            <span className="font-semibold text-gray-900">Total : {totalCount}</span> FKP
+          </p>
+        </div>
     </div>
   )
 }

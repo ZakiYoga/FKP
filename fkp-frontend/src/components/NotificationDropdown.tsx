@@ -82,87 +82,91 @@ function NotificationItem({
     }
 
     return (
-        <UnstyledButton
-            onClick={handleClick}
-            onMouseEnter={() => setHovered(true)}
-            onMouseLeave={() => setHovered(false)}
-            w="100%"
-            style={{
-                borderRadius: 'var(--mantine-radius-md)',
-                background: !is_read
-                    ? 'var(--mantine-color-blue-0)'
-                    : hovered ? 'var(--mantine-color-gray-0)' : 'transparent',
-                transition: 'background 120ms',
-                cursor: target ? 'pointer' : 'default',
-            }}
-            p="xs"
-        >
-            <Group align="flex-start" gap="xs" wrap="nowrap">
-                {/* Dot unread */}
-                <Box
-                    mt={6}
-                    w={8}
-                    h={8}
-                    style={{
-                        borderRadius: '50%',
-                        background: !is_read ? 'var(--mantine-color-blue-5)' : 'transparent',
-                        flexShrink: 0,
-                    }}
-                />
+        <>
+            <UnstyledButton
+                component="div"
+                role="button"
+                onClick={handleClick}
+                onMouseEnter={() => setHovered(true)}
+                onMouseLeave={() => setHovered(false)}
+                w="100%"
+                style={{
+                    borderRadius: 'var(--mantine-radius-md)',
+                    background: !is_read
+                        ? 'var(--mantine-color-blue-0)'
+                        : hovered ? 'var(--mantine-color-gray-0)' : 'transparent',
+                    transition: 'background 120ms',
+                    cursor: target ? 'pointer' : 'default',
+                }}
+                p="xs"
+            >
+                <Group align="flex-start" gap="xs" wrap="nowrap">
+                    {/* Dot unread */}
+                    <Box
+                        mt={6}
+                        w={8}
+                        h={8}
+                        style={{
+                            borderRadius: '50%',
+                            background: !is_read ? 'var(--mantine-color-blue-5)' : 'transparent',
+                            flexShrink: 0,
+                        }}
+                    />
 
-                {/* Konten */}
-                <Box flex={1} style={{ minWidth: 0 }}>
-                    <Group justify="space-between" align="flex-start" mb={2} gap="xs" wrap="nowrap">
-                        <Text
-                            size="xs"
-                            fw={!is_read ? 600 : 400}
-                            c={!is_read ? 'gray.9' : 'gray.6'}
-                            truncate
-                            style={{ flex: 1 }}
-                        >
-                            {judul}
-                        </Text>
-                        <Badge
-                            size="xs"
-                            color={tipeConf.color}
-                            variant="light"
-                            style={{ flexShrink: 0 }}
-                        >
-                            {tipeConf.label}
-                        </Badge>
-                    </Group>
-
-                    <Text size="xs" c="dimmed" lineClamp={2} lh={1.4}>
-                        {pesan}
-                    </Text>
-
-                    <Group justify="space-between" align="center" mt={4} gap="xs">
-                        {nomor_fkp && (
-                            <Badge size="xs" variant="light" color="blue" radius="sm">
-                                {nomor_fkp}
+                    {/* Konten */}
+                    <Box flex={1} style={{ minWidth: 0 }}>
+                        <Group justify="space-between" align="flex-start" mb={2} gap="xs" wrap="nowrap">
+                            <Text
+                                size="xs"
+                                fw={!is_read ? 600 : 400}
+                                c={!is_read ? 'gray.9' : 'gray.6'}
+                                truncate
+                                style={{ flex: 1 }}
+                            >
+                                {judul}
+                            </Text>
+                            <Badge
+                                size="xs"
+                                color={tipeConf.color}
+                                variant="light"
+                                style={{ flexShrink: 0 }}
+                            >
+                                {tipeConf.label}
                             </Badge>
-                        )}
-                        <Text size="10px" c="dimmed" ml="auto">
-                            {formatRelative(created_at)}
-                        </Text>
-                    </Group>
-                </Box>
+                        </Group>
 
-                {/* Tombol mark read — muncul saat hover */}
-                {!is_read && (
-                    <ActionIcon
-                        onClick={(e) => { e.stopPropagation(); onMarkRead([id]) }}
-                        size="sm"
-                        variant="subtle"
-                        color="blue"
-                        title="Tandai sudah dibaca"
-                        style={{ opacity: hovered ? 1 : 0, transition: 'opacity 150ms', flexShrink: 0 }}
-                    >
-                        <Check size={12} />
-                    </ActionIcon>
-                )}
-            </Group>
-        </UnstyledButton>
+                        <Text size="xs" c="dimmed" lineClamp={2} lh={1.4}>
+                            {pesan}
+                        </Text>
+
+                        <Group justify="space-between" align="center" mt={4} gap="xs">
+                            {nomor_fkp && (
+                                <Badge size="xs" variant="light" color="blue" radius="sm">
+                                    {nomor_fkp}
+                                </Badge>
+                            )}
+                            <Text size="10px" c="dimmed" ml="auto">
+                                {formatRelative(created_at)}
+                            </Text>
+                        </Group>
+                    </Box>
+
+                    {/* Tombol mark read — muncul saat hover */}
+                    {!is_read && (
+                        <ActionIcon
+                            onClick={(e) => { e.stopPropagation(); onMarkRead([id]) }}
+                            size="sm"
+                            variant="subtle"
+                            color="blue"
+                            title="Tandai sudah dibaca"
+                            style={{ opacity: hovered ? 1 : 0, transition: 'opacity 150ms', flexShrink: 0 }}
+                        >
+                            <Check size={12} />
+                        </ActionIcon>
+                    )}
+                </Group>
+            </UnstyledButton>
+        </>
     )
 }
 

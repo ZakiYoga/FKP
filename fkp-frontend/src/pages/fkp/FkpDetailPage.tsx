@@ -5,6 +5,7 @@ import {
   AlertTriangle, ShieldCheck, XCircle, Edit2, Plus, Package,
   QrCode, Download, Copy, Check, ExternalLink,
   Paperclip, Truck, Banknote, FileDown,
+  Upload,
 } from 'lucide-react'
 import { useState, useRef, useCallback } from 'react'
 import { QRCodeCanvas } from 'qrcode.react'
@@ -18,7 +19,7 @@ import { Textarea } from '@/components/ui/Textarea'
 import { Select } from '@/components/ui/Select'
 import { Input } from '@/components/ui/Input'
 import { FkpItemFormModal, type FileWithMeta } from '@/components/fkp/FkpItemFormModal'
-import { FkpItemReviewForm, type ApsmReviewState, type AdminHoReviewState, APSM_REVIEW_BLANK, ADMIN_HO_REVIEW_BLANK } from '@/components/fkp/FkpItemReviewForm'
+import { FkpItemReviewForm, type ApsmReviewState, APSM_REVIEW_BLANK } from '@/components/fkp/FkpItemReviewForm'
 import { formatDateTime, formatRupiah } from '@/lib/utils'
 import { useAuthStore, useKodeRole } from '@/store/authStore'
 import { FKP_STATUS_LABEL, METODE_PENANGANAN_LABEL, TIPE_RESOLUSI_LABEL, SURAT_JALAN_STATUS_LABEL, SAMPLE_STATUS_LABEL, SAMPLE_STATUS_TERMINAL } from '@/types'
@@ -37,6 +38,7 @@ import InfoRow from '@/components/fkp/InfoRow'
 import CatatanItem from '@/components/fkp/FkpItemCatatan'
 import FkpItemCard from '@/components/fkp/FkpItemCard'
 import { SampleShipmentSection } from '@/components/SampleShipmentSection'
+import { AttachmentUploadModal } from '@/components/AttachmentUploadModal'
 import { useCanWriteFkp } from '@/hooks/useCanWriteFkp'
 import { AuthenticatedImage } from '@/components/AuthenticatedImage'
 import { openAuthenticatedFile } from '@/hooks/useAuthenticatedImage'
@@ -51,8 +53,8 @@ type ModalTipe =
   | 'request_resolusi_approval'
   | 'rsm_resolusi_ok' | 'rsm_resolusi_tolak'
   | 'direktur_ok' | 'direktur_tolak'
-  | 'set_qty_disetujui'  // ← BARU: admin_ho only, isi fkp_items.qty_disetujui
-  | 'lengkapi_qty_sj'    // [DIUBAH] sekarang HANYA buat Surat Jalan, tidak lagi menulis qty_disetujui
+  | 'set_qty_disetujui'
+  | 'lengkapi_qty_sj'
   | 'lengkapi_rekening'
   | 'terbitkan_invoice'
   | 'proses_finance'
@@ -60,6 +62,7 @@ type ModalTipe =
   | 'sj_ship'
   | 'revision' | 'reject' | 'close'
   | 'qr_code'
+  | 'upload_ba_signed'
 
 type QcItemResult = {
   status_item: string
@@ -239,6 +242,8 @@ function QrTriggerCard({
         </h2>
       </div>
       <div className="card-body flex flex-col items-center gap-3">
+        <p className="text-xs font-mono text-gray-400 text-center">{nomorFkp}</p>
+
         {/* QR preview kecil — klik buka modal */}
         <button
           onClick={onClick}
@@ -262,10 +267,8 @@ function QrTriggerCard({
           </div>
         </button>
 
-        <p className="text-xs font-mono text-gray-400 text-center">{nomorFkp}</p>
-
         {/* Tombol Download & Buka — langsung dari card kecil */}
-        <div className="flex gap-2 w-full">
+        <div className="flex flex-wrap items-center justify-center gap-2 w-full">
           <button
             onClick={onClick}
             className="flex-1 btn-secondary btn-sm flex items-center justify-center gap-1.5 text-xs"
@@ -277,7 +280,7 @@ function QrTriggerCard({
             href={trackingUrl}
             target="_blank"
             rel="noreferrer"
-            className="flex-1 btn-secondary btn-sm flex items-center justify-center gap-1.5 text-xs"
+            className="flex-1 btn-secondary py-2.5 btn-sm flex items-center justify-center gap-1.5 text-xs"
           >
             <ExternalLink className="w-3.5 h-3.5" />
             Tracking
@@ -305,9 +308,9 @@ export function FkpDetailPage() {
   const [modal, setModal] = useState<ModalTipe | null>(null)
   const [catatan, setCatatan] = useState('')
   const [isConfirming, setIsConfirming] = useState(false)
+  const [isUploadingBa, setIsUploadingBa] = useState(false)
 
   const [apsmReviews, setApsmReviews] = useState<Record<string, ApsmReviewState>>({})
-  const [adminHoReviews, setAdminHoReviews] = useState<Record<string, AdminHoReviewState>>({})
   const [qcResults, setQcResults] = useState<Record<string, QcItemResult>>({})
   const [sumber, setSumber] = useState<'internal' | 'pelanggan'>('internal')
 
@@ -316,7 +319,7 @@ export function FkpDetailPage() {
     nilai_cashback: '', nama_bank: '', nomor_rekening: '',
     atas_nama: '', nomor_nota_retur: '', keterangan: '',
     tanggal_pemusnahan: '', lokasi_pemusnahan: '',
-    metode_penanganan_fisik: 'dimusnahkan' as MetodePenangananFisik,
+    metode_penanganan_fisik: '' as MetodePenangananFisik | '',
     detail_penanganan: '',
     persentase_kompensasi_disetujui: '',
   })
@@ -374,6 +377,21 @@ export function FkpDetailPage() {
     }
   }
 
+  const handleUploadBaSigned = async (file: File, tipeDokumen: string, keterangan: string) => {
+    if (!id) return
+    setIsUploadingBa(true)
+    try {
+      await fkpApi.uploadAttachment(id, file, null, tipeDokumen)
+      qc.invalidateQueries({ queryKey: fkpKeys.detail(id) })
+      toast.success('Dokumen berhasil diupload.')
+    } catch (e: any) {
+      const d = e?.response?.data?.detail
+      toast.error(typeof d === 'string' ? d : 'Gagal upload dokumen.')
+    } finally {
+      setIsUploadingBa(false)
+    }
+  }
+
   const openResolusiModal = () => {
     if (fkp?.resolution) {
       const r = fkp.resolution
@@ -387,7 +405,7 @@ export function FkpDetailPage() {
         keterangan: r.keterangan ?? '',
         tanggal_pemusnahan: r.tanggal_pemusnahan ?? '',
         lokasi_pemusnahan: r.lokasi_pemusnahan ?? '',
-        metode_penanganan_fisik: r.metode_penanganan_fisik ?? 'dimusnahkan',
+        metode_penanganan_fisik: r.metode_penanganan_fisik ?? '',
         detail_penanganan: r.detail_penanganan ?? '',
         persentase_kompensasi_disetujui: r.persentase_kompensasi_disetujui
           ? String(r.persentase_kompensasi_disetujui) : '',
@@ -398,7 +416,7 @@ export function FkpDetailPage() {
         nilai_cashback: '', nama_bank: '', nomor_rekening: '',
         atas_nama: '', nomor_nota_retur: '', keterangan: '',
         tanggal_pemusnahan: '', lokasi_pemusnahan: '',
-        metode_penanganan_fisik: 'dimusnahkan',
+        metode_penanganan_fisik: '',
         detail_penanganan: '', persentase_kompensasi_disetujui: '',
       })
     }
@@ -482,19 +500,11 @@ export function FkpDetailPage() {
           }) ?? null,
         }))
 
+      // PERUBAHAN: Admin HO tidak lagi mengisi rekomendasi per item — aksi ini
+      // sekarang murni "teruskan ke RSM" dengan catatan level FKP saja.
       case 'admin_ho_review':
         return runAction(() => fkpApi.adminHoReview(id, {
           catatan_admin: catatan || null,
-          item_reviews: fkp?.items.map((item) => {
-            const r: AdminHoReviewState = adminHoReviews[item.id] ?? ADMIN_HO_REVIEW_BLANK
-            return {
-              item_id: item.id,
-              rekomendasi_penanganan_admin_ho: r.rekomendasi_penanganan_admin_ho ? r.rekomendasi_penanganan_admin_ho as RekomendasiPenanganan : null,
-              rekomendasi_kompensasi_admin_ho: r.rekomendasi_kompensasi_admin_ho ? r.rekomendasi_kompensasi_admin_ho as RekomendasiKompensasi : null,
-              catatan_admin_ho: r.catatan_admin_ho || null,
-              persentase_disetujui_admin_ho: r.persentase_disetujui_admin_ho ? Number(r.persentase_disetujui_admin_ho) : null,
-            }
-          }) ?? null,
         }))
 
       case 'rsm_investigasi_ok':
@@ -519,10 +529,6 @@ export function FkpDetailPage() {
         }))
 
       case 'buat_resolusi': {
-        // [BARU] Status 'accepted' + tukar_barang → modal ini dipakai untuk isi
-        // qty_disetujui (Fase 2), BUKAN tipe_resolusi/metode (itu sudah terkunci
-        // sejak Fase 1). Endpoint sama (POST /resolusi → buat_resolusi()), hanya
-        // payload & validasi klien yang beda.
         if (fkp?.status === 'accepted' && tipeResolusiAktif === 'tukar_barang') {
           const itemsDiterima = fkp?.items.filter((item) => item.status_item === 'diterima') ?? []
           if (itemsDiterima.length === 0) { toast.error('Tidak ada item berstatus diterima.'); return }
@@ -532,6 +538,10 @@ export function FkpDetailPage() {
               qty_disetujui: Number(itemQtyDisetujui[item.id] ?? item.qty),
             })),
           }))
+        }
+        if (!resolusiForm.metode_penanganan_fisik) {
+          toast.error('Metode penanganan fisik wajib dipilih.')
+          return
         }
         return runAction(() => fkpApi.createResolusi(id, {
           tipe_resolusi: tipeResolusi,
@@ -681,6 +691,11 @@ export function FkpDetailPage() {
   // lihat RBAC §11.2 dokumen rencana modul: warehouse berhak buat Surat
   // Jalan, finance berhak terbitkan invoice.
   const tipeResolusiAktif = fkp.resolution?.tipe_resolusi
+  const butuhBaPemusnahan =
+    fkp.resolution?.metode_penanganan_fisik === 'dimusnahkan' &&
+    !fkp.attachments.some((a) => a.tipe_dokumen === 'berita_acara_pemusnahan_tukar_barang')
+  const baDraft = fkp.documents?.find((d) => d.tipe_dokumen === 'berita_acara_pemusnahan') ?? null
+  const baSigned = fkp.attachments.filter((a) => a.tipe_dokumen === 'berita_acara_pemusnahan_tukar_barang')
   const rekeningTerisi = !!(fkp.resolution?.nama_bank && fkp.resolution?.nomor_rekening && fkp.resolution?.atas_nama)
   const invoiceDoc = fkp.documents?.find((d) => d.tipe_dokumen === 'invoice_potong_tagihan') ?? null
   const bisaKelolaSj = ['admin_ho', 'warehouse', 'superadmin'].includes(kodeRole)
@@ -701,6 +716,10 @@ export function FkpDetailPage() {
   // murni pencegahan human-error di FE, backend tetap mengizinkan close
   // meski warning ini muncul.
   const closeWarnings: string[] = []
+  const closeBlockers: string[] = []
+  if (butuhBaPemusnahan) {
+    closeBlockers.push('Dokumen Berita Acara Pemusnahan & Tukar Barang yang sudah ditandatangani WAJIB diupload sebelum FKP bisa ditutup.')
+  }
   if (tipeResolusiAktif === 'tukar_barang') {
     const belumDelivered = suratJalanList.filter((sj) => sj.status !== 'delivered')
     if (belumDelivered.length > 0) {
@@ -724,7 +743,7 @@ export function FkpDetailPage() {
     (fkp.status === 'in_process' && (kodeRole === 'admin_ho' || kodeRole === 'superadmin' || bisaKelolaSj || bisaKelolaInvoice))
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+    <div className="mx-auto space-y-6 animate-fade-in">
 
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4">
@@ -754,10 +773,10 @@ export function FkpDetailPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
 
         {/* ── Kiri ──────────────────────────────────────────────────────── */}
-        <div className="lg:col-span-2 space-y-5 order-2 lg:order-1">
+        <div className="lg:col-span-3 space-y-5 order-2 lg:order-1">
 
           {/* Info FKP */}
           <div className="card">
@@ -1026,7 +1045,7 @@ export function FkpDetailPage() {
         </div>
 
         {/* ── Kanan: Aksi + QR + Riwayat ───────────────────────────────── */}
-        <div className="space-y-5 order-1 lg:order-2">
+        <div className="grid-col-span-1 space-y-5 order-1 lg:order-2">
 
           {/* Card Aksi */}
           {hasAnyAction && (
@@ -1048,7 +1067,7 @@ export function FkpDetailPage() {
                 {fkp.status === 'apsm_reviewed' && kodeRole === 'admin_ho' && (
                   <>
                     <button className="btn-primary w-full" onClick={() => setModal('admin_ho_review')}>
-                      <ShieldCheck className="w-4 h-4" /> Review & Teruskan ke RSM (Investigasi)
+                      <ShieldCheck className="w-4 h-4" /> Teruskan ke RSM (Investigasi)
                     </button>
                     <button className="btn-secondary w-full" onClick={() => setModal('revision')}>
                       <AlertTriangle className="w-4 h-4" /> Minta Revisi ke APSM
@@ -1152,45 +1171,148 @@ export function FkpDetailPage() {
                         <Package className="w-4 h-4" /> Lengkapi Qty Disetujui
                       </button>
                     )}
+
                     {tipeResolusiAktif === 'tukar_barang' && bisaKelolaSj && (
                       <button className="btn-primary w-full" onClick={openSjModal}>
                         <Truck className="w-4 h-4" /> Buat Surat Jalan
                       </button>
                     )}
+
                     {tipeResolusiAktif === 'tukar_barang' && !bisaKelolaSj && (
                       <div className="text-xs text-slate-500">Menunggu Warehouse/Admin HO membuat Surat Jalan.</div>
                     )}
 
-                    {/* ── potong_tagihan: lengkapi rekening → terbitkan invoice ── */}
-                    {tipeResolusiAktif === 'potong_tagihan' && (
-                      <>
-                        {['admin_ho', 'superadmin'].includes(kodeRole) && (
-                          <button className="btn-secondary w-full" onClick={openRekeningModal}>
-                            <Banknote className="w-4 h-4" /> {rekeningTerisi ? 'Edit' : 'Lengkapi'} Detail Rekening
-                          </button>
-                        )}
-                        {!rekeningTerisi && (
-                          <div className="text-xs text-amber-600">
-                            Detail rekening harus dilengkapi sebelum invoice bisa diterbitkan.
+                    {/* ── potong_tagihan: info invoice yang sudah diterbitkan ── */}
+                    {tipeResolusiAktif === 'potong_tagihan' && invoiceDoc && (
+                      <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-xs text-emerald-800">
+                            <p className="font-semibold">📄 Invoice {invoiceDoc.nomor_dokumen}</p>
+                            <p className="text-emerald-600">
+                              {fkp.resolution?.tanggal_proses_finance
+                                ? '✅ Pembayaran sudah dikonfirmasi ditransfer'
+                                : 'Menunggu konfirmasi pembayaran'}
+                            </p>
                           </div>
-                        )}
-                        {rekeningTerisi && bisaKelolaInvoice && (
-                          <button className="btn-primary w-full" onClick={openInvoiceModal}>
-                            <FileDown className="w-4 h-4" /> Terbitkan Invoice
+                          <button
+                            type="button"
+                            className="btn-secondary btn-sm flex items-center gap-1.5 whitespace-nowrap"
+                            onClick={() => openAuthenticatedFile(financeApi.invoicePdfPath(fkp.id, invoiceDoc.id), token)}
+                          >
+                            <Download className="w-3.5 h-3.5" /> Unduh PDF
                           </button>
-                        )}
-                      </>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ── Berita Acara Pemusnahan — 2 tahap: draft lalu upload TTD ──── */}
+                    {fkp.resolution?.metode_penanganan_fisik === 'dimusnahkan' && (
+                      <div className="card">
+                        <div className="card-header">
+                          <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                            <FileText className="w-4 h-4 text-brand-500" /> Berita Acara Pemusnahan
+                          </h2>
+                        </div>
+                        <div className="card-body space-y-4">
+
+                          <div className="space-y-2">
+                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                              1. Draft — untuk diprint & ditandatangani
+                            </p>
+                            {baDraft ? (
+                              <div className="flex items-center justify-between gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                                <div className="text-xs text-gray-700">
+                                  <p className="font-semibold">📄 {baDraft.nomor_dokumen}</p>
+                                  <p className="text-gray-400">Dibuat {formatDateTime(baDraft.created_at)}</p>
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    className="btn-secondary btn-sm flex items-center gap-1.5"
+                                    onClick={() => openAuthenticatedFile(fkpApi.beritaAcaraPdfPath(fkp.id), token)}
+                                  >
+                                    <Download className="w-3.5 h-3.5" /> Download
+                                  </button>
+                                  {['admin_ho', 'superadmin'].includes(kodeRole) && (
+                                    <button
+                                      className="btn-secondary btn-sm"
+                                      onClick={() => runAction(() => fkpApi.generateBeritaAcara(fkp.id))}
+                                    >
+                                      Generate Ulang
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <p className="text-xs text-amber-600">Draft belum dibuat.</p>
+                                {['admin_ho', 'superadmin'].includes(kodeRole) && (
+                                  <button
+                                    className="btn-secondary w-full"
+                                    onClick={() => runAction(() => fkpApi.generateBeritaAcara(fkp.id))}
+                                  >
+                                    <FileText className="w-4 h-4" /> Generate Draft Berita Acara
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
+
+                          <div className="space-y-2 pt-2 border-t border-gray-100">
+                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                              2. Upload hasil tanda tangan
+                            </p>
+                            {baSigned.length === 0 ? (
+                              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
+                                ⚠️ Belum ada bukti tanda tangan diupload. Ini wajib ada sebelum FKP bisa ditutup.
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                                {baSigned.map((att) => (
+                                  <button
+                                    key={att.id}
+                                    type="button"
+                                    onClick={() => openAuthenticatedFile(att.url, token)}
+                                    className="aspect-square block"
+                                  >
+                                    {att.tipe_file === 'image' ? (
+                                      <AuthenticatedImage
+                                        src={att.url}
+                                        alt={att.nama_file}
+                                        className="w-full h-full object-cover rounded-lg border border-gray-200 hover:opacity-90 transition-opacity"
+                                      />
+                                    ) : (
+                                      <div className="w-full h-full flex flex-col items-center justify-center gap-1 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors">
+                                        <FileDown className="w-6 h-6 text-red-400" />
+                                        <span className="text-[10px] text-gray-500 px-1 truncate w-full text-center">{att.nama_file}</span>
+                                      </div>
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            {['admin_ho', 'warehouse', 'superadmin'].includes(kodeRole) && (
+                              <button
+                                className="btn-primary w-full"
+                                onClick={() => setModal('upload_ba_signed')}
+                              >
+                                <Upload className="w-4 h-4" /> Upload Berita Acara Bertanda Tangan
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     )}
 
                     {/* ── tidak_ada_kompensasi (± dimusnahkan): konfirmasi resolusi ── */}
                     {tipeResolusiAktif === 'tidak_ada_kompensasi' && (
                       <>
-                        {fkp.resolution?.metode_penanganan_fisik === 'dimusnahkan' &&
-                          !fkp.attachments.some((a) => a.tipe_dokumen === 'berita_acara_pemusnahan_tukar_barang') && (
-                            <div className="text-xs text-amber-600">
-                              Upload dokumen "Berita Acara Pemusnahan & Tukar Barang" terlebih dahulu (lewat form tambah item/lampiran) sebelum konfirmasi resolusi.
-                            </div>
-                          )}
+                        {/* Info saja, TIDAK memblokir tombol konfirmasi — gate ada di close */}
+                        {butuhBaPemusnahan && (
+                          <div className="text-xs text-amber-600">
+                            Upload dokumen "Berita Acara Pemusnahan & Tukar Barang" bisa menyusul kapan saja sebelum FKP ini ditutup.
+                          </div>
+                        )}
+
                         {bisaConfirmResolusi && (
                           <button className="btn-primary w-full" onClick={openConfirmResolusiModal}>
                             <CheckCircle2 className="w-4 h-4" /> Konfirmasi Resolusi
@@ -1203,6 +1325,13 @@ export function FkpDetailPage() {
 
                 {fkp.status === 'in_process' && (
                   <>
+                    {butuhBaPemusnahan && (
+                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
+                        📋 Barang ditandai "Dimusnahkan" — upload dokumen "Berita Acara
+                        Pemusnahan & Tukar Barang" kapan saja sebelum FKP ini ditutup.
+                      </div>
+                    )}
+
                     {/* ── tukar_barang: kelola Surat Jalan yang sudah ada — lihat kartu "Surat Jalan" di kolom utama ── */}
                     {tipeResolusiAktif === 'tukar_barang' && (
                       <div className="text-xs text-slate-500">Kelola status Surat Jalan di kartu "Surat Jalan (Barang Pengganti)" di bawah.</div>
@@ -1217,9 +1346,20 @@ export function FkpDetailPage() {
                     {tipeResolusiAktif === 'potong_tagihan' && fkp.resolution?.diproses_finance && (
                       <div className="text-xs text-green-700">✅ Pembayaran sudah dikonfirmasi ditransfer.</div>
                     )}
-
+                    {butuhBaPemusnahan && (
+                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
+                        📋 Barang ditandai "Dimusnahkan" — upload dokumen Berita
+                        Acara bertanda tangan (lihat kartu di atas) sebelum FKP
+                        ini bisa ditutup.
+                      </div>
+                    )}
                     {(kodeRole === 'admin_ho' || kodeRole === 'superadmin') && (
-                      <button className="btn-secondary w-full" onClick={() => setModal('close')}>
+                      <button
+                        className="btn-secondary w-full"
+                        onClick={() => setModal('close')}
+                        disabled={butuhBaPemusnahan}
+                        title={butuhBaPemusnahan ? 'Upload BA bertanda tangan dulu sebelum menutup FKP' : undefined}
+                      >
                         <CheckCircle2 className="w-4 h-4" /> Tutup FKP (Selesai)
                       </button>
                     )}
@@ -1291,7 +1431,7 @@ export function FkpDetailPage() {
             </div>
           </div>
         </div>
-      </div>
+      </div >
 
       {/* ══════════════ MODALS ══════════════════════════════════════════════ */}
 
@@ -1304,6 +1444,17 @@ export function FkpDetailPage() {
       >
         <QrCodeModalContent fkpId={fkp.id} nomorFkp={fkp.nomor_fkp} />
       </Modal>
+
+      {/* Upload Berita Acara Pemusnahan bertanda tangan */}
+      <AttachmentUploadModal
+        isOpen={modal === 'upload_ba_signed'}
+        onClose={closeModal}
+        onUpload={handleUploadBaSigned}
+        isUploading={isUploadingBa}
+        lockedTipeDokumen="berita_acara_pemusnahan_tukar_barang"
+        title="Upload Berita Acara Bertanda Tangan"
+        helperText="Upload foto/scan atau file PDF Berita Acara Pemusnahan & Tukar Barang yang sudah ditandatangani semua pihak terkait."
+      />
 
       {/* APSM review */}
       <Modal isOpen={modal === 'apsm_review'} onClose={closeModal} title="Review APSM" size="lg">
@@ -1323,17 +1474,11 @@ export function FkpDetailPage() {
         </div>
       </Modal>
 
-      {/* Admin HO review */}
-      <Modal isOpen={modal === 'admin_ho_review'} onClose={closeModal} title="Review Admin HO" size="lg">
-        <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-          <p className="text-sm text-gray-600">Isi rekomendasi Admin HO per item, lalu teruskan ke RSM (Investigasi).</p>
-          {fkp?.items.map((item) => (
-            <FkpItemReviewForm
-              key={item.id} prefix="admin_ho" item={item} products={products}
-              value={adminHoReviews[item.id] ?? ADMIN_HO_REVIEW_BLANK}
-              onChange={(v) => setAdminHoReviews((p) => ({ ...p, [item.id]: v }))}
-            />
-          ))}
+      {/* Admin HO review — PERUBAHAN: tidak ada lagi form rekomendasi per item,
+          Admin HO cukup meneruskan FKP ke RSM dengan catatan opsional. */}
+      <Modal isOpen={modal === 'admin_ho_review'} onClose={closeModal} title="Teruskan ke RSM" size="md">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">FKP ini akan diteruskan ke RSM untuk persetujuan investigasi.</p>
           <Textarea label="Catatan Tambahan Admin HO (opsional)" value={catatan}
             onChange={(e) => setCatatan(e.target.value)} rows={3} />
           <ModalFooter onCancel={closeModal} onConfirm={handleConfirm}
@@ -1425,6 +1570,7 @@ export function FkpDetailPage() {
               <Select label="Metode Penanganan Fisik Barang" required
                 value={resolusiForm.metode_penanganan_fisik}
                 onChange={(e) => setResolusiForm(p => ({ ...p, metode_penanganan_fisik: e.target.value as MetodePenangananFisik }))}>
+                <option value="">— Pilih metode —</option>
                 <option value="dimusnahkan">Dimusnahkan</option>
                 <option value="dijual_pakan_ternak">Dijual sebagai pakan ternak</option>
                 <option value="dikirim_ke_ho">Dikirim kembali ke Head Office</option>
@@ -1650,6 +1796,14 @@ export function FkpDetailPage() {
       {(['rsm_investigasi_ok', 'rsm_resolusi_ok', 'direktur_ok', 'close'] as ModalTipe[]).includes(modal!) && (
         <Modal isOpen={!!modal} onClose={closeModal} title={MODAL_TITLES[modal!]!} size="sm">
           <div className="space-y-4">
+            {modal === 'close' && closeBlockers.length > 0 && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 space-y-1">
+                <p className="font-semibold">🚫 FKP belum bisa ditutup:</p>
+                <ul className="list-disc list-inside">
+                  {closeBlockers.map((w) => <li key={w}>{w}</li>)}
+                </ul>
+              </div>
+            )}
             {modal === 'close' && closeWarnings.length > 0 && (
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 space-y-1">
                 <p className="font-semibold">⚠️ Perhatian sebelum menutup FKP:</p>
@@ -1662,23 +1816,27 @@ export function FkpDetailPage() {
             <Textarea label="Catatan (opsional)" value={catatan}
               onChange={(e) => setCatatan(e.target.value)} rows={4} />
             <ModalFooter onCancel={closeModal} onConfirm={handleConfirm}
-              isLoading={isConfirming} confirmLabel="Konfirmasi" />
+              isLoading={isConfirming}
+              disabled={modal === 'close' && closeBlockers.length > 0}
+              confirmLabel="Konfirmasi" />
           </div>
         </Modal>
       )}
 
       {/* Modal catatan wajib */}
-      {(['revision', 'reject', 'rsm_investigasi_tolak', 'rsm_resolusi_tolak', 'direktur_tolak'] as ModalTipe[]).includes(modal!) && (
-        <Modal isOpen={!!modal} onClose={closeModal} title={MODAL_TITLES[modal!]!} size="sm">
-          <div className="space-y-4">
-            <Textarea label="Alasan (wajib)" required placeholder="Jelaskan alasan..."
-              value={catatan} onChange={(e) => setCatatan(e.target.value)} rows={4} />
-            <ModalFooter onCancel={closeModal} onConfirm={handleConfirm}
-              isLoading={isConfirming} confirmLabel="Konfirmasi" confirmClassName="btn-danger" />
-          </div>
-        </Modal>
-      )}
-    </div>
+      {
+        (['revision', 'reject', 'rsm_investigasi_tolak', 'rsm_resolusi_tolak', 'direktur_tolak'] as ModalTipe[]).includes(modal!) && (
+          <Modal isOpen={!!modal} onClose={closeModal} title={MODAL_TITLES[modal!]!} size="sm">
+            <div className="space-y-4">
+              <Textarea label="Alasan (wajib)" required placeholder="Jelaskan alasan..."
+                value={catatan} onChange={(e) => setCatatan(e.target.value)} rows={4} />
+              <ModalFooter onCancel={closeModal} onConfirm={handleConfirm}
+                isLoading={isConfirming} confirmLabel="Konfirmasi" confirmClassName="btn-danger" />
+            </div>
+          </Modal>
+        )
+      }
+    </div >
   )
 }
 

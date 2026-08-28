@@ -61,8 +61,6 @@ async def create_surat_jalan(
 
     fkp = await _get_or_404(fkp_id, db)
 
-    # [FIX Kontradiksi A] ACCEPTED (SJ pertama) atau IN_PROCESS (SJ susulan
-    # — pengiriman bertahap karena stok kurang, sesuai keputusan user #7).
     if fkp.status not in (FkpStatus.ACCEPTED, FkpStatus.IN_PROCESS):
         raise HTTPException(
             status_code=400,
@@ -78,25 +76,6 @@ async def create_surat_jalan(
             status_code=400,
             detail="Surat jalan hanya relevan untuk resolusi bertipe 'tukar_barang'.",
         )
-
-    # [FIX Kontradiksi B] Hard gate — metode=dimusnahkan wajib ada BA dulu.
-    if resolusi.metode_penanganan_fisik == MetodePenangananFisik.DIMUSNAHKAN:
-        r_bukti = await db.execute(
-            select(FkpAttachment).where(
-                FkpAttachment.fkp_id == fkp_id,
-                FkpAttachment.tipe_dokumen == TipeDokumen.BERITA_ACARA_PEMUSNAHAN_TUKAR_BARANG,
-            )
-        )
-        if not r_bukti.scalar_one_or_none():
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "Upload dokumen 'Berita Acara Pemusnahan dan Tukar Barang' "
-                    "terlebih dahulu sebelum menerbitkan surat jalan."
-                ),
-            )
-    # CATATAN: gate berita_acara_penukaran (dari QC) SENGAJA tidak dicek di
-    # sini — informal/SOP, lihat docstring modul di atas.
 
     r_dup = await db.execute(
         select(WarehouseSuratJalan).where(WarehouseSuratJalan.nomor_surat_jalan == data.nomor_surat_jalan)

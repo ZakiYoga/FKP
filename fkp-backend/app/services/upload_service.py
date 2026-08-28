@@ -98,6 +98,7 @@ async def upload_attachment(
         TipeDokumen.UNTUK_TUKAR_BARANG
         + TipeDokumen.UNTUK_POTONG_TAGIHAN
         + TipeDokumen.UNTUK_PEMUSNAHAN
+        + TipeDokumen.UNTUK_PEMUSNAHAN_TUKAR_BARANG
     )
     STATUS_BOLEH_UPLOAD_BUKTI = [
         FkpStatus.ACCEPTED, FkpStatus.IN_PROCESS,

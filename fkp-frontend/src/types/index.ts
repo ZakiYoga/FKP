@@ -27,7 +27,7 @@ export interface LoginResponse {
   token_type: string
   expires_in: number
   user: UserMe
-} 
+}
 
 // ─── FKP STATUS ───────────────────────────────────────────────────────────────
 
@@ -71,64 +71,64 @@ export type RekomendasiKompensasi =
 // ─── LABEL MAPS ───────────────────────────────────────────────────────────────
 
 export const FKP_STATUS_LABEL: Record<FkpStatusKey, string> = {
-  draft:                    'Draft',
-  submitted:                'Menunggu Review APSM',
-  apsm_reviewed:            'Direview APSM — Menunggu Admin HO',
+  draft: 'Draft',
+  submitted: 'Menunggu Review APSM',
+  apsm_reviewed: 'Direview APSM — Menunggu Admin HO',
   rsm_approval_investigasi: 'Menunggu Persetujuan RSM (Investigasi)',
-  in_investigation:         'Sedang Diinvestigasi QC',
-  investigated:             'Investigasi Selesai',
-  rsm_approval_resolusi:    'Menunggu Persetujuan RSM (Resolusi)',
-  direktur_approval:        'Menunggu Persetujuan Direktur',
-  accepted:                 'Disetujui — Menunggu Proses Resolusi',
-  in_process:               'Sedang Diproses',
-  need_revision:            'Perlu Revisi',
-  rejected:                 'Ditolak',
-  closed:                   'Selesai / Ditutup',
+  in_investigation: 'Sedang Diinvestigasi QC',
+  investigated: 'Investigasi Selesai',
+  rsm_approval_resolusi: 'Menunggu Persetujuan RSM (Resolusi)',
+  direktur_approval: 'Menunggu Persetujuan Direktur',
+  accepted: 'Disetujui — Menunggu Proses Resolusi',
+  in_process: 'Sedang Diproses',
+  need_revision: 'Perlu Revisi',
+  rejected: 'Ditolak',
+  closed: 'Selesai / Ditutup',
 }
 
 export const FKP_PRIORITAS_LABEL: Record<FkpPrioritas, string> = {
   top_urgent: 'Top Urgent',
-  urgent:     'Urgent',
-  reguler:    'Reguler',
-  low:        'Low',
+  urgent: 'Urgent',
+  reguler: 'Reguler',
+  low: 'Low',
 }
 
 export const JENIS_KELUHAN_LABEL: Record<string, string> = {
-  menggumpal:            'Produk menggumpal',
-  berkutu:               'Berkutu / berjamur',
-  bau_apek:              'Bau tidak sedap / apek',
-  kemasan_bocor:         'Kemasan bocor / digigit tikus / berlubang',
-  benda_asing:           'Ditemukan benda asing',
-  expired:               'Produk kadaluarsa',
-  salah_produk:          'Produk tidak sesuai pesanan',
+  menggumpal: 'Produk menggumpal',
+  berkutu: 'Berkutu / berjamur',
+  bau_apek: 'Bau tidak sedap / apek',
+  kemasan_bocor: 'Kemasan bocor / digigit tikus / berlubang',
+  benda_asing: 'Ditemukan benda asing',
+  // expired:               'Produk kadaluarsa',
+  salah_produk: 'Produk tidak sesuai pesanan',
   kualitas_tidak_sesuai: 'Kualitas tidak sesuai standar',
-  lainnya:               'Lainnya',
+  lainnya: 'Lainnya',
 }
 
 export const METODE_PENANGANAN_LABEL: Record<MetodePenangananFisik, string> = {
-  dimusnahkan:          'Dimusnahkan',
-  dijual_pakan_ternak:  'Dijual sebagai pakan ternak',
-  dikirim_ke_ho:        'Dikirim kembali ke Head Office',
+  dimusnahkan: 'Dimusnahkan',
+  dijual_pakan_ternak: 'Dijual sebagai pakan ternak',
+  dikirim_ke_ho: 'Dikirim kembali ke Head Office',
   disimpan_distributor: 'Disimpan sementara oleh distributor',
   di_repack_oleh_pihak_internal: 'Direpack oleh pihak internal',
 }
 
 export const TIPE_RESOLUSI_LABEL: Record<TipeResolusi, string> = {
-  tukar_barang:         'Tukar Barang',
-  potong_tagihan:       'Potong Tagihan / Cashback',
+  tukar_barang: 'Tukar Barang',
+  potong_tagihan: 'Potong Tagihan / Cashback',
   tidak_ada_kompensasi: 'Tanpa Kompensasi',
 }
 
 export const REKOMENDASI_PENANGANAN_LABEL: Record<RekomendasiPenanganan, string> = {
-  musnahkan:            'Dimusnahkan',
-  jual_pakan_ternak:    'Dijual pakan ternak',
-  kirim_ke_ho:          'Dikirim ke HO',
+  musnahkan: 'Dimusnahkan',
+  jual_pakan_ternak: 'Dijual pakan ternak',
+  kirim_ke_ho: 'Dikirim ke HO',
   disimpan_distributor: 'Disimpan distributor',
 }
 
 export const REKOMENDASI_KOMPENSASI_LABEL: Record<RekomendasiKompensasi, string> = {
-  ganti_barang:         'Ganti barang',
-  potong_tagihan:       'Potong tagihan',
+  ganti_barang: 'Ganti barang',
+  potong_tagihan: 'Potong tagihan',
   tidak_ada_kompensasi: 'Tanpa kompensasi',
 }
 
@@ -244,6 +244,9 @@ export interface FkpItem {
   catatan_apsm: string | null
   persentase_disetujui_apsm: number | null
 
+  // LEGACY: Admin HO tidak lagi mengisi field ini (langkah rekomendasi
+  // admin_ho dihapus dari alur). Dipertahankan read-only untuk data
+  // historis FKP lama — akan selalu null untuk FKP baru.
   rekomendasi_penanganan_admin_ho: RekomendasiPenanganan | null
   rekomendasi_kompensasi_admin_ho: RekomendasiKompensasi | null
   catatan_admin_ho: string | null
@@ -259,19 +262,19 @@ export interface FkpItem {
   updated_at: string
 }
 
-  export interface FkpItemCreatePayload {
-    product_id?: string | null
-    nama_produk_custom?: string | null
-    jenis_kemasan?: string | null
-    qty: number
-    batch_number?: string | null
-    expired_date?: string | null
-    ada_sample_keluhan: string
-    ada_foto_sample: boolean
-    tanggal_pembelian?: string | null
-    tanggal_dikonsumsi?: string | null
-    jenis_keluhan: string
-    deskripsi_keluhan?: string | null
+export interface FkpItemCreatePayload {
+  product_id?: string | null
+  nama_produk_custom?: string | null
+  jenis_kemasan?: string | null
+  qty: number
+  batch_number?: string | null
+  expired_date?: string | null
+  ada_sample_keluhan: string
+  ada_foto_sample: boolean
+  tanggal_pembelian?: string | null
+  tanggal_dikonsumsi?: string | null
+  jenis_keluhan: string
+  deskripsi_keluhan?: string | null
 }
 
 // ─── FKP ──────────────────────────────────────────────────────────────────────
@@ -446,15 +449,10 @@ export interface ApsmReviewPayload {
   }> | null
 }
 
+// PERUBAHAN: Admin HO tidak lagi mengisi rekomendasi per item — sekarang
+// murni "teruskan ke RSM" dengan catatan level FKP saja.
 export interface AdminHoReviewPayload {
   catatan_admin?: string | null
-  item_reviews?: Array<{
-    item_id: string
-    rekomendasi_penanganan_admin_ho?: RekomendasiPenanganan | null
-    rekomendasi_kompensasi_admin_ho?: RekomendasiKompensasi | null
-    catatan_admin_ho?: string | null
-    persentase_disetujui_admin_ho?: number | null
-  }> | null
 }
 
 export interface QcInvestigasiPayload {
@@ -485,33 +483,33 @@ export interface HeaderProps {
 export interface BeritaAcaraItemManual {
   nama_barang: string
   batch_no_ed?: string | null
-  jumlah?:      string | null
-  keterangan?:  string | null
+  jumlah?: string | null
+  keterangan?: string | null
 }
 
 export interface BeritaAcaraManualPayload {
-  fkp_id?:              string | null
-  nomor_dokumen?:       string | null
+  fkp_id?: string | null
+  nomor_dokumen?: string | null
   tanggal_pelaksanaan?: string | null   // YYYY-MM-DD
-  hari?:                string | null
-  lokasi_pelaksanaan?:  string | null
-  metode_pemusnahan?:   string | null
-  lokasi_pemusnahan?:   string | null
-  pihak_pelaksana?:     string | null
+  hari?: string | null
+  lokasi_pelaksanaan?: string | null
+  metode_pemusnahan?: string | null
+  lokasi_pemusnahan?: string | null
+  pihak_pelaksana?: string | null
   dokumentasi_lampiran?: string | null
-  tindak_lanjut?:       string | null
-  nama_pengaju?:        string | null
+  tindak_lanjut?: string | null
+  nama_pengaju?: string | null
   nama_saksi_internal?: string | null
   nama_saksi_eksternal?: string | null
-  nama_penyetuju?:      string | null
-  items?:               BeritaAcaraItemManual[]
+  nama_penyetuju?: string | null
+  items?: BeritaAcaraItemManual[]
 }
 
 export interface BeritaAcaraGenerateResponse {
-  message:       string
+  message: string
   nomor_dokumen: string
-  fkp_id?:       string | null
-  doc_id?:       string | null
+  fkp_id?: string | null
+  doc_id?: string | null
   url_download?: string | null
 }
 
@@ -531,102 +529,102 @@ export type SampleStatusKey =
   | 'under_qc_review'
   | 'examined'
   | 'cancelled'
- 
+
 export const SAMPLE_STATUS_LABEL: Record<SampleStatusKey, string> = {
-  shipped:               'Dikirim oleh Pengirim',
-  delivered:             'Terkirim ke Tujuan',
+  shipped: 'Dikirim oleh Pengirim',
+  delivered: 'Terkirim ke Tujuan',
   received_by_warehouse: 'Diterima Warehouse',
-  forwarded_to_qc:       'Diserahkan ke QC',
-  under_qc_review:       'Sedang Diperiksa QC',
-  examined:              'Pemeriksaan Selesai',
-  cancelled:             'Dibatalkan',
+  forwarded_to_qc: 'Diserahkan ke QC',
+  under_qc_review: 'Sedang Diperiksa QC',
+  examined: 'Pemeriksaan Selesai',
+  cancelled: 'Dibatalkan',
 }
- 
+
 // Urutan linear alur normal (dipakai buat progress bar/timeline).
 // 'cancelled' sengaja tidak dimasukkan — itu jalur keluar, bukan tahap linear.
 export const SAMPLE_STATUS_FLOW: SampleStatusKey[] = [
   'shipped', 'delivered', 'received_by_warehouse',
   'forwarded_to_qc', 'under_qc_review', 'examined',
 ]
- 
+
 export const SAMPLE_STATUS_TERMINAL: SampleStatusKey[] = ['examined', 'cancelled']
- 
+
 export interface SampleShipment {
   id: string
   fkp_id: string
   fkp_item_id: string
   status: SampleStatusKey
- 
+
   sender_id: string
-  ekspedisi: string | null
-  nomor_resi: string | null
-  tanggal_kirim: string | null
+  ekspedisi: string
+  nomor_resi: string
+  tanggal_kirim: string
   catatan_pengirim: string | null
   qty_sample: number
- 
+
   tanggal_delivered: string | null
   dikonfirmasi_delivered_oleh: string | null
- 
+
   diterima_oleh: string | null
   nomor_tanda_terima: string | null
   tanggal_diterima: string | null
   catatan_warehouse: string | null
- 
+
   diperiksa_oleh: string | null
   tanggal_mulai_periksa: string | null
   tanggal_selesai_periksa: string | null
   // INTERNAL ONLY — backend menyaring jadi null untuk role outlet/distributor/sc_spv.
   hasil_pemeriksaan: string | null
- 
+
   alasan_batal: string | null
   dibatalkan_oleh: string | null
   tanggal_batal: string | null
- 
+
   created_at: string
   updated_at: string
 }
- 
+
 export interface SampleCreatePayload {
   fkp_item_id: string
-  ekspedisi?: string | null
-  nomor_resi?: string | null
-  tanggal_kirim?: string | null // YYYY-MM-DD
+  ekspedisi: string
+  nomor_resi: string
+  tanggal_kirim: string  // YYYY-MM-DD
   catatan_pengirim?: string | null
-  qty_sample?: number
+  qty_sample: number
 }
- 
+
 export interface SampleReceivePayload {
   nomor_tanda_terima: string
   catatan_warehouse?: string | null
 }
- 
+
 export interface SampleExaminePayload {
   hasil_pemeriksaan: string
 }
- 
+
 export interface SampleCancelPayload {
   alasan_batal: string
 }
- 
+
 // ─── WAREHOUSE SURAT JALAN ──────────────────────────────────────────────────
 // Modul baru — dokumen pengiriman barang pengganti outbound untuk resolusi
 // tukar_barang. PENTING: SJ pertama yang dibuat (walau masih draft) langsung
 // men-trigger transisi FKP accepted → in_process di backend — tidak ada
 // tombol "Konfirmasi Resolusi" terpisah untuk tukar_barang.
- 
+
 export type SuratJalanStatusKey = 'draft' | 'issued' | 'shipped' | 'delivered'
- 
+
 export const SURAT_JALAN_STATUS_LABEL: Record<SuratJalanStatusKey, string> = {
-  draft:     'Draft',
-  issued:    'Diterbitkan',
-  shipped:   'Dikirim',
+  draft: 'Draft',
+  issued: 'Diterbitkan',
+  shipped: 'Dikirim',
   delivered: 'Diterima',
 }
- 
+
 export const SURAT_JALAN_STATUS_FLOW: SuratJalanStatusKey[] = [
   'draft', 'issued', 'shipped', 'delivered',
 ]
- 
+
 export interface WarehouseSuratJalanItem {
   id: string
   fkp_item_id: string | null
@@ -635,7 +633,7 @@ export interface WarehouseSuratJalanItem {
   satuan: string
   keterangan: string | null
 }
- 
+
 export interface WarehouseSuratJalanItemPayload {
   fkp_item_id?: string | null
   nama_produk: string
@@ -643,23 +641,23 @@ export interface WarehouseSuratJalanItemPayload {
   satuan: string
   keterangan?: string | null
 }
- 
+
 export interface WarehouseSuratJalan {
   id: string
   fkp_id: string
   nomor_surat_jalan: string
   tanggal_surat_jalan: string
   status: SuratJalanStatusKey
- 
+
   nama_penerima: string
   alamat_penerima: string
   telepon_penerima: string | null
- 
+
   ekspedisi: string | null
   nomor_resi: string | null
   tanggal_kirim: string | null
   tanggal_delivered: string | null
- 
+
   // [PERHATIAN] TIDAK di-rewrite ke endpoint terautentikasi oleh backend
   // (beda dengan FkpAttachment.url). Jangan pakai field ini langsung sebagai
   // href/src — selalu unduh lewat warehouseApi.pdfPath() (endpoint
@@ -667,14 +665,14 @@ export interface WarehouseSuratJalan {
   // Berguna hanya untuk cek "sudah digenerate belum" (null vs terisi).
   url_pdf: string | null
   catatan: string | null
- 
+
   dibuat_oleh: string
   created_at: string
   updated_at: string
- 
+
   items: WarehouseSuratJalanItem[]
 }
- 
+
 export interface SuratJalanCreatePayload {
   nomor_surat_jalan: string
   tanggal_surat_jalan: string // YYYY-MM-DD
@@ -687,7 +685,7 @@ export interface SuratJalanCreatePayload {
   catatan?: string | null
   items: WarehouseSuratJalanItemPayload[]
 }
- 
+
 export interface SuratJalanUpdatePayload {
   nomor_surat_jalan?: string
   tanggal_surat_jalan?: string
@@ -699,26 +697,26 @@ export interface SuratJalanUpdatePayload {
   tanggal_kirim?: string | null
   catatan?: string | null
 }
- 
+
 export interface SuratJalanShipPayload {
   ekspedisi?: string | null
   nomor_resi?: string | null
   tanggal_kirim?: string | null
 }
- 
+
 // ─── FINANCE INVOICE ────────────────────────────────────────────────────────
 // Modul baru — trigger accepted → in_process khusus resolusi potong_tagihan.
 // Prasyarat: FkpResolution.nama_bank/nomor_rekening/atas_nama sudah diisi
 // lewat fkpApi.updateDetailResolusi() (Fase 2 buat_resolusi) SEBELUM endpoint
 // ini dipanggil — backend tidak mengecek ini, tapi PDF invoice akan
 // menampilkan rekening kosong kalau belum diisi.
- 
+
 export interface InvoiceCreatePayload {
   nomor_invoice: string
   nilai_nota_penjualan: number
   catatan?: string | null
 }
- 
+
 export interface InvoiceResponse {
   id: string
   fkp_id: string
@@ -733,7 +731,7 @@ export interface InvoiceResponse {
   nilai_nota_penjualan: number | null
   nilai_cashback: number | null
 }
- 
+
 export interface ProsesFinancePayload {
   catatan?: string | null
 }

@@ -3,6 +3,7 @@ import {
   Plus, Truck, PackageCheck, ClipboardCheck, FlaskConical, XCircle,
   Upload, Loader2, CheckCircle2, Ban,
 } from 'lucide-react'
+import { notifications } from '@mantine/notifications'
 import {
   useSampleList, useCreateSample, useConfirmSampleDelivery, useReceiveSample,
   useForwardSampleToQc, useStartSampleReview, useExamineSample, useCancelSample,
@@ -22,6 +23,7 @@ import {
 import type {
   FkpItem, FkpStatusKey, FkpAttachment, SampleShipment,
 } from '@/types'
+import { useProducts } from '@/hooks/useMasterData'
 
 interface Props {
   fkpId: string
@@ -68,6 +70,9 @@ export function SampleShipmentSection({ fkpId, fkpItems, fkpStatus, attachments 
   const [uploadForm, setUploadForm] = useState(emptyUploadForm)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
 
+  const { data: products = [] } = useProducts()
+  const productNameMap = new Map(products.map((p) => [p.id, p.nama_produk]))
+
   const closeModal = () => { setModal(null); setActiveSampleId(null) }
 
   // ── Role gates — persis mapping "roles" di seeds/seed_permissions.py ──────
@@ -100,8 +105,28 @@ export function SampleShipmentSection({ fkpId, fkpItems, fkpStatus, attachments 
     return false
   }
 
-  const itemName = (fkpItemId: string) =>
-    fkpItems.find((it) => it.id === fkpItemId)?.nama_produk_custom ?? 'Produk'
+  const itemName = (fkpItemId: string) => {
+    const item = fkpItems.find((it) => it.id === fkpItemId)
+    if (!item) return 'Produk'
+    return (item.product_id && productNameMap.get(item.product_id))
+      ?? item.nama_produk_custom
+      ?? 'Produk'
+  }
+
+  // [FIX] Sisa kuota qty sample per item — cermin dari validasi backend
+  // (create_sample_shipment): qty_sample kumulatif dari sample yang masih
+  // AKTIF (bukan cancelled) untuk item yang sama tidak boleh melebihi
+  // item.qty. Dipakai untuk menampilkan sisa kuota di dropdown & membatasi
+  // input Qty Sample SEBELUM submit, supaya user tidak perlu gagal submit
+  // dulu baru tahu batasnya (backend tetap jadi validasi otoritatif).
+  const sisaKuota = (fkpItemId: string) => {
+    const item = fkpItems.find((it) => it.id === fkpItemId)
+    if (!item) return 0
+    const terpakai = samples
+      .filter((s) => s.fkp_item_id === fkpItemId && s.status !== 'cancelled')
+      .reduce((total, s) => total + s.qty_sample, 0)
+    return Math.max(item.qty - terpakai, 0)
+  }
 
   const openReceiveModal = (sampleId: string) => {
     setActiveSampleId(sampleId)
@@ -126,14 +151,49 @@ export function SampleShipmentSection({ fkpId, fkpItems, fkpStatus, attachments 
   }
 
   const handleCreate = async () => {
-    if (!createForm.fkp_item_id) return
+    if (
+      !createForm.fkp_item_id ||
+      !createForm.ekspedisi.trim() ||
+      !createForm.nomor_resi.trim() ||
+      !createForm.tanggal_kirim
+    ) return
+
+    // [FIX] sisaKuota() sebelumnya dihitung tapi tidak pernah benar-benar
+    // dipakai untuk memvalidasi sebelum submit — akibatnya qty_sample yang
+    // melebihi sisa kuota item (mis. item.qty=1, qty_sample=2) baru akan
+    // ditolak backend (kalau backend-nya sudah ter-deploy dengan validasi
+    // yang sama), sementara di FE tidak ada peringatan apa pun. Sekarang
+    // dicek dulu di sini SEBELUM request dikirim, dengan pesan yang
+    // mencerminkan validasi create_sample_shipment() di backend.
+    const kuota = sisaKuota(createForm.fkp_item_id)
+    const qty = Number(createForm.qty_sample)
+
+    if (!qty || qty < 1) {
+      notifications.show({ message: 'Qty sample wajib diisi minimal 1.', color: 'red' })
+      return
+    }
+    if (kuota <= 0) {
+      notifications.show({
+        message: 'Item ini sudah tidak memiliki sisa kuota sample (seluruh qty sudah terpakai oleh sample aktif).',
+        color: 'red',
+      })
+      return
+    }
+    if (qty > kuota) {
+      notifications.show({
+        message: `Qty sample (${qty}) melebihi qty item ini. Sisa produk keluhan saat ini: ${kuota}.`,
+        color: 'red',
+      })
+      return
+    }
+
     await createSample({
       fkp_item_id: createForm.fkp_item_id,
-      ekspedisi: createForm.ekspedisi || null,
-      nomor_resi: createForm.nomor_resi || null,
-      tanggal_kirim: createForm.tanggal_kirim || null,
+      ekspedisi: createForm.ekspedisi,
+      nomor_resi: createForm.nomor_resi,
+      tanggal_kirim: createForm.tanggal_kirim,
       catatan_pengirim: createForm.catatan_pengirim || null,
-      qty_sample: Number(createForm.qty_sample) || 1,
+      qty_sample: qty,
     })
     setCreateForm(emptyCreateForm)
     closeModal()
@@ -178,11 +238,11 @@ export function SampleShipmentSection({ fkpId, fkpItems, fkpStatus, attachments 
     <div className="card">
       <div className="card-header flex items-center justify-between">
         <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-          <Truck className="w-4 h-4 text-brand-500" /> Sample Shipment ({samples.length})
+          <Truck className="w-4 h-4 text-brand-500" /> Daftar Sample Shipment ({samples.length})
         </h2>
         {canCreate && (
           <button className="btn-primary btn-sm" onClick={() => { setCreateForm(emptyCreateForm); setModal('create') }}>
-            <Plus className="w-3.5 h-3.5" /> Daftarkan Sample
+            <Plus className="w-3.5 h-3.5" />Buat Pengiriman Sample
           </button>
         )}
       </div>
@@ -204,13 +264,12 @@ export function SampleShipmentSection({ fkpId, fkpItems, fkpStatus, attachments 
                     {s.ekspedisi ? ` · ${s.ekspedisi}` : ''}
                   </p>
                 </div>
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs border ${
-                  s.status === 'cancelled'
-                    ? 'bg-red-50 text-red-700 border-red-200'
-                    : s.status === 'examined'
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      : 'bg-brand-50 text-brand-700 border-brand-200'
-                }`}>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs border ${s.status === 'cancelled'
+                  ? 'bg-red-50 text-red-700 border-red-200'
+                  : s.status === 'examined'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : 'bg-brand-50 text-brand-700 border-brand-200'
+                  }`}>
                   {SAMPLE_STATUS_LABEL[s.status]}
                 </span>
               </div>
@@ -281,11 +340,11 @@ export function SampleShipmentSection({ fkpId, fkpItems, fkpStatus, attachments 
                     <Upload className="w-3.5 h-3.5" /> Upload Dokumen
                   </button>
                 )}
-                {/* {canCancel(s) && (
+                {canCancel(s) && (
                   <button className="btn-danger btn-sm" onClick={() => openCancelModal(s.id)}>
                     <Ban className="w-3.5 h-3.5" /> Batalkan
                   </button>
-                )} */}
+                )}
               </div>
             </div>
           )
@@ -293,33 +352,74 @@ export function SampleShipmentSection({ fkpId, fkpItems, fkpStatus, attachments 
       </div>
 
       {/* ── Daftarkan Sample Baru ──────────────────────────────────────────── */}
-      <Modal isOpen={modal === 'create'} onClose={closeModal} title="Daftarkan Pengiriman Sample" size="md">
+      <Modal isOpen={modal === 'create'} onClose={closeModal} title="Buat Pengiriman Sample" size="md">
         <div className="space-y-4">
           <Select label="Item Produk" required placeholder="— Pilih item —"
             value={createForm.fkp_item_id}
-            onChange={(e) => setCreateForm((p) => ({ ...p, fkp_item_id: e.target.value }))}>
-            {fkpItems.map((it) => (
-              <option key={it.id} value={it.id}>{it.nama_produk_custom ?? 'Produk'} (Qty: {it.qty})</option>
-            ))}
+            onChange={(e) => {
+              const newItemId = e.target.value
+              // [FIX] Saat item diganti, clamp qty_sample ke sisa kuota item
+              // baru — supaya tidak ada nilai basi (mis. 5) yang nyangkut
+              // dari item sebelumnya lalu lolos ke item lain yang kuotanya
+              // lebih kecil.
+              const kuotaBaru = newItemId ? sisaKuota(newItemId) : 1
+              const qtySekarang = Number(createForm.qty_sample) || 1
+              setCreateForm((p) => ({
+                ...p,
+                fkp_item_id: newItemId,
+                qty_sample: String(Math.max(1, Math.min(qtySekarang, Math.max(kuotaBaru, 1)))),
+              }))
+            }}>
+            {fkpItems.map((it) => {
+              const nama = (it.product_id && productNameMap.get(it.product_id)) ?? it.nama_produk_custom ?? 'Produk'
+              const kuota = sisaKuota(it.id)
+              return (
+                <option key={it.id} value={it.id} disabled={kuota <= 0}>
+                  {nama} (Sisa kuota: {kuota} dari {it.qty}{kuota <= 0 ? ' — kuota habis' : ''})
+                </option>
+              )
+            })}
           </Select>
           <div className="grid grid-cols-2 gap-3">
-            <Input label="Ekspedisi (opsional)" value={createForm.ekspedisi}
+            <Input label="Ekspedisi" required value={createForm.ekspedisi}
               onChange={(e) => setCreateForm((p) => ({ ...p, ekspedisi: e.target.value }))} />
-            <Input label="No. Resi (opsional)" value={createForm.nomor_resi}
+            <Input label="No. Resi" required value={createForm.nomor_resi}
               onChange={(e) => setCreateForm((p) => ({ ...p, nomor_resi: e.target.value }))} />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Input label="Tanggal Kirim (opsional)" type="date" value={createForm.tanggal_kirim}
+            <Input label="Tanggal Kirim" type="date" required value={createForm.tanggal_kirim}
               onChange={(e) => setCreateForm((p) => ({ ...p, tanggal_kirim: e.target.value }))} />
-            <Input label="Qty Sample" type="number" value={createForm.qty_sample}
+            <Input
+              label={`Qty Sample${createForm.fkp_item_id ? ` (maks. ${sisaKuota(createForm.fkp_item_id)})` : ''}`}
+              type="number"
+              min={1}
+              max={createForm.fkp_item_id ? sisaKuota(createForm.fkp_item_id) : undefined}
+              value={createForm.qty_sample}
+              error={
+                createForm.fkp_item_id && Number(createForm.qty_sample) > sisaKuota(createForm.fkp_item_id)
+                  ? `Melebihi qty fkp item (${sisaKuota(createForm.fkp_item_id)}).`
+                  : undefined
+              }
               onChange={(e) => setCreateForm((p) => ({ ...p, qty_sample: e.target.value }))} />
           </div>
           <Textarea label="Catatan Pengirim (opsional)" rows={2} value={createForm.catatan_pengirim}
             onChange={(e) => setCreateForm((p) => ({ ...p, catatan_pengirim: e.target.value }))} />
           <div className="flex justify-end gap-2 pt-2">
             <button className="btn-secondary" onClick={closeModal}>Batal</button>
-            <button className="btn-primary" onClick={handleCreate} disabled={creating || !createForm.fkp_item_id}>
-              {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Daftarkan
+            <button
+              className="btn-primary"
+              onClick={handleCreate}
+              disabled={
+                creating ||
+                !createForm.fkp_item_id ||
+                !createForm.ekspedisi.trim() ||
+                !createForm.nomor_resi.trim() ||
+                !createForm.tanggal_kirim ||
+                !Number(createForm.qty_sample) ||
+                Number(createForm.qty_sample) > sisaKuota(createForm.fkp_item_id)
+              }
+            >
+              {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Buat Pengiriman Sample
             </button>
           </div>
         </div>

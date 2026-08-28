@@ -2,10 +2,10 @@ import { z } from 'zod'
 
 export const JENIS_KEMASAN_OPTIONS = [
   { value: 'karton', label: 'Karton (Dus)' },
-  { value: 'renceng', label: 'Renceng (Sachet)' },
+  // { value: 'renceng', label: 'Renceng (Sachet)' },
   { value: 'ball', label: 'Ball' },
   { value: 'zak', label: 'Zak (10 kg)' },
-  { value: 'pcs', label: 'Pcs (Satuan)' },
+  // { value: 'pcs', label: 'Pcs (Satuan)' },
 ] as const
 
 export type JenisKemasan = typeof JENIS_KEMASAN_OPTIONS[number]['value']
