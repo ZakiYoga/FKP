@@ -39,6 +39,12 @@ RBAC, walau modul fkp lain sudah bermigrasi. Sekarang via
 require_permission() yang DB-driven (fkp.berita_acara.read /
 fkp.berita_acara.manual), superadmin tetap bypass total via is_superadmin.
 _BA_ROLES dan _BA_MANUAL_ROLES dihapus karena tidak lagi dipakai.
+
+── QR CODE TRACKING (update PDF FKP) ───────────────────────────────────────
+preview_fkp_html() sekarang meneruskan base_url=settings.FRONTEND_BASE_URL
+ke build_fkp_context(), sama seperti generate_fkp_pdf() di
+fkp_pdf_service.py — supaya QR yang tampil di preview HTML (dev only)
+konsisten dengan QR yang dicetak di PDF hasil download.
 """
 import os
 import uuid
@@ -53,7 +59,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user, get_kode_role
 from app.core.config import settings
 from app.models.user import User
-from app.models.fkp import TipeDokumen, FkpStatus, FkpAttachment
+from app.models.fkp import FkpDocument, TipeDokumen, FkpStatus, FkpAttachment
 import traceback
 
 from app.schemas.fkp import (
@@ -354,6 +360,10 @@ async def preview_fkp_html(
     menyembunyikan dari dokumentasi, bukan menutup endpoint). Sekarang:
     1) endpoint dimatikan total di luar mode DEBUG,
     2) tetap divalidasi scope-nya seperti /formulir-pdf saat DEBUG aktif.
+
+    QR CODE: base_url=settings.FRONTEND_BASE_URL diteruskan ke
+    build_fkp_context() supaya QR di preview sama persis dengan QR yang
+    tercetak di PDF hasil download (generate_fkp_pdf()).
     """
     if not settings.DEBUG:
         raise HTTPException(status_code=404, detail="Not Found")
@@ -416,6 +426,7 @@ async def preview_fkp_html(
         marketing_name    = marketing_name,
         direktur_name     = direktur_name,
         upload_dir        = settings.UPLOAD_DIR,
+        base_url          = settings.FRONTEND_BASE_URL,
     )
     html = render_fkp_html(context)
     return Response(content=html, media_type="text/html")

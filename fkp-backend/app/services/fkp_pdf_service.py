@@ -10,8 +10,14 @@ Mengambil data dari:
   - Distributor    → nama perusahaan
   - User           → nama TTD (submitted_by, handled_by, approved_by_*)
 
+QR Code:
+  QR tracking di-generate ulang di server (bukan reuse dari frontend) karena
+  WeasyPrint tidak menjalankan JS browser. Isi QR selalu merujuk ke
+  {FRONTEND_BASE_URL}/track/{fkp.id} — identik dengan link yang ditampilkan
+  di UI, supaya QR di PDF dan QR di frontend selalu konsisten.
+
 Dependencies:
-    pip install xhtml2pdf jinja2
+    pip install xhtml2pdf jinja2 "qrcode[pil]"
 
 Integrasi ke router (sudah ada di fkp.py):
     from app.services.fkp_pdf_service import generate_fkp_pdf
@@ -29,10 +35,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Dict, List, Optional
 from uuid import UUID
 
+from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.services.pdf_utils import (
     build_jinja_env,
+    generate_qr_base64,
     get_user_nama,
     load_file_base64,
     load_logo_base64,
@@ -71,12 +80,19 @@ def build_fkp_context(
     marketing_name:    str = "",
     direktur_name:     str = "",
     upload_dir:        str = "uploads",
+    base_url:          str = "",
+    fkp_kode_tracking: str = "", 
 ) -> Dict:
     """
     Terima ORM objects langsung → bangun context Jinja2.
 
     Catatan: items harus di-query dengan selectinload(FkpItem.product)
     sebelum fungsi ini dipanggil agar item.product tidak lazy-load.
+
+    `base_url` dipakai untuk generate QR tracking (link ke
+    {base_url}/track/{fkp.id}) — biasanya diisi settings.FRONTEND_BASE_URL
+    oleh pemanggil. Jika kosong, QR tetap digenerate tapi dengan path relatif
+    saja (kurang berguna di dunia nyata, tapi tidak akan crash).
     """
     from app.models.fkp import JenisKeluhan
 
@@ -162,6 +178,12 @@ def build_fkp_context(
             "no_telepon":      getattr(distributor, "no_telepon", None),
         }
 
+    # ── QR Code tracking ──────────────────────────────────────────────────────
+    # Merujuk langsung ke halaman tracking FKP di frontend, format identik
+    # dengan QR yang ditampilkan di UI: {BASE_URL}/track/{fkp.id}
+    tracking_url   = f"{base_url.rstrip('/')}/track/{fkp.id}"
+    qr_code_base64 = generate_qr_base64(tracking_url)
+
     return {
         "fkp": {
             "id":                  str(fkp.id),
@@ -180,7 +202,9 @@ def build_fkp_context(
         "marketing_name":    marketing_name,
         "direktur_name":     direktur_name,
         "logo_base64":       load_logo_base64(),
+        "qr_code_base64":    qr_code_base64,
         "generated_at":      datetime.now(timezone.utc),
+        "fkp_kode_tracking": fkp_kode_tracking,
     }
 
 
@@ -194,6 +218,25 @@ def render_fkp_html(context: Dict) -> str:
 def generate_fkp_pdf_from_context(context: Dict) -> bytes:
     return render_html_to_pdf(render_fkp_html(context))
 
+
+async def _get_kode_tracking_fkp(db, fkp) -> str:
+    """
+    Format: FKP{DDMMYY}{urutan 3 digit}
+    Urutan dihitung dari jumlah FKP lain dengan tanggal_pengajuan yang
+    sama, yang created_at-nya lebih dulu atau sama dengan FKP ini.
+    """
+    from sqlmodel import select as sql_select
+    from app.models.fkp import FkpComplaint
+
+    result = await db.execute(
+        sql_select(func.count()).select_from(FkpComplaint).where(
+            FkpComplaint.tanggal_pengajuan == fkp.tanggal_pengajuan,
+            FkpComplaint.created_at <= fkp.created_at,
+        )
+    )
+    urutan = result.scalar_one()
+    tanggal_str = fkp.tanggal_pengajuan.strftime("%d%m%y")
+    return f"FKP{tanggal_str}{urutan:03d}"
 
 # ─── FastAPI Integration ──────────────────────────────────────────────────────
 
@@ -257,6 +300,8 @@ async def generate_fkp_pdf(
     direktur_name     = await get_user_nama(db, fkp.approved_by_direktur)
 
     # ── Build context & render ────────────────────────────────────────────────
+    kode_tracking = await _get_kode_tracking_fkp(db, fkp)
+
     context = build_fkp_context(
         fkp               = fkp,
         outlet            = outlet,
@@ -268,6 +313,8 @@ async def generate_fkp_pdf(
         marketing_name    = marketing_name,
         direktur_name     = direktur_name,
         upload_dir        = upload_dir,
+        base_url          = settings.FRONTEND_BASE_URL,
+        fkp_kode_tracking = kode_tracking,   # ← baru
     )
 
     return generate_fkp_pdf_from_context(context), fkp.nomor_fkp

@@ -13,6 +13,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any, Optional
 
+import qrcode
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 # ─── Path assets ─────────────────────────────────────────────────────────────
@@ -80,6 +81,30 @@ def load_file_base64(upload_dir: str, url: str) -> Optional[str]:
     except Exception:
         pass
     return None
+
+
+def generate_qr_base64(data: str) -> str:
+    """
+    Generate QR code dari string `data` → PNG di-encode base64.
+    Dipakai untuk embed QR (mis. link tracking FKP) langsung ke template PDF
+    via <img src="data:image/png;base64,{{ qr_code_base64 }}">.
+
+    QR ini digenerate ulang di server (bukan pakai hasil canvas dari frontend)
+    karena WeasyPrint/xhtml2pdf tidak menjalankan JS browser sama sekali.
+    """
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=8,
+        border=2,
+    )
+    qr.add_data(data)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+
+    buffer = BytesIO()
+    img.save(buffer, format="PNG")
+    return base64.b64encode(buffer.getvalue()).decode()
 
 
 # ─── Jinja2 Environment builder ───────────────────────────────────────────────
