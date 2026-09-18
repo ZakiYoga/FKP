@@ -582,6 +582,13 @@ PERMISSION_CATALOG: List[Dict] = [
         "roles": ["qc"],
     },
     {
+        "code": "fkp.bapkp.update",
+        "module": "fkp", "action": "bapkp.update",
+        "label": "Update BAPKP",
+        "deskripsi": "Mengubah (PATCH/PUT) data BAPKP yang sudah dibuat untuk suatu FKP.",
+        "roles": ["qc"],
+    },
+    {
         "code": "fkp.bapkp.download",
         "module": "fkp", "action": "bapkp.download",
         "label": "Download PDF BAPKP",
