@@ -40,7 +40,7 @@ export const itemSchema = z
     qty: z.coerce.number().min(1, 'Quantity harus lebih dari 0'),
     batch_number: z.string().min(1, 'Nomor produksi wajib diisi'),
     expired_date: z.string().min(1, 'Tanggal kadaluarsa wajib diisi'),
-    ada_sample_keluhan: z.enum(['ada', 'tidak_ada']).default('tidak_ada'),
+    ada_sample_keluhan: z.enum(['ada', 'foto']).default('foto'),
     ada_foto_sample: z.boolean().default(false),
     // Hanya relevan (dan divalidasi wajib) kalau ada_sample_keluhan === 'ada'
     // — lihat superRefine di bawah.
@@ -127,7 +127,7 @@ export const ITEM_FORM_BLANK: ItemFormData = {
   qty: 1,
   batch_number: '',
   expired_date: '',
-  ada_sample_keluhan: 'tidak_ada',
+  ada_sample_keluhan: 'foto',
   ada_foto_sample: false,
   kondisi_sample: undefined,
   kondisi_sample_lainnya: '',
