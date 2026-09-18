@@ -71,6 +71,7 @@ tzlocal==5.3.1
 uritools==6.1.0
 urllib3==2.6.3
 uvicorn==0.30.6
+gunicorn==23.0.0
 uvloop==0.22.1
 watchfiles==1.1.1
 weasyprint==62.3
