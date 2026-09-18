@@ -21,10 +21,11 @@ from typing import List, Optional
 
 from fastapi import HTTPException
 from sqlmodel import select
+from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.fkp import FkpComplaint, FkpResolution, FkpAttachment, FkpStatus, TipeResolusi, MetodePenangananFisik, TipeDokumen
+from app.models.fkp import FkpComplaint, FkpItem, FkpResolution, FkpAttachment, FkpStatus, TipeResolusi, MetodePenangananFisik, TipeDokumen
 from app.models.warehouse import WarehouseSuratJalan, WarehouseSuratJalanItem
 from app.models.user import User
 from app.services.permission_service import require_permission
@@ -77,11 +78,55 @@ async def create_surat_jalan(
             detail="Surat jalan hanya relevan untuk resolusi bertipe 'tukar_barang'.",
         )
 
+    if not resolusi.diteruskan_ke_warehouse:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "FKP ini belum diteruskan Admin HO ke Warehouse. Admin HO "
+                "harus melengkapi qty disetujui dan menekan 'Teruskan ke "
+                "Warehouse' terlebih dahulu."
+            ),
+        )
+
     r_dup = await db.execute(
         select(WarehouseSuratJalan).where(WarehouseSuratJalan.nomor_surat_jalan == data.nomor_surat_jalan)
     )
     if r_dup.scalar_one_or_none():
         raise HTTPException(status_code=400, detail=f"Nomor surat jalan '{data.nomor_surat_jalan}' sudah digunakan.")
+
+    item_ids = [item_data.fkp_item_id for item_data in data.items if item_data.fkp_item_id]
+    if item_ids:
+        r_items = await db.execute(
+            select(FkpItem).where(FkpItem.id.in_(item_ids), FkpItem.fkp_id == fkp_id)
+        )
+        fkp_items_map = {i.id: i for i in r_items.scalars().all()}
+
+        r_terkirim = await db.execute(
+            select(
+                WarehouseSuratJalanItem.fkp_item_id,
+                func.coalesce(func.sum(WarehouseSuratJalanItem.qty), 0),
+            )
+            .join(WarehouseSuratJalan, WarehouseSuratJalanItem.surat_jalan_id == WarehouseSuratJalan.id)
+            .where(WarehouseSuratJalan.fkp_id == fkp_id)
+            .group_by(WarehouseSuratJalanItem.fkp_item_id)
+        )
+        qty_terkirim_map = dict(r_terkirim.all())
+
+        for item_data in data.items:
+            fkp_item = fkp_items_map.get(item_data.fkp_item_id)
+            if not fkp_item or fkp_item.qty_disetujui is None:
+                continue
+            sudah_terkirim = qty_terkirim_map.get(item_data.fkp_item_id, 0)
+            if sudah_terkirim + item_data.qty > fkp_item.qty_disetujui:
+                sisa = max(fkp_item.qty_disetujui - sudah_terkirim, 0)
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Qty untuk item '{item_data.nama_produk}' ({item_data.qty}) melebihi sisa kuota "
+                        f"disetujui. Qty disetujui: {fkp_item.qty_disetujui}, sudah terkirim di SJ lain: "
+                        f"{sudah_terkirim}, sisa kuota: {sisa}."
+                    ),
+                )
 
     sj = WarehouseSuratJalan(
         fkp_id=fkp_id,

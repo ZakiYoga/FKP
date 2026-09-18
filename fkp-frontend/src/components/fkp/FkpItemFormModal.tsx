@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { itemSchema, type ItemFormData, ITEM_FORM_BLANK, JENIS_KEMASAN_OPTIONS } from '@/schemas/itemFKPSchema'
+import {
+    itemSchema, type ItemFormData, ITEM_FORM_BLANK, JENIS_KEMASAN_OPTIONS,
+    ADA_SAMPLE_KELUHAN_OPTIONS, KONDISI_SAMPLE_OPTIONS,
+} from '@/schemas/itemFKPSchema'
 import { Upload, Plus, CheckCircle2, AlertCircle, Info, Trash } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
@@ -131,6 +134,9 @@ export function FkpItemFormModal({
     const watchProduk = watch('product_id')
     const watchTanggalBeli = watch('tanggal_pembelian')
     const watchJenisKeluhan = watch('jenis_keluhan')
+    // BARU — dropdown bertingkat sample keluhan.
+    const watchAdaSampleKeluhan = watch('ada_sample_keluhan')
+    const watchKondisiSample = watch('kondisi_sample')
 
     const tipeTerpenuhi = new Set([
         ...localExisting.map((a) => a.tipe_dokumen).filter((t): t is string => !!t),
@@ -210,6 +216,16 @@ export function FkpItemFormModal({
             expired_date: data.expired_date || null,
             ada_sample_keluhan: data.ada_sample_keluhan,
             ada_foto_sample: data.ada_foto_sample,
+            // BARU — dropdown bertingkat. kondisi_sample hanya relevan kalau
+            // ada_sample_keluhan === 'ada'; kondisi_sample_lainnya hanya
+            // relevan kalau kondisi_sample === 'lainnya'. Dikirim null di luar
+            // kondisi itu supaya tidak ada data basi tersisa (misal user
+            // sempat pilih 'ada' + 'lainnya' lalu balik ke 'tidak_ada').
+            kondisi_sample: data.ada_sample_keluhan === 'ada' ? (data.kondisi_sample || null) : null,
+            kondisi_sample_lainnya:
+                data.ada_sample_keluhan === 'ada' && data.kondisi_sample === 'lainnya'
+                    ? (data.kondisi_sample_lainnya?.trim() || null)
+                    : null,
             tanggal_pembelian: data.tanggal_pembelian || null,
             tanggal_dikonsumsi: data.tanggal_dikonsumsi || null,
             jenis_keluhan: data.jenis_keluhan === 'lainnya'
@@ -335,14 +351,65 @@ export function FkpItemFormModal({
                         {...register('deskripsi_keluhan')}
                     />
 
-                    <Select label="Ada Sample Keluhan?" {...register('ada_sample_keluhan')}>
-                        <option value="ada">Ada (kirim sample)</option>
-                        <option value="foto">Hanya Foto</option>
+                    {/* ── Sample Keluhan — dropdown bertingkat (BARU) ──────
+                        1. Ada Sample Keluhan? Ada / Tidak Ada
+                        2. Kalau "Ada" -> Kondisi Sample: Utuh / Terbuka /
+                           Kemasan Plastik / Lainnya
+                        3. Kalau "Lainnya" -> field teks bebas wajib diisi */}
+                    <Select
+                        label="Ada Sample Keluhan?"
+                        error={errors.ada_sample_keluhan?.message}
+                        {...register('ada_sample_keluhan', {
+                            onChange: (e) => {
+                                // Reset kondisi_sample & teks bebas kalau balik
+                                // ke "Tidak Ada" — supaya tidak ada data basi
+                                // tersimpan dari pilihan sebelumnya.
+                                if (e.target.value !== 'ada') {
+                                    setValue('kondisi_sample', undefined)
+                                    setValue('kondisi_sample_lainnya', '')
+                                }
+                            },
+                        })}
+                    >
+                        {ADA_SAMPLE_KELUHAN_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
                     </Select>
+
+                    {watchAdaSampleKeluhan === 'ada' && (
+                        <Select
+                            label="Kondisi Sample" required
+                            placeholder="— Pilih kondisi sample —"
+                            error={errors.kondisi_sample?.message}
+                            {...register('kondisi_sample', {
+                                onChange: (e) => {
+                                    // Reset teks bebas kalau pindah dari "Lainnya"
+                                    // ke opsi lain.
+                                    if (e.target.value !== 'lainnya') {
+                                        setValue('kondisi_sample_lainnya', '')
+                                    }
+                                },
+                            })}
+                        >
+                            {KONDISI_SAMPLE_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                        </Select>
+                    )}
+
+                    {watchAdaSampleKeluhan === 'ada' && watchKondisiSample === 'lainnya' && (
+                        <Input
+                            label="Jelaskan Kondisi Sample"
+                            placeholder="Contoh: sample plastik"
+                            required
+                            error={errors.kondisi_sample_lainnya?.message}
+                            {...register('kondisi_sample_lainnya')}
+                        />
+                    )}
 
                     <div className="grid sm:grid-cols-2 gap-3">
                         <Input
-                            label="Tanggal Pembelian"
+                            label="Tanggal Pembelian (Invoice)"
                             type="date"
                             min="2025-01-01"
                             max={today}

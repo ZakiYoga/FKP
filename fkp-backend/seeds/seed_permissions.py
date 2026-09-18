@@ -494,9 +494,12 @@ PERMISSION_CATALOG: List[Dict] = [
         "label": "Buat Surat Jalan",
         "deskripsi": (
             "Buat WarehouseSuratJalan untuk resolusi tukar_barang saat FKP "
-            "status accepted — trigger otomatis accepted → in_process."
+            "status accepted/in_process — trigger otomatis accepted → in_process "
+            "(SJ pertama). BARU: admin_ho DICABUT dari sini (sebelumnya "
+            "[\"warehouse\", \"admin_ho\"]) — gate urutan sekarang dipegang "
+            "fkp.teruskan_ke_warehouse + flag FkpResolution.diteruskan_ke_warehouse."
         ),
-        "roles": ["warehouse", "admin_ho"],
+        "roles": ["warehouse"],
     },
     {
         "code": "warehouse.surat_jalan.issue",
@@ -549,6 +552,41 @@ PERMISSION_CATALOG: List[Dict] = [
             "fkp.finance.process (konfirmasi transfer)."
         ),
         "roles": ["finance", "admin_ho"],
+    },
+    {
+        "code": "fkp.teruskan_ke_warehouse",
+        "module": "fkp", "action": "teruskan_ke_warehouse",
+        "label": "Teruskan FKP ke Warehouse",
+        "deskripsi": (
+            "Meneruskan FKP tukar_barang ke Warehouse untuk pembuatan Surat "
+            "Jalan — mengunci qty_disetujui dan mengizinkan "
+            "warehouse.surat_jalan.create dijalankan."
+        ),
+        "roles": ["admin_ho"],
+    },
+    {
+        "code": "fkp.bapkp.view",
+        "module": "fkp", "action": "bapkp.view",
+        "label": "Lihat Draft/Detail BAPKP",
+        "deskripsi": (
+            "Melihat draft otomatis (GET /bapkp/draft) & detail BAPKP yang "
+            "sudah tersimpan untuk suatu FKP."
+        ),
+        "roles": ["qc"],
+    },
+    {
+        "code": "fkp.bapkp.create",
+        "module": "fkp", "action": "bapkp.create",
+        "label": "Buat BAPKP",
+        "deskripsi": "Membuat (POST) data BAPKP baru untuk suatu FKP.",
+        "roles": ["qc"],
+    },
+    {
+        "code": "fkp.bapkp.download",
+        "module": "fkp", "action": "bapkp.download",
+        "label": "Download PDF BAPKP",
+        "deskripsi": "Mengunduh dokumen BAPKP yang sudah dibuat dalam format PDF.",
+        "roles": ["qc"],
     },
 ]
 

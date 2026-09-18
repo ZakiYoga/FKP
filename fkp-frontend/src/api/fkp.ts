@@ -122,9 +122,23 @@ export const fkpApi = {
   ) =>
     api.post<FkpDetail>(`/fkp/${id}/rsm-approve-investigasi`, data).then((r) => r.data),
 
+  // BARU — Jalur cepat: rsm_approval_final → accepted (disetujui) | rejected (ditolak)
+  // Resolusi BELUM ADA di titik ini — beda dari rsmApproveResolusi.
+  rsmApproveFinal: (
+    id: string,
+    data: { disetujui: boolean; catatan?: string | null },
+  ) =>
+    api.post<FkpDetail>(`/fkp/${id}/rsm-approve-final`, data).then((r) => r.data),
+
   // in_investigation → investigated
   qcInvestigasi: (id: string, data: QcInvestigasiPayload) =>
     api.post<FkpDetail>(`/fkp/${id}/qc-investigasi`, data).then((r) => r.data),
+
+  // BARU — Jalur cepat: catatan investigasi QC paralel, TIDAK mengubah status.
+  // Bisa dipanggil QC kapan saja setelah FKP masuk jalur cepat (rsm_approval_final
+  // s/d closed) — murni dokumentasi/insight, tidak menahan proses lain.
+  qcCatatanParalel: (id: string, data: QcInvestigasiPayload) =>
+    api.post<FkpDetail>(`/fkp/${id}/qc-catatan-paralel`, data).then((r) => r.data),
 
   // investigated → rsm_approval_resolusi
   requestResolusiApproval: (id: string, catatan?: string | null) =>
@@ -204,6 +218,9 @@ export const fkpApi = {
       })
       .then((r) => r.data),
 
+  teruskanKeWarehouse: (fkpId: string, catatan: string | null) =>
+    api.post(`/fkp/${fkpId}/teruskan-warehouse`, { catatan }),
+
   // ── Berita Acara Pemusnahan ────────────────────────────────────────────
   // Tahap 1 — generate draft PDF (belum TTD) via WeasyPrint, disimpan
   // idempotent ke FkpDocument (tipe_dokumen = 'berita_acara_pemusnahan').
@@ -214,7 +231,7 @@ export const fkpApi = {
   // URL untuk trigger download PDF draft (regenerate-on-demand, streaming).
   // Selalu pakai openAuthenticatedFile() — endpoint ini butuh Authorization
   // header, bukan url_file mentah dari FkpDocumentResponse.
-  beritaAcaraPdfPath: (id: string): string => `/fkp/${id}/berita-acara/pdf`,
+  beritaAcaraPdfPath: (id: string): string => `/api/fkp/${id}/berita-acara/pdf`,
 
   // Input nomor surat jalan (resolusi tukar_barang)
   // [DEPRECATED] Menulis ke fkp_complaints.nomor_surat_jalan yang sudah tidak
@@ -225,4 +242,3 @@ export const fkpApi = {
       .patch<FkpDetail>(`/fkp/${id}/surat-jalan`, { nomor_surat_jalan })
       .then((r) => r.data),
 }
-

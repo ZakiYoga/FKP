@@ -45,10 +45,10 @@ export const NAV_ITEMS: NavItem[] = [
         roles: ['admin_ho', 'superadmin', 'qc', 'rsm', 'direktur']
     },
     {
-        label: 'Track FKP', href: '/track', icon: Route
+        label: 'Notifikasi', href: '/notifications', icon: Bell
     },
     {
-        label: 'Notifikasi', href: '/notifications', icon: Bell
+        label: 'Track FKP', href: '/track', icon: Route
     },
     {
         label: 'Ubah Password', href: '/change-password', icon: Settings

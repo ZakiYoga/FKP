@@ -40,6 +40,7 @@ export type FkpStatusKey =
   | 'investigated'
   | 'rsm_approval_resolusi'
   | 'direktur_approval'
+  | 'rsm_approval_final'
   | 'accepted'
   | 'in_process'
   | 'need_revision'
@@ -56,6 +57,23 @@ export type MetodePenangananFisik =
   | 'disimpan_distributor'
   | 'di_repack_oleh_pihak_internal'
 export type StatusItem = 'pending' | 'diterima' | 'ditolak'
+
+// ─── Sample Keluhan — dropdown bertingkat (BARU) ─────────────────────────────
+// Cermin enum backend AdaSampleKeluhan / KondisiSample (app/models/fkp.py).
+export type AdaSampleKeluhan = 'ada' | 'tidak_ada'
+export type KondisiSample = 'utuh' | 'terbuka' | 'kemasan_plastik' | 'lainnya'
+
+export const ADA_SAMPLE_KELUHAN_LABEL: Record<AdaSampleKeluhan, string> = {
+  ada: 'Ada',
+  tidak_ada: 'Tidak Ada',
+}
+
+export const KONDISI_SAMPLE_LABEL: Record<KondisiSample, string> = {
+  utuh: 'Kemasan Utuh (segel)',
+  terbuka: 'Kemasan Sudah Dibuka',
+  kemasan_plastik: 'Kemasan Plastik (sample kecil untuk analisa QC)',
+  lainnya: 'Lainnya',
+}
 
 export type RekomendasiPenanganan =
   | 'musnahkan'
@@ -79,6 +97,7 @@ export const FKP_STATUS_LABEL: Record<FkpStatusKey, string> = {
   investigated: 'Investigasi Selesai',
   rsm_approval_resolusi: 'Menunggu Persetujuan RSM (Resolusi)',
   direktur_approval: 'Menunggu Persetujuan Direktur',
+  rsm_approval_final: 'Menunggu Persetujuan Akhir RSM',
   accepted: 'Disetujui — Menunggu Proses Resolusi',
   in_process: 'Sedang Diproses',
   need_revision: 'Perlu Revisi',
@@ -231,8 +250,14 @@ export interface FkpItem {
   qty: number
   batch_number: string | null
   expired_date: string | null
+  // "ada" | "tidak_ada" (lihat AdaSampleKeluhan). Nilai lama "foto" (kalau
+  // masih ada di data historis) dianggap setara "ada" oleh backend.
   ada_sample_keluhan: string
   ada_foto_sample: boolean
+  // BARU — hanya relevan kalau ada_sample_keluhan === "ada". Lihat KondisiSample.
+  kondisi_sample: string | null
+  // BARU — wajib terisi kalau kondisi_sample === "lainnya", teks bebas.
+  kondisi_sample_lainnya: string | null
   tanggal_pembelian: string | null
   tanggal_dikonsumsi: string | null
   jenis_keluhan: string
@@ -271,6 +296,9 @@ export interface FkpItemCreatePayload {
   expired_date?: string | null
   ada_sample_keluhan: string
   ada_foto_sample: boolean
+  // BARU — dikirim null kalau ada_sample_keluhan !== "ada".
+  kondisi_sample?: string | null
+  kondisi_sample_lainnya?: string | null
   tanggal_pembelian?: string | null
   tanggal_dikonsumsi?: string | null
   jenis_keluhan: string
@@ -326,7 +354,9 @@ export interface FkpResolution {
   catatan_finance: string | null
   diproses_finance: boolean | null
   tanggal_proses_finance: string | null
-  finance_user_id: string | null
+  diteruskan_ke_warehouse: boolean
+  tanggal_diteruskan_ke_warehouse: string | null
+  diteruskan_oleh: string | null
   dibuat_oleh: string
   created_at: string
 }
@@ -369,6 +399,13 @@ export interface FkpDetail {
   catatan_rsm_investigasi: string | null
   catatan_rsm_resolusi: string | null
   catatan_direktur: string | null
+  // BARU — null = accepted tanpa Direktur (skip, qty ≤ batas) atau belum
+  // accepted sama sekali. Terisi = benar-benar disetujui Direktur.
+  approved_by_direktur: string | null
+  // BARU — null = belum/skip. Terisi = disetujui RSM langsung (jalur cepat,
+  // atau jalur biasa dengan Direktur di-skip). Saling eksklusif dengan
+  // approved_by_direktur — lihat catatan backend models/fkp.py.
+  approved_by_rsm_final: string | null
   nomor_surat_jalan: string | null
   tanggal_pengajuan: string | null
   tanggal_selesai: string | null

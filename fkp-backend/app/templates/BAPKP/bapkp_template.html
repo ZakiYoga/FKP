@@ -624,16 +624,6 @@
     <div class="sec-header">C. &nbsp;Informasi Keseluruhan</div>
     <table class="tbl-info">
       <tr>
-        <td class="lbl">Urgensi</td>
-        <td class="val">
-          {% set p = fkp.prioritas | default('') %}
-          <span class="cb">{% if p == 'low' %}&#10003;{% endif %}</span><span class="cb-label">Rendah</span>
-          <span class="cb">{% if p == 'reguler' %}&#10003;{% endif %}</span><span class="cb-label">Sedang</span>
-          <span class="cb">{% if p == 'urgent' %}&#10003;{% endif %}</span><span class="cb-label">Tinggi</span>
-          <span class="cb">{% if p == 'top_urgent' %}&#10003;{% endif %}</span><span class="cb-label">Sangat Tinggi</span>
-        </td>
-      </tr>
-      <tr>
         <td class="lbl">Lokasi Pembelian</td>
         <td class="val">{{ fkp.lokasi_pembelian or '' }}</td>
       </tr>

@@ -39,12 +39,6 @@ RBAC, walau modul fkp lain sudah bermigrasi. Sekarang via
 require_permission() yang DB-driven (fkp.berita_acara.read /
 fkp.berita_acara.manual), superadmin tetap bypass total via is_superadmin.
 _BA_ROLES dan _BA_MANUAL_ROLES dihapus karena tidak lagi dipakai.
-
-── QR CODE TRACKING (update PDF FKP) ───────────────────────────────────────
-preview_fkp_html() sekarang meneruskan base_url=settings.FRONTEND_BASE_URL
-ke build_fkp_context(), sama seperti generate_fkp_pdf() di
-fkp_pdf_service.py — supaya QR yang tampil di preview HTML (dev only)
-konsisten dengan QR yang dicetak di PDF hasil download.
 """
 import os
 import uuid
@@ -59,7 +53,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user, get_kode_role
 from app.core.config import settings
 from app.models.user import User
-from app.models.fkp import FkpDocument, TipeDokumen, FkpStatus, FkpAttachment
+from app.models.fkp import TipeDokumen, FkpStatus, FkpAttachment
 import traceback
 
 from app.schemas.fkp import (
@@ -67,7 +61,7 @@ from app.schemas.fkp import (
     FkpItemCreate, FkpItemUpdate, FkpItemResponse,
     ApsmReviewRequest, AdminHoReviewRequest,
     RsmApproveRequest, DirekturApproveRequest,
-    InvestigasiQcRequest, RejectRequest, RevisionRequest,
+    InvestigasiQcRequest, RejectRequest, RevisionRequest, TeruskanWarehouseRequest,
     UpdatePengirimanRequest, ResolusiCreate,
     SuratJalanRequest, AttachmentResponse,
     FkpDocumentCreate, FkpDocumentResponse,
@@ -85,6 +79,7 @@ from app.services.fkp_service import (
     create_fkp, update_fkp, list_fkp, get_fkp_detail,
     submit_fkp, apsm_review, admin_ho_review,
     rsm_approve_investigasi, qc_investigasi,
+    rsm_approve_final, qc_catatan_investigasi_paralel,
     admin_ho_request_resolusi_approval, rsm_approve_resolusi,
     direktur_approve, update_pengiriman, request_revision,
     reject_fkp, input_surat_jalan, close_fkp,
@@ -360,10 +355,6 @@ async def preview_fkp_html(
     menyembunyikan dari dokumentasi, bukan menutup endpoint). Sekarang:
     1) endpoint dimatikan total di luar mode DEBUG,
     2) tetap divalidasi scope-nya seperti /formulir-pdf saat DEBUG aktif.
-
-    QR CODE: base_url=settings.FRONTEND_BASE_URL diteruskan ke
-    build_fkp_context() supaya QR di preview sama persis dengan QR yang
-    tercetak di PDF hasil download (generate_fkp_pdf()).
     """
     if not settings.DEBUG:
         raise HTTPException(status_code=404, detail="Not Found")
@@ -426,7 +417,6 @@ async def preview_fkp_html(
         marketing_name    = marketing_name,
         direktur_name     = direktur_name,
         upload_dir        = settings.UPLOAD_DIR,
-        base_url          = settings.FRONTEND_BASE_URL,
     )
     html = render_fkp_html(context)
     return Response(content=html, media_type="text/html")
@@ -764,6 +754,41 @@ async def investigasi_qc(
 ):
     """QC mengisi hasil investigasi per item. Status: in_investigation → investigated."""
     return await qc_investigasi(fkp_id, data, user, kode_role, db)
+
+
+@router.post("/{fkp_id}/rsm-approve-final", response_model=FkpDetailResponse)
+async def rsm_approve_final_endpoint(
+    fkp_id:    uuid.UUID,
+    data:      RsmApproveRequest,
+    db:        AsyncSession = Depends(get_db),
+    user:      User = Depends(get_current_user),
+    kode_role: str  = Depends(get_kode_role),
+):
+    """
+    BARU — Jalur cepat. RSM approve/tolak LANGSUNG (resolusi belum ada).
+    Status: rsm_approval_final → accepted (approve) / rejected (tolak).
+    Hanya valid untuk FKP dengan total qty klaim ≤ BATAS_QTY_DIREKTUR
+    (ditentukan oleh admin_ho_review() saat meneruskan ke RSM).
+    """
+    return await rsm_approve_final(fkp_id, data, user, kode_role, db)
+
+
+@router.post("/{fkp_id}/qc-catatan-paralel", response_model=FkpDetailResponse)
+async def qc_catatan_paralel_endpoint(
+    fkp_id:    uuid.UUID,
+    data:      InvestigasiQcRequest,
+    db:        AsyncSession = Depends(get_db),
+    user:      User = Depends(get_current_user),
+    kode_role: str  = Depends(get_kode_role),
+):
+    """
+    BARU — Jalur cepat. QC mencatat hasil investigasi sebagai dokumentasi/
+    insight — TIDAK mengubah status FKP, TIDAK menahan proses resolusi/
+    RSM/surat jalan yang berjalan bersamaan. Upload BA hasil pemeriksaan
+    (attachment tipe BA_PEMERIKSAAN) dilakukan terpisah lewat endpoint
+    upload attachment yang sudah ada.
+    """
+    return await qc_catatan_investigasi_paralel(fkp_id, data, user, kode_role, db)
 
 
 @router.post("/{fkp_id}/request-resolusi-approval", response_model=FkpDetailResponse)
@@ -1130,3 +1155,13 @@ async def hapus_dokumen_fkp(
 ):
     """Hapus dokumen dari FKP. Hanya oleh pembuat atau superadmin."""
     return await hapus_dokumen(fkp_id, dokumen_id, user, kode_role, db)
+
+@router.post("/{fkp_id}/teruskan-warehouse", response_model=FkpDetailResponse)
+async def teruskan_warehouse_endpoint(
+    fkp_id: uuid.UUID,
+    data: TeruskanWarehouseRequest,
+    user: User = Depends(get_current_user),
+    kode_role: str = Depends(get_kode_role),
+    db: AsyncSession = Depends(get_db),
+):
+    return await fkp_service.teruskan_ke_warehouse(fkp_id, data, user, kode_role, db)

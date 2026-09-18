@@ -19,3 +19,21 @@ export function formatDate(iso: string | null): string {
         day: '2-digit', month: 'long', year: 'numeric',
     }).format(new Date(iso))
 }
+
+// ─── Gate Persetujuan Direktur ──────────────────────────────────────────────
+// Cermin dari app/models/fkp.py::butuh_approval_direktur() di backend.
+// Dipakai FE HANYA untuk preview/label sebelum submit — keputusan final
+// (dan validasi sesungguhnya) tetap di backend. Kalau angka batas berubah
+// di backend, update juga di sini supaya preview tidak menyesatkan.
+export const BATAS_QTY_DIREKTUR = 10 // zak — strictly LEBIH DARI angka ini butuh TTD Direktur
+
+export const TIPE_RESOLUSI_KENA_GATE_DIREKTUR = ['tukar_barang', 'potong_tagihan'] as const
+
+export function butuhApprovalDirektur(
+    tipeResolusi: string | null | undefined,
+    totalQty: number,
+): boolean {
+    if (!tipeResolusi) return false
+    if (!TIPE_RESOLUSI_KENA_GATE_DIREKTUR.includes(tipeResolusi as never)) return false
+    return totalQty > BATAS_QTY_DIREKTUR
+}

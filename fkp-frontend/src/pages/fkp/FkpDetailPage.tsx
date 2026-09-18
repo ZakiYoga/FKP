@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/Input'
 import { FkpItemFormModal, type FileWithMeta } from '@/components/fkp/FkpItemFormModal'
 import { FkpItemReviewForm, type ApsmReviewState, APSM_REVIEW_BLANK } from '@/components/fkp/FkpItemReviewForm'
 import { formatDateTime, formatRupiah } from '@/lib/utils'
+import { butuhApprovalDirektur, BATAS_QTY_DIREKTUR } from '@/lib/fkpUtils'
 import { useAuthStore, useKodeRole } from '@/store/authStore'
 import { FKP_STATUS_LABEL, METODE_PENANGANAN_LABEL, TIPE_RESOLUSI_LABEL, SURAT_JALAN_STATUS_LABEL, SAMPLE_STATUS_LABEL, SAMPLE_STATUS_TERMINAL } from '@/types'
 import type {
@@ -49,11 +50,14 @@ type ModalTipe =
   | 'apsm_review' | 'admin_ho_review'
   | 'rsm_investigasi_ok' | 'rsm_investigasi_tolak'
   | 'qc_investigasi'
+  | 'qc_catatan_paralel'
   | 'buat_resolusi'
   | 'request_resolusi_approval'
   | 'rsm_resolusi_ok' | 'rsm_resolusi_tolak'
+  | 'rsm_final_ok' | 'rsm_final_tolak'
   | 'direktur_ok' | 'direktur_tolak'
   | 'set_qty_disetujui'
+  | 'teruskan_warehouse'
   | 'lengkapi_qty_sj'
   | 'lengkapi_rekening'
   | 'terbitkan_invoice'
@@ -331,7 +335,7 @@ export function FkpDetailPage() {
   })
 
   // Fase 2 tukar_barang — qty disetujui per item, dikirim sekali lewat
-  // buat_resolusi() sebelum membuat Surat Jalan yang pertama
+  // buat_resolusi() sebelum FKP diteruskan ke Warehouse
   const [itemQtyDisetujui, setItemQtyDisetujui] = useState<Record<string, string>>({})
 
   // Form pembuatan Surat Jalan (Warehouse SJ) — item dikirim dikonstruksi
@@ -513,6 +517,13 @@ export function FkpDetailPage() {
         if (!catatan.trim()) { toast.error('Alasan wajib diisi.'); return }
         return runAction(() => fkpApi.rsmApproveInvestigasi(id, { disetujui: false, catatan }))
 
+      // BARU — jalur cepat: RSM approve final, resolusi belum ada.
+      case 'rsm_final_ok':
+        return runAction(() => fkpApi.rsmApproveFinal(id, { disetujui: true, catatan: catatan || null }))
+      case 'rsm_final_tolak':
+        if (!catatan.trim()) { toast.error('Alasan wajib diisi.'); return }
+        return runAction(() => fkpApi.rsmApproveFinal(id, { disetujui: false, catatan }))
+
       case 'qc_investigasi':
         return runAction(() => fkpApi.qcInvestigasi(id, {
           sumber_ketidaksesuaian: sumber,
@@ -528,10 +539,45 @@ export function FkpDetailPage() {
           }),
         }))
 
+      // BARU — jalur cepat: catatan investigasi QC paralel, tidak mengubah
+      // status FKP. Reuse form yang sama dengan qc_investigasi (sumber,
+      // catatan, per-item hasil).
+      case 'qc_catatan_paralel':
+        return runAction(() => fkpApi.qcCatatanParalel(id, {
+          sumber_ketidaksesuaian: sumber,
+          catatan_qc: catatan || null,
+          item_results: fkp?.items.map((item) => {
+            const r = qcResults[item.id] ?? { status_item: 'diterima', catatan_qc: '', alasan_penolakan: '' }
+            return {
+              item_id: item.id,
+              status_item: r.status_item || 'diterima',
+              catatan_qc: r.catatan_qc || null,
+              alasan_penolakan: r.alasan_penolakan || null,
+            }
+          }),
+        }))
+
       case 'buat_resolusi': {
         if (fkp?.status === 'accepted' && tipeResolusiAktif === 'tukar_barang') {
+          // [FIX] Guard qty terkunci — cermin guard backend (400) supaya
+          // admin_ho tidak mengisi form lalu baru dapat toast error.
+          if (fkp?.resolution?.diteruskan_ke_warehouse) {
+            toast.error('Qty disetujui sudah dikunci — FKP sudah diteruskan ke Warehouse.')
+            return
+          }
           const itemsDiterima = fkp?.items.filter((item) => item.status_item === 'diterima') ?? []
           if (itemsDiterima.length === 0) { toast.error('Tidak ada item berstatus diterima.'); return }
+          for (const item of itemsDiterima) {
+            const qtyInput = Number(itemQtyDisetujui[item.id] ?? item.qty)
+            if (qtyInput > item.qty) {
+              toast.error(`Qty disetujui ${item.nama_produk_custom ?? 'produk'} (${qtyInput}) tidak boleh melebihi qty pengajuan (${item.qty}).`)
+              return
+            }
+            if (qtyInput <= 0) {
+              toast.error(`Qty disetujui ${item.nama_produk_custom ?? 'produk'} harus lebih dari 0.`)
+              return
+            }
+          }
           return runAction(() => fkpApi.updateDetailResolusi(id, {
             item_qty_disetujui: itemsDiterima.map((item) => ({
               item_id: item.id,
@@ -570,7 +616,7 @@ export function FkpDetailPage() {
         if (!catatan.trim()) { toast.error('Alasan wajib diisi.'); return }
         return runAction(() => fkpApi.direkturApprove(id, { disetujui: false, catatan }))
 
-      // tukar_barang — simpan qty disetujui, lalu buat Surat Jalan pertama.
+      // tukar_barang — buat Surat Jalan (warehouse-only).
       // Ini yang men-trigger accepted → in_process di backend (bukan
       // buat_resolusi), lihat catatan di api/warehouse.ts.
       case 'lengkapi_qty_sj': {
@@ -580,6 +626,14 @@ export function FkpDetailPage() {
         if (!sjForm.nama_penerima.trim()) { toast.error('Nama penerima wajib diisi.'); return }
         if (!sjForm.alamat_penerima.trim()) { toast.error('Alamat penerima wajib diisi.'); return }
         if (itemsDiterima.length === 0) { toast.error('Tidak ada item berstatus diterima untuk dikirim.'); return }
+        for (const item of itemsDiterima) {
+          const qtyInput = Number(itemQtyDisetujui[item.id] ?? item.qty_disetujui ?? item.qty)
+          const sisa = sisaKuotaItem(item.id)
+          if (sisa !== null && qtyInput > sisa) {
+            toast.error(`Qty ${item.nama_produk_custom ?? 'produk'} (${qtyInput}) melebihi sisa kuota disetujui (${sisa}).`)
+            return
+          }
+        }
         return runAction(async () => {
           // [FIX — Opsi A] Step "simpan qty_disetujui ke FkpItem" DIHAPUS dari
           // sini. Endpoint itu (buat_resolusi/updateDetailResolusi) butuh
@@ -587,9 +641,8 @@ export function FkpDetailPage() {
           // warehouse SELALU 403 kalau lewat sini. Qty untuk Surat Jalan ini
           // sekarang dikirim LANGSUNG sebagai item Surat Jalan
           // (warehouse_surat_jalan_items) tanpa menulis balik ke
-          // fkp_items.qty_disetujui. Kalau Admin HO perlu mencatat qty_disetujui
-          // resmi di level FKP, pakai tombol terpisah "Set Qty Disetujui"
-          // (lihat openSetQtyModal(), admin_ho only).
+          // fkp_items.qty_disetujui. Qty resmi di level FKP ditetapkan Admin HO
+          // lewat modal "Lengkapi Qty Disetujui" SEBELUM diteruskan ke Warehouse.
           await warehouseApi.create(id, {
             nomor_surat_jalan: sjForm.nomor_surat_jalan,
             tanggal_surat_jalan: sjForm.tanggal_surat_jalan,
@@ -610,6 +663,9 @@ export function FkpDetailPage() {
           qc.invalidateQueries({ queryKey: warehouseKeys.list(id) })
         })
       }
+
+      case 'teruskan_warehouse':
+        return runAction(() => fkpApi.teruskanKeWarehouse(id, catatan || null))
 
       // potong_tagihan — Fase 2: detail rekening (tidak trigger status apa pun)
       case 'lengkapi_rekening':
@@ -682,7 +738,13 @@ export function FkpDetailPage() {
 
   const canEdit = canWrite && (fkp.status === 'draft' || fkp.status === 'need_revision')
   const hasResolusi = !!fkp.resolution
-  const canCreateResolusi = kodeRole === 'admin_ho' && fkp.status === 'investigated' && !fkp.resolution
+  // BARU — jalur cepat: resolusi juga bisa dibuat pertama kali di status
+  // 'accepted' kalau belum ada resolusi sama sekali (RSM sudah approve final
+  // duluan lewat rsm_approve_final(), tidak lewat 'investigated').
+  const canCreateResolusi =
+    kodeRole === 'admin_ho' &&
+    !fkp.resolution &&
+    (fkp.status === 'investigated' || fkp.status === 'accepted')
   const canEditResolusi = kodeRole === 'admin_ho' && ['investigated', 'rsm_approval_resolusi'].includes(fkp.status) && !!fkp.resolution
   const resolusiTerkunci = !!fkp.resolution && ['direktur_approval', 'accepted', 'in_process', 'closed', 'rejected'].includes(fkp.status)
 
@@ -691,6 +753,20 @@ export function FkpDetailPage() {
   // lihat RBAC §11.2 dokumen rencana modul: warehouse berhak buat Surat
   // Jalan, finance berhak terbitkan invoice.
   const tipeResolusiAktif = fkp.resolution?.tipe_resolusi
+  // ── Preview gate Direktur (cermin backend butuh_approval_direktur) ──────
+  // total qty klaim (BUKAN qty_disetujui — itu baru terisi setelah accepted).
+  // Dipakai untuk label tombol & badge info sebelum RSM approve, supaya
+  // user tahu next-step-nya "langsung accepted" atau "ke Direktur dulu".
+  const totalQtyKlaim = fkp.items.reduce((sum, item) => sum + (item.qty ?? 0), 0)
+  const akanKeDirektur = butuhApprovalDirektur(tipeResolusiAktif, totalQtyKlaim)
+  // BARU — jalur cepat: total qty klaim ≤ BATAS_QTY_DIREKTUR. Dipakai untuk
+  // menampilkan section "Catatan Investigasi QC (Paralel)" — cermin logic
+  // backend admin_ho_review()/qc_catatan_investigasi_paralel().
+  const jalurCepat = totalQtyKlaim <= BATAS_QTY_DIREKTUR
+  const bisaQcCatatanParalel =
+    kodeRole === 'qc' &&
+    jalurCepat &&
+    ['rsm_approval_final', 'accepted', 'in_process'].includes(fkp.status)
   const butuhBaPemusnahan =
     fkp.resolution?.metode_penanganan_fisik === 'dimusnahkan' &&
     !fkp.attachments.some((a) => a.tipe_dokumen === 'berita_acara_pemusnahan_tukar_barang')
@@ -698,9 +774,34 @@ export function FkpDetailPage() {
   const baSigned = fkp.attachments.filter((a) => a.tipe_dokumen === 'berita_acara_pemusnahan_tukar_barang')
   const rekeningTerisi = !!(fkp.resolution?.nama_bank && fkp.resolution?.nomor_rekening && fkp.resolution?.atas_nama)
   const invoiceDoc = fkp.documents?.find((d) => d.tipe_dokumen === 'invoice_potong_tagihan') ?? null
+  // Dipakai untuk MENGELOLA SJ yang sudah ada (issue / ship / confirm delivery)
+  // — sengaja TIDAK berubah, admin_ho tetap boleh.
   const bisaKelolaSj = ['admin_ho', 'warehouse', 'superadmin'].includes(kodeRole)
+  // BARU — khusus aksi CREATE Surat Jalan (warehouse-only, sesuai keputusan
+  // permission warehouse.surat_jalan.create dicabut dari admin_ho).
+  const bisaBuatSj = ['warehouse', 'superadmin'].includes(kodeRole)
   const bisaKelolaInvoice = ['admin_ho', 'finance', 'superadmin'].includes(kodeRole)
   const bisaConfirmResolusi = ['admin_ho', 'superadmin'].includes(kodeRole)
+
+  const sisaKuotaItem = (itemId: string): number | null => {
+    const item = fkp.items.find((it) => it.id === itemId)
+    if (!item || item.qty_disetujui == null) return null
+    const sudahTerkirim = suratJalanList.reduce((sum, sj) => {
+      return sum + sj.items
+        .filter((it: any) => it.fkp_item_id === itemId)
+        .reduce((s: number, it: any) => s + it.qty, 0)
+    }, 0)
+    return item.qty_disetujui - sudahTerkirim
+  }
+
+  const itemsDiterima = fkp.items.filter((item) => item.status_item === 'diterima')
+  // [FIX] .every() pada array kosong = true — tanpa cek panjang, tombol
+  // "Teruskan ke Warehouse" ikut aktif padahal tidak ada satu pun item yang
+  // bisa dikirim (mis. jalur cepat, QC belum menilai item → status pending).
+  const semuaQtyDisetujuiTerisi =
+    itemsDiterima.length > 0 && itemsDiterima.every((item) => item.qty_disetujui != null)
+  // Cermin guard backend: qty terkunci begitu FKP diteruskan ke Warehouse.
+  const qtyTerkunci = !!fkp.resolution?.diteruskan_ke_warehouse
 
   // ── Item 5: gate peringatan investigasi QC ──────────────────────────────
   // Persis kondisi yang dicek backend di qc_investigasi() (§7.1 dokumen
@@ -735,10 +836,13 @@ export function FkpDetailPage() {
     (fkp.status === 'submitted' && kodeRole === 'apsm') ||
     (fkp.status === 'apsm_reviewed' && kodeRole === 'admin_ho') ||
     (fkp.status === 'rsm_approval_investigasi' && kodeRole === 'rsm') ||
+    (fkp.status === 'rsm_approval_final' && kodeRole === 'rsm') ||
     (fkp.status === 'in_investigation' && kodeRole === 'qc') ||
     (fkp.status === 'investigated' && kodeRole === 'admin_ho') ||
     (fkp.status === 'rsm_approval_resolusi' && kodeRole === 'rsm') ||
     (fkp.status === 'direktur_approval' && kodeRole === 'direktur') ||
+    canCreateResolusi ||
+    bisaQcCatatanParalel ||
     (fkp.status === 'accepted' && (bisaKelolaSj || bisaKelolaInvoice)) ||
     (fkp.status === 'in_process' && (kodeRole === 'admin_ho' || kodeRole === 'superadmin' || bisaKelolaSj || bisaKelolaInvoice))
 
@@ -899,6 +1003,14 @@ export function FkpDetailPage() {
                   {fkp.resolution.ekspedisi && <InfoRow label="Ekspedisi" value={fkp.resolution.ekspedisi} />}
                   {fkp.resolution.resi_pengiriman && <InfoRow label="No. Resi" value={fkp.resolution.resi_pengiriman} mono />}
                   {fkp.resolution.lokasi_pemusnahan && <InfoRow label="Lokasi Pemusnahan" value={fkp.resolution.lokasi_pemusnahan} />}
+                  {fkp.resolution.diteruskan_ke_warehouse && (
+                    <InfoRow
+                      label="Diteruskan ke Warehouse"
+                      value={fkp.resolution.tanggal_diteruskan_ke_warehouse
+                        ? formatDateTime(fkp.resolution.tanggal_diteruskan_ke_warehouse)
+                        : 'Ya'}
+                    />
+                  )}
                   {fkp.resolution.keterangan && (
                     <div className="col-span-2">
                       <p className="text-xs font-medium text-gray-500 mb-1">Keterangan</p>
@@ -1004,7 +1116,8 @@ export function FkpDetailPage() {
                     )}
                   </div>
                 ))}
-                {fkp.status === 'in_process' && bisaKelolaSj && (
+                {/* [FIX] CREATE SJ susulan juga warehouse-only — bukan bisaKelolaSj. */}
+                {fkp.status === 'in_process' && bisaBuatSj && (
                   <button className="btn-secondary w-full" onClick={openSjModal}>
                     <Plus className="w-4 h-4" /> Tambah Surat Jalan (Kirim Bertahap)
                   </button>
@@ -1067,7 +1180,7 @@ export function FkpDetailPage() {
                 {fkp.status === 'apsm_reviewed' && kodeRole === 'admin_ho' && (
                   <>
                     <button className="btn-primary w-full" onClick={() => setModal('admin_ho_review')}>
-                      <ShieldCheck className="w-4 h-4" /> Teruskan ke RSM (Investigasi)
+                      <ShieldCheck className="w-4 h-4" /> Teruskan ke RSM
                     </button>
                     <button className="btn-secondary w-full" onClick={() => setModal('revision')}>
                       <AlertTriangle className="w-4 h-4" /> Minta Revisi ke APSM
@@ -1095,10 +1208,47 @@ export function FkpDetailPage() {
                   </>
                 )}
 
+                {/* BARU — Jalur cepat: RSM approval AKHIR, resolusi belum ada.
+                    Beda dari rsm_approval_investigasi: approve di sini LANGSUNG
+                    ke accepted, tidak lewat investigasi/Direktur sama sekali. */}
+                {fkp.status === 'rsm_approval_final' && kodeRole === 'rsm' && (
+                  <>
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-700">
+                      Total klaim {totalQtyKlaim} zak (≤ {BATAS_QTY_DIREKTUR} zak). Silakan approve untuk persetujuan penggantian barang FKP.
+                      {/* tanpa investigasi QC gating maupun Direktur.
+                      Admin HO akan mengisi resolusi & bisa langsung buat Surat Jalan setelahnya. */}
+                    </div>
+                    <button className="btn-primary w-full" onClick={() => setModal('rsm_final_ok')}>
+                      <ShieldCheck className="w-4 h-4" /> Setujui — Terima FKP
+                    </button>
+                    <button className="btn-secondary w-full" onClick={() => setModal('revision')}>
+                      <AlertTriangle className="w-4 h-4" /> Kembalikan ke APSM
+                    </button>
+                    <button className="btn-danger w-full" onClick={() => setModal('rsm_final_tolak')}>
+                      <XCircle className="w-4 h-4" /> Tolak FKP
+                    </button>
+                  </>
+                )}
+
                 {fkp.status === 'in_investigation' && kodeRole === 'qc' && (
                   <button className="btn-primary w-full" onClick={() => setModal('qc_investigasi')}>
                     <CheckCircle2 className="w-4 h-4" /> Selesaikan Investigasi
                   </button>
+                )}
+
+                {/* BARU — Jalur cepat: QC bisa mencatat hasil investigasi kapan
+                    saja (paralel), tidak menahan status FKP maupun proses
+                    resolusi/RSM/surat jalan yang berjalan. Murni dokumentasi. */}
+                {bisaQcCatatanParalel && (
+                  <>
+                    {/* <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
+                      ℹ️ Jalur cepat — catatan ini TIDAK menahan proses resolusi/RSM. Murni dokumentasi
+                      untuk insight FKP. Upload BA hasil pemeriksaan lewat bagian Lampiran.
+                    </div> */}
+                    <button className="btn-secondary w-full" onClick={() => setModal('qc_catatan_paralel')}>
+                      <FileText className="w-4 h-4" /> Catat Hasil Investigasi (Paralel)
+                    </button>
+                  </>
                 )}
 
                 {fkp.status === 'investigated' && kodeRole === 'admin_ho' && (
@@ -1136,8 +1286,20 @@ export function FkpDetailPage() {
 
                 {fkp.status === 'rsm_approval_resolusi' && kodeRole === 'rsm' && (
                   <>
+                    {/* Preview: kasih tahu next-step sebelum RSM klik approve.
+                        Cermin logic backend butuh_approval_direktur() — hanya
+                        preview, keputusan final tetap divalidasi backend. */}
+                    <div className={`p-3 rounded-lg text-xs border ${akanKeDirektur
+                      ? 'bg-amber-50 border-amber-200 text-amber-700'
+                      : 'bg-blue-50 border-blue-200 text-blue-700'
+                      }`}>
+                      {akanKeDirektur
+                        ? `⚠️ Total klaim ${totalQtyKlaim} zak (> ${BATAS_QTY_DIREKTUR} zak, resolusi ${TIPE_RESOLUSI_LABEL[tipeResolusiAktif as TipeResolusi] ?? tipeResolusiAktif}) — butuh persetujuan Direktur setelah ini.`
+                        : `ℹ️ Total klaim ${totalQtyKlaim} zak — tidak memerlukan persetujuan Direktur, langsung diterima setelah disetujui.`}
+                    </div>
                     <button className="btn-primary w-full" onClick={() => setModal('rsm_resolusi_ok')}>
-                      <ShieldCheck className="w-4 h-4" /> Setujui Resolusi → Ke Direktur
+                      <ShieldCheck className="w-4 h-4" />
+                      {akanKeDirektur ? 'Setujui Resolusi → Ke Direktur' : 'Setujui Resolusi → Terima FKP'}
                     </button>
                     <button className="btn-secondary w-full" onClick={() => setModal('revision')}>
                       <AlertTriangle className="w-4 h-4" /> Kembalikan — Minta Perbaikan Resolusi
@@ -1162,24 +1324,71 @@ export function FkpDetailPage() {
                 {fkp.status === 'accepted' && (
                   <>
                     <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
-                      ✅ FKP disetujui Direktur — resolusi: {TIPE_RESOLUSI_LABEL[tipeResolusiAktif as TipeResolusi] ?? '-'}
+                      FKP {fkp.approved_by_direktur ? 'disetujui Direktur' : 'disetujui MSM'} — resolusi: {hasResolusi ? (TIPE_RESOLUSI_LABEL[tipeResolusiAktif as TipeResolusi] ?? '-') : 'Belum dibuat'}
                     </div>
 
-                    {/* ── tukar_barang: buat Surat Jalan (trigger in_process otomatis) ── */}
+                    {canCreateResolusi && (
+                      <>
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
+                          Resolusi belum dibuat. Buat resolusi terlebih dahulu untuk melanjutkan proses FKP ini.
+                        </div>
+                        <button className="btn-primary w-full" onClick={openResolusiModal}>
+                          <FileText className="w-4 h-4" /> Buat Resolusi
+                        </button>
+                      </>
+                    )}
+
+                    {/* ── tukar_barang — alur handoff: Admin HO isi qty →
+                        Teruskan ke Warehouse (qty terkunci) → Warehouse buat SJ ── */}
                     {tipeResolusiAktif === 'tukar_barang' && ['admin_ho', 'superadmin'].includes(kodeRole) && (
                       <button className="btn-secondary w-full" onClick={openResolusiModal}>
-                        <Package className="w-4 h-4" /> Lengkapi Qty Disetujui
+                        <Package className="w-4 h-4" />
+                        {qtyTerkunci ? 'Lihat Qty Disetujui' : 'Lengkapi Qty Disetujui'}
                       </button>
                     )}
 
-                    {tipeResolusiAktif === 'tukar_barang' && bisaKelolaSj && (
+                    {tipeResolusiAktif === 'tukar_barang' &&
+                      ['admin_ho', 'superadmin'].includes(kodeRole) &&
+                      !qtyTerkunci && (
+                        <button
+                          className="btn-primary w-full"
+                          disabled={!semuaQtyDisetujuiTerisi}
+                          title={
+                            itemsDiterima.length === 0
+                              ? 'Belum ada item berstatus "diterima" yang bisa dikirim'
+                              : !semuaQtyDisetujuiTerisi
+                                ? 'Lengkapi qty disetujui semua item terlebih dahulu'
+                                : undefined
+                          }
+                          onClick={() => { setCatatan(''); setModal('teruskan_warehouse') }}
+                        >
+                          <Send className="w-4 h-4" /> Teruskan ke Warehouse
+                        </button>
+                      )}
+
+                    {tipeResolusiAktif === 'tukar_barang' && !qtyTerkunci &&
+                      !['admin_ho', 'superadmin'].includes(kodeRole) && (
+                        <div className="text-xs text-slate-500">Menunggu Admin HO meneruskan ke Warehouse.</div>
+                      )}
+
+                    {tipeResolusiAktif === 'tukar_barang' && qtyTerkunci && (
+                      <div className="text-xs text-green-700">
+                        ✅ Sudah diteruskan ke Warehouse
+                        {fkp.resolution?.tanggal_diteruskan_ke_warehouse &&
+                          ` (${formatDateTime(fkp.resolution.tanggal_diteruskan_ke_warehouse)})`}
+                      </div>
+                    )}
+
+                    {/* [FIX] CREATE Surat Jalan warehouse-only, dan hanya setelah
+                        Admin HO menekan "Teruskan ke Warehouse". */}
+                    {tipeResolusiAktif === 'tukar_barang' && qtyTerkunci && bisaBuatSj && (
                       <button className="btn-primary w-full" onClick={openSjModal}>
                         <Truck className="w-4 h-4" /> Buat Surat Jalan
                       </button>
                     )}
 
-                    {tipeResolusiAktif === 'tukar_barang' && !bisaKelolaSj && (
-                      <div className="text-xs text-slate-500">Menunggu Warehouse/Admin HO membuat Surat Jalan.</div>
+                    {tipeResolusiAktif === 'tukar_barang' && qtyTerkunci && !bisaBuatSj && (
+                      <div className="text-xs text-slate-500">Menunggu Warehouse membuat Surat Jalan.</div>
                     )}
 
                     {/* ── potong_tagihan: info invoice yang sudah diterbitkan ── */}
@@ -1476,20 +1685,47 @@ export function FkpDetailPage() {
 
       {/* Admin HO review — PERUBAHAN: tidak ada lagi form rekomendasi per item,
           Admin HO cukup meneruskan FKP ke RSM dengan catatan opsional. */}
-      <Modal isOpen={modal === 'admin_ho_review'} onClose={closeModal} title="Teruskan ke RSM" size="md">
+      <Modal isOpen={modal === 'admin_ho_review'} onClose={closeModal} title="Teruskan ke MSM" size="md">
         <div className="space-y-4">
-          <p className="text-sm text-gray-600">FKP ini akan diteruskan ke RSM untuk persetujuan investigasi.</p>
-          <Textarea label="Catatan Tambahan Admin HO (opsional)" value={catatan}
+          <p className="text-sm text-gray-600">
+            {jalurCepat
+              ?
+              <div className='flex flex-col'>
+                FKP ini akan diteruskan ke MSM untuk persetujuan akhir.
+                <br /> <span className='font-medium'>{`(total klaim ${totalQtyKlaim})`}</span>
+              </div>
+              :
+              <div className='flex flex-col'>
+                FKP ini akan diteruskan ke MSM untuk persetujuan investigasi.
+                <br /> <span className='font-medium'>{`(total klaim ${totalQtyKlaim})`}</span>
+              </div>
+            }
+          </p>
+          <Textarea label="Catatan Tambahan Admin HO -> MSM (opsional)" value={catatan}
             onChange={(e) => setCatatan(e.target.value)} rows={3} />
           <ModalFooter onCancel={closeModal} onConfirm={handleConfirm}
-            isLoading={isConfirming} confirmLabel="Teruskan ke RSM (Investigasi)" />
+            isLoading={isConfirming} confirmLabel="Teruskan ke MSM" />
         </div>
       </Modal>
 
       {/* QC investigasi */}
-      <Modal isOpen={modal === 'qc_investigasi'} onClose={closeModal} title="Selesaikan Investigasi QC" size="md">
+      <Modal
+        isOpen={modal === 'qc_investigasi' || modal === 'qc_catatan_paralel'}
+        onClose={closeModal}
+        title={modal === 'qc_catatan_paralel' ? 'Catat Hasil Investigasi (Paralel)' : 'Selesaikan Investigasi QC'}
+        size="md"
+      >
         <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-          {samplesBelumSelesai.length > 0 && (
+          {/* BARU — mode paralel: TIDAK mengubah status FKP, jadi sample yang
+              belum selesai TIDAK memblokir submit (beda dari mode normal
+              yang menahan transisi ke investigated). */}
+          {/* {modal === 'qc_catatan_paralel' && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
+              ℹ️ Catatan ini murni dokumentasi/insight — tidak mengubah status FKP dan tidak
+              menahan proses resolusi/RSM/surat jalan yang sedang berjalan.
+            </div>
+          )} */}
+          {modal === 'qc_investigasi' && samplesBelumSelesai.length > 0 && (
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 space-y-1">
               <p className="font-semibold">⚠️ Masih ada {samplesBelumSelesai.length} sample yang belum selesai diperiksa:</p>
               <ul className="list-disc list-inside">
@@ -1530,42 +1766,76 @@ export function FkpDetailPage() {
           <Textarea label="Catatan QC (opsional)" value={catatan}
             onChange={(e) => setCatatan(e.target.value)} rows={3} />
           <ModalFooter onCancel={closeModal} onConfirm={handleConfirm}
-            isLoading={isConfirming} disabled={samplesBelumSelesai.length > 0}
-            confirmLabel="Simpan Hasil Investigasi" />
+            isLoading={isConfirming}
+            disabled={modal === 'qc_investigasi' && samplesBelumSelesai.length > 0}
+            confirmLabel={modal === 'qc_catatan_paralel' ? 'Simpan Catatan' : 'Simpan Hasil Investigasi'} />
         </div>
       </Modal>
 
       {/* Buat / Edit Resolusi */}
       <Modal isOpen={modal === 'buat_resolusi'} onClose={closeModal}
         title={
-          fkp.status === 'accepted' ? 'Lengkapi Qty Disetujui'
-            : hasResolusi ? 'Edit Resolusi' : 'Buat Resolusi'
+          fkp.status === 'accepted' && tipeResolusiAktif === 'tukar_barang'
+            ? (qtyTerkunci ? 'Qty Disetujui (Terkunci)' : 'Lengkapi Qty Disetujui')
+            : hasResolusi
+              ? 'Edit Resolusi'
+              : 'Buat Resolusi'
         } size="md">
         <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
           {fkp.status === 'accepted' && tipeResolusiAktif === 'tukar_barang' ? (
-            // ── Fase 2: qty_disetujui saja — tipe_resolusi/metode sudah terkunci ──
-            <>
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
-                📦 FKP sudah disetujui Direktur. Isi qty yang disetujui untuk
-                diganti per item sebelum Surat Jalan dibuat.
-              </div>
-              {fkp.items.filter((item) => item.status_item === 'diterima').map((item) => (
-                <div key={item.id} className="p-3 rounded-xl bg-gray-50 border border-gray-100">
-                  <p className="text-xs font-semibold text-gray-700 mb-1.5">
-                    {item.nama_produk_custom ?? 'Produk'}{' '}
-                    <span className="text-gray-400 font-normal">(Qty keluhan: {item.qty})</span>
-                  </p>
-                  <Input label="Qty Disetujui" type="number" required placeholder={String(item.qty)}
-                    value={itemQtyDisetujui[item.id] ?? ''}
-                    onChange={(e) => setItemQtyDisetujui((p) => ({ ...p, [item.id]: e.target.value }))} />
+            qtyTerkunci ? (
+              // ── Terkunci — sudah diteruskan ke Warehouse, tampil read-only ──
+              <>
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-500">
+                  🔒 Qty disetujui sudah dikunci — FKP ini sudah diteruskan ke Warehouse
+                  {fkp.resolution?.tanggal_diteruskan_ke_warehouse &&
+                    ` pada ${formatDateTime(fkp.resolution.tanggal_diteruskan_ke_warehouse)}`}.
                 </div>
-              ))}
-            </>
+                {itemsDiterima.map((item) => (
+                  <div key={item.id}
+                    className="flex items-center justify-between gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
+                    <p className="text-xs font-semibold text-gray-700">
+                      {item.nama_produk_custom ?? 'Produk'}{' '}
+                      <span className="text-gray-400 font-normal">(Qty keluhan: {item.qty})</span>
+                    </p>
+                    <p className="text-sm font-semibold text-gray-800 shrink-0">
+                      {item.qty_disetujui ?? '-'} disetujui
+                    </p>
+                  </div>
+                ))}
+              </>
+            ) : (
+              // ── Fase 2: qty_disetujui saja — tipe_resolusi/metode sudah terkunci ──
+              <>
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
+                  📦 FKP sudah disetujui. Isi qty yang disetujui untuk diganti
+                  per item sebelum diteruskan ke Warehouse.
+                </div>
+                {itemsDiterima.map((item) => (
+                  <div key={item.id} className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                    <p className="text-xs font-semibold text-gray-700 mb-1.5">
+                      {item.nama_produk_custom ?? 'Produk'}{' '}
+                      <span className="text-gray-400 font-normal">(Qty keluhan: {item.qty})</span>
+                    </p>
+                    <Input label="Qty Disetujui" type="number" required max={item.qty} placeholder={String(item.qty)}
+                      value={itemQtyDisetujui[item.id] ?? ''}
+                      onChange={(e) => setItemQtyDisetujui((p) => ({ ...p, [item.id]: e.target.value }))} />
+                    <p className="text-[11px] text-gray-400 mt-1">Maksimal {item.qty} (sesuai qty pengajuan).</p>
+                  </div>
+                ))}
+                {itemsDiterima.length === 0 && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
+                    ⚠️ Belum ada item berstatus "diterima". Qty disetujui baru bisa
+                    diisi setelah QC menetapkan status item.
+                  </div>
+                )}
+              </>
+            )
           ) : (
             // ── Fase 1: tipe_resolusi + metode_penanganan_fisik (perilaku lama, tidak berubah) ──
             <>
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
-                💡 Isi <strong>metode penanganan fisik</strong> dan <strong>tipe resolusi</strong>. Keduanya bisa berbeda.
+                Isi <strong>metode penanganan fisik</strong> dan <strong>tipe resolusi</strong>. Keduanya bisa berbeda.
               </div>
               <Select label="Metode Penanganan Fisik Barang" required
                 value={resolusiForm.metode_penanganan_fisik}
@@ -1610,20 +1880,29 @@ export function FkpDetailPage() {
                   </div>
                 </>
               )}
-              {tipeResolusi === 'tukar_barang' && (
+              {/* {tipeResolusi === 'tukar_barang' && (
                 <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-500">
                   📋 Qty disetujui per item diisi lewat modal ini juga setelah Direktur menyetujui.
                 </div>
-              )}
+              )} */}
               <Textarea label="Keterangan Tambahan" value={resolusiForm.keterangan}
                 onChange={(e) => setResolusiForm(p => ({ ...p, keterangan: e.target.value }))} rows={3} />
             </>
           )}
-          <ModalFooter onCancel={closeModal} onConfirm={handleConfirm} isLoading={isConfirming}
-            confirmLabel={
-              fkp.status === 'accepted' ? 'Simpan Qty Disetujui'
-                : hasResolusi ? 'Update Resolusi' : 'Simpan Resolusi'
-            } />
+
+          {/* [FIX] Footer disembunyikan kalau qty sudah terkunci — tidak ada
+              yang bisa disimpan lagi dari sini. */}
+          {fkp.status === 'accepted' && tipeResolusiAktif === 'tukar_barang' && qtyTerkunci ? (
+            <div className="flex justify-end pt-2">
+              <button onClick={closeModal} className="btn-secondary">Tutup</button>
+            </div>
+          ) : (
+            <ModalFooter onCancel={closeModal} onConfirm={handleConfirm} isLoading={isConfirming}
+              confirmLabel={
+                fkp.status === 'accepted' && tipeResolusiAktif === 'tukar_barang' ? 'Simpan Qty Disetujui'
+                  : hasResolusi ? 'Update Resolusi' : 'Simpan Resolusi'
+              } />
+          )}
         </div>
       </Modal>
 
@@ -1641,7 +1920,7 @@ export function FkpDetailPage() {
       </Modal>
 
       {/* Proses pengiriman */}
-      {/* ── tukar_barang: qty disetujui + buat Surat Jalan pertama ──────────── */}
+      {/* ── tukar_barang: buat Surat Jalan (warehouse-only) ─────────────────── */}
       <Modal isOpen={modal === 'lengkapi_qty_sj'} onClose={closeModal} title="Buat Surat Jalan (Barang Pengganti)" size="lg">
         <div className="space-y-4">
           <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
@@ -1650,30 +1929,34 @@ export function FkpDetailPage() {
           {fkp.items.filter((item) => item.status_item === 'diterima').length > 0 && (
             <div className="space-y-2">
               <p className="text-sm font-medium text-gray-700">Qty Disetujui / Dikirim per Item</p>
-              {fkp.items.filter((item) => item.status_item === 'diterima').map((item) => (
-                <div key={item.id} className="p-3 rounded-xl bg-gray-50 border border-gray-100">
-                  <p className="text-xs font-semibold text-gray-700 mb-1.5">
-                    {item.nama_produk_custom ?? 'Produk'}{' '}
-                    <span className="text-gray-400 font-normal">(Qty keluhan: {item.qty})</span>
-                  </p>
-                  <Input
-                    label="Qty Dikirim"
-                    type="number"
-                    required
-                    placeholder={String(item.qty)}
-                    value={itemQtyDisetujui[item.id] ?? ''}
-                    onChange={(e) => setItemQtyDisetujui((p) => ({ ...p, [item.id]: e.target.value }))}
-                    // [BARU] Warehouse tidak boleh ubah qty yang sudah disetujui
-                    // Admin HO — field ini di-lock, hanya admin_ho/superadmin yang
-                    disabled={kodeRole === 'warehouse'}
-                  />
-                  {kodeRole === 'warehouse' && (
-                    <p className="text-[11px] text-gray-400 mt-1">
-                      Qty ditentukan oleh Admin HO, tidak bisa diubah dari sini.
+              {fkp.items.filter((item) => item.status_item === 'diterima').map((item) => {
+                const sisa = sisaKuotaItem(item.id)
+                return (
+                  <div key={item.id} className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                    <p className="text-xs font-semibold text-gray-700 mb-1.5">
+                      {item.nama_produk_custom ?? 'Produk'}{' '}
+                      <span className="text-gray-400 font-normal">(Qty keluhan: {item.qty})</span>
                     </p>
-                  )}
-                </div>
-              ))}
+                    {/* [FIX] disabled={kodeRole === 'warehouse'} DIHAPUS — sejak
+                        create SJ jadi warehouse-only, field ini justru selalu
+                        mati untuk satu-satunya role yang berwenang mengisinya. */}
+                    <Input
+                      label="Qty Dikirim"
+                      type="number"
+                      required
+                      max={sisa !== null ? sisa : undefined}
+                      placeholder={String(item.qty)}
+                      value={itemQtyDisetujui[item.id] ?? ''}
+                      onChange={(e) => setItemQtyDisetujui((p) => ({ ...p, [item.id]: e.target.value }))}
+                    />
+                    {sisa !== null && (
+                      <p className={`text-[11px] mt-1 ${sisa <= 0 ? 'text-red-500' : 'text-gray-400'}`}>
+                        Sisa kuota qty disetujui: {sisa}
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
           <div className="grid grid-cols-2 gap-3">
@@ -1728,7 +2011,7 @@ export function FkpDetailPage() {
       <Modal isOpen={modal === 'terbitkan_invoice'} onClose={closeModal} title="Terbitkan Invoice Potong Tagihan" size="md">
         <div className="space-y-4">
           <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
-            📄 Menerbitkan invoice akan otomatis memindahkan FKP ke status "Diproses" dan menghasilkan PDF invoice.
+            Menerbitkan invoice akan otomatis memindahkan FKP ke status "Diproses" dan menghasilkan PDF invoice.
           </div>
           <Input label="Nomor Invoice" required value={invoiceForm.nomor_invoice}
             onChange={(e) => setInvoiceForm((p) => ({ ...p, nomor_invoice: e.target.value }))} />
@@ -1737,7 +2020,7 @@ export function FkpDetailPage() {
             onChange={(e) => setInvoiceForm((p) => ({ ...p, nilai_nota_penjualan: e.target.value }))} />
           {invoiceForm.nilai_nota_penjualan && fkp.resolution?.persentase_kompensasi_disetujui != null && (
             <div className="p-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-700">
-              💡 Nilai cashback: <strong>
+              Nilai cashback: <strong>
                 {formatRupiah((Number(invoiceForm.nilai_nota_penjualan) * fkp.resolution.persentase_kompensasi_disetujui) / 100)}
               </strong> ({fkp.resolution.persentase_kompensasi_disetujui}% × nilai nota)
             </div>
@@ -1776,6 +2059,19 @@ export function FkpDetailPage() {
         </div>
       </Modal>
 
+      {/* ── tukar_barang: handoff Admin HO → Warehouse (qty terkunci setelah ini) ── */}
+      <Modal isOpen={modal === 'teruskan_warehouse'} onClose={closeModal} title="Teruskan ke Warehouse" size="sm">
+        <div className="space-y-4">
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
+            📦 Qty disetujui akan dikunci setelah ini. Warehouse akan bisa membuat Surat Jalan.
+          </div>
+          <Textarea label="Catatan (opsional)" value={catatan}
+            onChange={(e) => setCatatan(e.target.value)} rows={3} />
+          <ModalFooter onCancel={closeModal} onConfirm={handleConfirm}
+            isLoading={isConfirming} confirmLabel="Teruskan ke Warehouse" />
+        </div>
+      </Modal>
+
       {/* ── Surat Jalan existing: issued → shipped ──────────────────────────── */}
       <Modal isOpen={modal === 'sj_ship'} onClose={closeModal} title="Tandai Surat Jalan Dikirim" size="md">
         <div className="space-y-4">
@@ -1793,7 +2089,7 @@ export function FkpDetailPage() {
       </Modal>
 
       {/* Modal catatan opsional */}
-      {(['rsm_investigasi_ok', 'rsm_resolusi_ok', 'direktur_ok', 'close'] as ModalTipe[]).includes(modal!) && (
+      {(['rsm_investigasi_ok', 'rsm_resolusi_ok', 'rsm_final_ok', 'direktur_ok', 'close'] as ModalTipe[]).includes(modal!) && (
         <Modal isOpen={!!modal} onClose={closeModal} title={MODAL_TITLES[modal!]!} size="sm">
           <div className="space-y-4">
             {modal === 'close' && closeBlockers.length > 0 && (
@@ -1825,7 +2121,7 @@ export function FkpDetailPage() {
 
       {/* Modal catatan wajib */}
       {
-        (['revision', 'reject', 'rsm_investigasi_tolak', 'rsm_resolusi_tolak', 'direktur_tolak'] as ModalTipe[]).includes(modal!) && (
+        (['revision', 'reject', 'rsm_investigasi_tolak', 'rsm_resolusi_tolak', 'rsm_final_tolak', 'direktur_tolak'] as ModalTipe[]).includes(modal!) && (
           <Modal isOpen={!!modal} onClose={closeModal} title={MODAL_TITLES[modal!]!} size="sm">
             <div className="space-y-4">
               <Textarea label="Alasan (wajib)" required placeholder="Jelaskan alasan..."
@@ -1846,6 +2142,8 @@ const MODAL_TITLES: Partial<Record<ModalTipe, string>> = {
   rsm_investigasi_tolak: 'Tolak FKP',
   rsm_resolusi_ok: 'Setujui Resolusi → Ke Direktur',
   rsm_resolusi_tolak: 'Tolak FKP',
+  rsm_final_ok: 'Setujui Penggantian Barang',
+  rsm_final_tolak: 'Tolak FKP',
   direktur_ok: 'Setujui FKP',
   direktur_tolak: 'Tolak FKP',
   revision: 'Minta Revisi / Kembalikan',

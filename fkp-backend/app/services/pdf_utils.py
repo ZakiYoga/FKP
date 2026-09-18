@@ -8,7 +8,7 @@ Di-import oleh fkp_pdf_service.py dan berita_acara_pdf_service.py.
 from __future__ import annotations
 
 import base64
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Optional
@@ -32,13 +32,14 @@ _BULAN_ID = [
 def format_date(value: Any) -> str:
     if value is None:
         return "—"
-    # Guard: kalau SQLModel/Pydantic serialize ke string ISO
     if isinstance(value, str):
         try:
-            value = date.fromisoformat(value[:10])  # ambil YYYY-MM-DD saja
+            value = date.fromisoformat(value[:10])
         except ValueError:
             return value
     if isinstance(value, datetime):
+        if value.tzinfo is not None:
+            value = value.astimezone(timezone(timedelta(hours=7)))
         value = value.date()
     if isinstance(value, date):
         return f"{value.day} {_BULAN_ID[value.month]} {value.year}"
@@ -52,6 +53,30 @@ def format_date_long(value: Any) -> str:
     """
     return format_date(value)
 
+def format_datetime_id(value: Any) -> str:
+    """
+    Format datetime (disimpan UTC) -> string Indonesia, dikonversi ke WIB (UTC+7).
+    Contoh: '18 September 2026, Pukul 08.00 PM'
+    """
+    if value is None:
+        return "—"
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value)
+        except ValueError:
+            return value
+    if not isinstance(value, datetime):
+        return str(value)
+
+    if value.tzinfo is not None:
+        value_wib = value.astimezone(timezone(timedelta(hours=7)))
+    else:
+        value_wib = value.replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=7)))
+
+    tanggal = f"{value_wib.day} {_BULAN_ID[value_wib.month]} {value_wib.year}"
+    jam12 = value_wib.strftime("%I.%M")
+    ampm = value_wib.strftime("%p")
+    return f"{tanggal}, Pukul {jam12} {ampm}"
 
 # ─── File helpers ─────────────────────────────────────────────────────────────
 
@@ -124,7 +149,8 @@ def build_jinja_env(templates_dir) -> Environment:
     env.filters["format_date"]        = format_date
     env.filters["format_date_long"]   = format_date_long
     env.filters["has_attachments"]    = _has_attachments
-    env.filters["filter_attachments"] = _filter_attachments   # ← INI yang kurang
+    env.filters["filter_attachments"] = _filter_attachments
+    env.filters["format_datetime_id"] = format_datetime_id
     # Kalau ada find_attachment lama, tetap pertahankan:
     # env.filters["find_attachment"]  = _find_attachment
     return env

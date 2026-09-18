@@ -545,6 +545,9 @@ class ResolusiResponse(BaseModel):
     diproses_finance: Optional[bool] = None
     tanggal_proses_finance: Optional[datetime] = None
     finance_user_id: Optional[uuid.UUID] = None
+    diteruskan_ke_warehouse: bool = False
+    tanggal_diteruskan_ke_warehouse: Optional[datetime] = None
+    diteruskan_oleh: Optional[uuid.UUID] = None
 
     class Config:
         from_attributes = True
@@ -577,7 +580,6 @@ class AttachmentResponse(BaseModel):
         """
         self.url = f"/api/fkp/{self.fkp_id}/attachments/{self.id}/file"
         return self
-
 
 class FkpDocumentResponse(BaseModel):
     id: uuid.UUID
@@ -688,3 +690,6 @@ class FkpDocumentCreate(BaseModel):
                 "url_file": "https://storage.example.com/fkp/ba-2025-0042.pdf",
             }
         }
+
+class TeruskanWarehouseRequest(BaseModel):
+    catatan: Optional[str] = None

@@ -27,6 +27,11 @@ class FkpStatus:
     INVESTIGATED             = "investigated"
     RSM_APPROVAL_RESOLUSI    = "rsm_approval_resolusi"
     DIREKTUR_APPROVAL        = "direktur_approval"
+    # BARU — jalur cepat (total qty klaim ≤ BATAS_QTY_DIREKTUR). RSM approve
+    # LANGSUNG di sini (tanpa lewat investigasi/resolusi/Direktur). QC tetap
+    # bisa investigasi, tapi PARALEL & tidak pernah menahan status ini —
+    # lihat qc_catatan_investigasi_paralel() di fkp_service.py.
+    RSM_APPROVAL_FINAL       = "rsm_approval_final"
     ACCEPTED                 = "accepted"
     IN_PROCESS               = "in_process"
     NEED_REVISION            = "need_revision"
@@ -36,7 +41,7 @@ class FkpStatus:
     ALL = [
         DRAFT, SUBMITTED, APSM_REVIEWED,
         RSM_APPROVAL_INVESTIGASI, IN_INVESTIGATION, INVESTIGATED,
-        RSM_APPROVAL_RESOLUSI, DIREKTUR_APPROVAL,
+        RSM_APPROVAL_RESOLUSI, DIREKTUR_APPROVAL, RSM_APPROVAL_FINAL,
         ACCEPTED, IN_PROCESS,
         NEED_REVISION, REJECTED, CLOSED,
     ]
@@ -50,6 +55,7 @@ class FkpStatus:
         INVESTIGATED:             "Investigasi Selesai",
         RSM_APPROVAL_RESOLUSI:    "Menunggu Persetujuan RSM (Resolusi)",
         DIREKTUR_APPROVAL:        "Menunggu Persetujuan Direktur",
+        RSM_APPROVAL_FINAL:       "Menunggu Persetujuan Akhir RSM",
         ACCEPTED:                 "Disetujui — Menunggu Proses Resolusi",
         IN_PROCESS:               "Sedang Diproses (Pengiriman / Potong Tagihan)",
         NEED_REVISION:            "Perlu Revisi",
@@ -77,20 +83,22 @@ class FkpPrioritas:
 
 class RekomendasiTipe:
     """Pilihan dropdown rekomendasi — sama untuk APSM dan Admin HO."""
-    MUSNAHKAN         = "musnahkan"
-    JUAL_PAKAN_TERNAK = "jual_pakan_ternak"
-    KIRIM_KE_HO       = "kirim_ke_ho"
-    GANTI_BARANG      = "ganti_barang"
-    POTONG_TAGIHAN    = "potong_tagihan"
+    MUSNAHKAN            = "musnahkan"
+    JUAL_PAKAN_TERNAK    = "jual_pakan_ternak"
+    KIRIM_KE_HO          = "kirim_ke_ho"
+    GANTI_BARANG         = "ganti_barang"
+    POTONG_TAGIHAN       = "potong_tagihan"
+    TIDAK_ADA_KOMPENSASI = "tidak_ada_kompensasi"
 
-    ALL = [MUSNAHKAN, JUAL_PAKAN_TERNAK, KIRIM_KE_HO, GANTI_BARANG, POTONG_TAGIHAN]
+    ALL = [MUSNAHKAN, JUAL_PAKAN_TERNAK, KIRIM_KE_HO, GANTI_BARANG, POTONG_TAGIHAN, TIDAK_ADA_KOMPENSASI]
 
     LABELS = {
-        MUSNAHKAN:         "Dimusnahkan",
-        JUAL_PAKAN_TERNAK: "Dijual sebagai pakan ternak",
-        KIRIM_KE_HO:       "Dikirim kembali ke HO",
-        GANTI_BARANG:      "Ganti barang baru",
-        POTONG_TAGIHAN:    "Potong tagihan (cashback)",
+        MUSNAHKAN:            "Dimusnahkan",
+        JUAL_PAKAN_TERNAK:    "Dijual sebagai pakan ternak",
+        KIRIM_KE_HO:          "Dikirim kembali ke HO",
+        GANTI_BARANG:         "Ganti barang baru",
+        POTONG_TAGIHAN:       "Potong tagihan (cashback)",
+        TIDAK_ADA_KOMPENSASI: "Tanpa kompensasi",
     }
 
 
@@ -102,12 +110,82 @@ class StatusItem:
     ALL = [PENDING, DITERIMA, DITOLAK]
 
 
+# ─── Sample keluhan yang disertakan saat FKP diajukan ─────────────────────
+# BARU (bonus permintaan) — dropdown bertingkat di form FKP:
+#   1. AdaSampleKeluhan: Ada / Tidak Ada
+#   2. Kalau "Ada" -> KondisiSample: Kemasan Utuh / Kemasan Sudah Dibuka /
+#      Kemasan Plastik (BARU — sample kecil non-zak untuk dianalisa QC,
+#      bukan kiriman produk utuh) / Lainnya (free text)
+class AdaSampleKeluhan:
+    ADA        = "ada"
+    TIDAK_ADA  = "tidak_ada"
+
+    ALL = [ADA, TIDAK_ADA]
+
+    LABELS = {
+        ADA:       "Ada",
+        TIDAK_ADA: "Tidak Ada",
+    }
+
+
+class KondisiSample:
+    UTUH             = "utuh"              # kemasan utuh / masih segel
+    TERBUKA           = "terbuka"           # kemasan sudah dibuka
+    # BARU — sample dikirim dalam bentuk plastik kecil (bukan zak/kemasan
+    # produk utuh), khusus untuk keperluan analisa QC. Sesuai proses riil
+    # di lapangan sekarang.
+    KEMASAN_PLASTIK   = "kemasan_plastik"
+    LAINNYA           = "lainnya"           # free text, diisi user di field terpisah
+
+    ALL = [UTUH, TERBUKA, KEMASAN_PLASTIK, LAINNYA]
+
+    LABELS = {
+        UTUH:           "Kemasan Utuh (segel)",
+        TERBUKA:        "Kemasan Sudah Dibuka",
+        KEMASAN_PLASTIK: "Kemasan Plastik (sample kecil untuk analisa QC)",
+        LAINNYA:        "Lainnya",
+    }
+
+
 class TipeResolusi:
     TUKAR_BARANG   = "tukar_barang"
     POTONG_TAGIHAN = "potong_tagihan"
     TIDAK_ADA_KOMPENSASI = "tidak_ada_kompensasi"
 
     ALL = [TUKAR_BARANG, POTONG_TAGIHAN, TIDAK_ADA_KOMPENSASI]
+
+
+# ─── Gate Persetujuan Direktur (RSM_APPROVAL_RESOLUSI → bercabang) ────────
+# Sebelumnya: rsm_approve_resolusi() SELALU mengarahkan ke DIREKTUR_APPROVAL
+# saat disetujui. Business rule baru: Direktur hanya perlu ikut approve
+# kalau tipe_resolusi termasuk yang "berat" (tukar_barang/potong_tagihan)
+# DAN total qty klaim (FkpItem.qty, dijumlah semua item FKP) > batas.
+# Selain itu (qty ≤ batas, atau tipe_resolusi = pemusnahan/tidak_ada_kompensasi)
+# → langsung ke ACCEPTED, skip Direktur.
+#
+# PENTING: pakai FkpItem.qty (qty klaim awal), BUKAN FkpItem.qty_disetujui.
+# qty_disetujui baru diisi Admin HO saat fase ACCEPTED (lihat
+# _validasi_dan_simpan_qty_disetujui di fkp_service.py) — di titik RSM
+# approve resolusi, nilainya masih selalu None. qty klaim awal sudah
+# tersedia sejak FKP dibuat, jadi valid dipakai gate di titik ini.
+BATAS_QTY_DIREKTUR = 10  # zak — strictly LEBIH DARI angka ini butuh TTD Direktur
+
+TIPE_RESOLUSI_KENA_GATE_DIREKTUR = [
+    TipeResolusi.TUKAR_BARANG,
+    TipeResolusi.POTONG_TAGIHAN,
+]
+
+
+def butuh_approval_direktur(tipe_resolusi: str, total_qty: int) -> bool:
+    """
+    True kalau resolusi ini butuh persetujuan tambahan Direktur.
+    Berlaku hanya untuk tukar_barang & potong_tagihan, dengan total qty
+    klaim (semua item FKP) > BATAS_QTY_DIREKTUR.
+    """
+    if tipe_resolusi not in TIPE_RESOLUSI_KENA_GATE_DIREKTUR:
+        return False
+    return total_qty > BATAS_QTY_DIREKTUR
+
 
 class MetodePenangananFisik:
     """
@@ -305,6 +383,18 @@ class FkpComplaint(SQLModel, table=True):
     
     approved_by_marketing: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id")
     approved_by_direktur: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id")
+    # BARU — dipakai PDF FKP (section D. Tanda Tangan) untuk menampilkan
+    # TTD kolom ke-4 sebagai "RSM (Manager Sales & Marketing)" alih-alih
+    # "Direktur", untuk FKP yang TIDAK melewati Direktur sama sekali:
+    #   - jalur cepat (rsm_approve_final(), qty ≤ BATAS_QTY_DIREKTUR), atau
+    #   - jalur biasa tapi tipe_resolusi di luar gate Direktur
+    #     (rsm_approve_resolusi() cabang skip — pemusnahan/tidak_ada_kompensasi)
+    # Kedua field (approved_by_direktur, approved_by_rsm_final) SALING
+    # EKSKLUSIF — satu FKP hanya akan punya salah satunya terisi, karena
+    # keduanya sama-sama menandai "siapa yang men-set status ke accepted".
+    # PDF/template cukup cek: ada direktur_name? pakai itu. kalau tidak,
+    # pakai rsm_final_name.
+    approved_by_rsm_final: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id")
 
     # Timestamp
     tanggal_pengajuan: Optional[datetime] = Field(
@@ -376,9 +466,20 @@ class FkpItem(SQLModel, table=True):
     expired_date: Optional[date] = Field(default=None)
 
     # Detail keluhan
-    ada_sample_keluhan: str = Field(default="tidak_ada", max_length=20)
+    # ── Sample keluhan (BARU — dropdown bertingkat, lihat AdaSampleKeluhan
+    #    & KondisiSample di atas) ─────────────────────────────────────────
+    # ada_sample_keluhan: "ada" | "tidak_ada" (dulu ada nilai "foto" yang
+    # sekarang di-drop — foto sample sekarang murni ditentukan lewat upload
+    # attachment tipe foto_sample, bukan value terpisah di field ini).
+    ada_sample_keluhan: str = Field(default=AdaSampleKeluhan.TIDAK_ADA, max_length=20)
     ada_foto_sample: bool = Field(default=False)
-    kondisi_sample: Optional[str] = Field(default=None, max_length=20)  # "utuh" | "terbuka" | custom
+    # kondisi_sample hanya relevan kalau ada_sample_keluhan == "ada".
+    # Nilai: utuh | terbuka | kemasan_plastik | lainnya (lihat KondisiSample).
+    kondisi_sample: Optional[str] = Field(default=None, max_length=20)
+    # BARU — wajib diisi user HANYA kalau kondisi_sample == "lainnya".
+    # Ditampilkan sebagai field tambahan di form saat opsi "Lainnya" dipilih.
+    kondisi_sample_lainnya: Optional[str] = Field(default=None, max_length=100)
+
     tanggal_pembelian: Optional[date] = Field(default=None)
     tanggal_dikonsumsi: Optional[date] = Field(default=None)
 
@@ -393,6 +494,9 @@ class FkpItem(SQLModel, table=True):
     persentase_disetujui_apsm: Optional[int] = Field(default=None)
 
     # Rekomendasi Admin HO (per item)
+    # DEPRECATED — Admin HO tidak lagi mengisi rekomendasi per item (lihat
+    # catatan di admin_ho_review(), fkp_service.py). Kolom dipertahankan di
+    # DB untuk backward compat data lama, TIDAK diisi lagi untuk FKP baru.
     # rekomendasi_admin_ho: Optional[str] = Field(default=None, max_length=30)
     rekomendasi_penanganan_admin_ho: Optional[str]
     rekomendasi_kompensasi_admin_ho: Optional[str]
@@ -509,6 +613,12 @@ class FkpResolution(SQLModel, table=True):
     lokasi_pemusnahan: Optional[str] = Field(default=None, max_length=255)
 
     keterangan: Optional[str] = Field(default=None)
+
+    diteruskan_ke_warehouse: bool = Field(default=False)
+    tanggal_diteruskan_ke_warehouse: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    diteruskan_oleh: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id")
     
     catatan_finance: Optional[str] = Field(default=None)
     diproses_finance: bool = Field(default=False)

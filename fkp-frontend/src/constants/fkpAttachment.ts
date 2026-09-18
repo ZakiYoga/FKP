@@ -29,18 +29,16 @@ export const TIPE_FOTO_OPTIONS = [
     { value: "foto_keluhan", label: "Foto Keluhan Produk" },
     { value: "foto_sample", label: "Foto Sample" },
     { value: "foto_expired", label: "Foto Expired Date" },
+    { value: "dokumen_lainnya", label: "Dokumen Lainnya" },
 ]
 
-
-
 export const DEFAULT_TIPE_SEQUENCE = [
-    'foto_expired',
-    'foto_kode_produksi',
-    'foto_keluhan',
-    'dokumen_lainnya',
+    "foto_expired",
+    "foto_keluhan",
+    "foto_sample",
+    "dokumen_lainnya",
 ]
 
 export function getDefaultTipe(index: number): string {
-    const defaults = ["foto_expired", "foto_keluhan"]
-    return defaults[index] ?? "foto_keluhan"
+    return DEFAULT_TIPE_SEQUENCE[index] ?? "foto_sample"
 }

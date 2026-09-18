@@ -65,6 +65,10 @@ PUBLIC_STATUS_LABELS = {
     FkpStatus.INVESTIGATED:             "Investigasi Selesai — Menyusun Resolusi",
     FkpStatus.RSM_APPROVAL_RESOLUSI:    "Menunggu Persetujuan Resolusi",
     FkpStatus.DIREKTUR_APPROVAL:        "Menunggu Persetujuan Final",
+    # BARU — jalur cepat. Diposisikan setara dengan RSM_APPROVAL_INVESTIGASI
+    # di STAGE_ORDER (lihat catatan di bawah kenapa ini aman meski dua
+    # cabang saling eksklusif).
+    FkpStatus.RSM_APPROVAL_FINAL:       "Menunggu Persetujuan Akhir",
     FkpStatus.ACCEPTED:                 "Disetujui — Sedang Diproses",
     FkpStatus.IN_PROCESS:               "Dalam Proses Penyelesaian",
     FkpStatus.NEED_REVISION:            "Dikembalikan untuk Perbaikan",
@@ -72,11 +76,22 @@ PUBLIC_STATUS_LABELS = {
     FkpStatus.CLOSED:                   "Selesai",
 }
 
-# Urutan maju (tidak termasuk need_revision / rejected / draft)
+# Urutan maju (tidak termasuk need_revision / rejected / draft).
+#
+# BARU: RSM_APPROVAL_FINAL disisipkan di sini walau jalur cepat & jalur
+# biasa saling eksklusif (satu FKP cuma lewat salah satu). Ini AMAN karena
+# _build_timeline() di bawah hanya menampilkan stage yang punya timestamp
+# log ASLI (benar-benar pernah disinggahi) atau stage yang sedang current —
+# stage yang tidak pernah disinggahi (ts=None) selalu di-skip lewat
+# `continue`, terlepas dari posisinya di list ini. Jadi tidak ada risiko
+# "RSM_APPROVAL_FINAL muncul completed" untuk FKP jalur biasa, atau
+# sebaliknya — posisi relatif dua stage yang mutually-exclusive ini tidak
+# pernah dibandingkan satu sama lain di FKP yang sama.
 STAGE_ORDER = [
     FkpStatus.SUBMITTED,
     FkpStatus.APSM_REVIEWED,
     FkpStatus.RSM_APPROVAL_INVESTIGASI,
+    FkpStatus.RSM_APPROVAL_FINAL,
     FkpStatus.IN_INVESTIGATION,
     FkpStatus.INVESTIGATED,
     FkpStatus.RSM_APPROVAL_RESOLUSI,

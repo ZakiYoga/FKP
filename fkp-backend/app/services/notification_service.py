@@ -364,13 +364,21 @@ async def kirim_notifikasi_transisi(
             tipe=TipeNotifikasi.STATUS_CHANGE,
         )
 
-    # ── DIREKTUR_APPROVAL → ACCEPTED ─────────────────────────────────────────
+    # ── RSM_APPROVAL_RESOLUSI / DIREKTUR_APPROVAL → ACCEPTED ─────────────────
+    # BARU: bisa datang dari 2 sumber sekarang —
+    #   - DIREKTUR_APPROVAL → ACCEPTED  (qty > batas, lewat Direktur)
+    #   - RSM_APPROVAL_RESOLUSI → ACCEPTED (qty ≤ batas, skip Direktur)
+    # Pesan disesuaikan supaya tidak salah klaim "disetujui Direktur"
+    # padahal Direktur tidak dilibatkan sama sekali di jalur skip.
     elif status_baru == FkpStatus.ACCEPTED:
+        disetujui_oleh = (
+            "Direktur" if status_lama == FkpStatus.DIREKTUR_APPROVAL else "RSM"
+        )
         # Notify submitter — info
         await _buat_notif(db, fkp.submitted_by, fkp_id,
             judul=f"FKP Diterima ✅: {nomor}",
             pesan=(
-                f"FKP {nomor} telah disetujui Direktur. "
+                f"FKP {nomor} telah disetujui {disetujui_oleh}. "
                 f"Proses resolusi akan segera dilakukan."
             ),
             tipe=TipeNotifikasi.STATUS_CHANGE,
@@ -380,7 +388,7 @@ async def kirim_notifikasi_transisi(
             await _buat_notif(db, u.id, fkp_id,
                 judul=f"FKP Diterima — Buat Resolusi: {nomor}",
                 pesan=(
-                    f"Direktur telah menyetujui FKP {nomor}. "
+                    f"{disetujui_oleh} telah menyetujui FKP {nomor}. "
                     f"Silakan buat resolusi (tukar barang / potong tagihan / pemusnahan)."
                 ),
                 tipe=TipeNotifikasi.NEED_ACTION,
@@ -389,7 +397,7 @@ async def kirim_notifikasi_transisi(
         for u in await _get_users_by_role(db, "qc"):
             await _buat_notif(db, u.id, fkp_id,
                 judul=f"FKP Diterima — Input Resolusi: {nomor}",
-                pesan=f"FKP {nomor} telah disetujui Direktur. Silakan input resolusi.",
+                pesan=f"FKP {nomor} telah disetujui {disetujui_oleh}. Silakan input resolusi.",
                 tipe=TipeNotifikasi.NEED_ACTION,
             )
 
@@ -621,3 +629,28 @@ async def delete_notification(
     await db.delete(notif)
     await db.commit()
     return True
+
+
+async def kirim_notifikasi_qc_paralel(db: AsyncSession, fkp, user: User) -> None:
+    """
+    BARU — notifikasi untuk qc_catatan_investigasi_paralel() (jalur cepat).
+    Beda dari kirim_notifikasi_transisi(): TIDAK berbasis pasangan
+    status_lama/status_baru karena tidak ada transisi status di aksi ini —
+    QC cuma menambahkan catatan/insight yang berjalan paralel, tidak
+    menahan proses resolusi/RSM/surat jalan yang sedang berjalan.
+    """
+    nomor = getattr(fkp, "nomor_fkp", str(fkp.id))
+    pesan = f"QC menambahkan catatan investigasi (paralel) untuk FKP {nomor}."
+
+    for u in await _get_users_by_role(db, "admin_ho"):
+        await _buat_notif(db, u.id, fkp.id,
+            judul=f"Catatan QC Baru: {nomor}",
+            pesan=pesan,
+            tipe=TipeNotifikasi.STATUS_CHANGE,
+        )
+    for u in await _get_users_by_role(db, "rsm"):
+        await _buat_notif(db, u.id, fkp.id,
+            judul=f"Catatan QC Baru: {nomor}",
+            pesan=pesan,
+            tipe=TipeNotifikasi.STATUS_CHANGE,
+        )

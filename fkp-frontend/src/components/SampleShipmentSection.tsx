@@ -428,7 +428,7 @@ export function SampleShipmentSection({ fkpId, fkpItems, fkpStatus, attachments 
       {/* ── Terima di Warehouse ──────────────────────────────────────────────── */}
       <Modal isOpen={modal === 'receive'} onClose={closeModal} title="Terima Sample di Warehouse" size="md">
         <div className="space-y-4">
-          <Input label="Nomor Tanda Terima" required value={receiveForm.nomor_tanda_terima}
+          <Input label="Nomor Tanda Terima / Tanggal Diterima (dd/mm/yy)" required value={receiveForm.nomor_tanda_terima}
             onChange={(e) => setReceiveForm((p) => ({ ...p, nomor_tanda_terima: e.target.value }))} />
           <Textarea label="Catatan Warehouse (opsional)" rows={2} value={receiveForm.catatan_warehouse}
             onChange={(e) => setReceiveForm((p) => ({ ...p, catatan_warehouse: e.target.value }))} />

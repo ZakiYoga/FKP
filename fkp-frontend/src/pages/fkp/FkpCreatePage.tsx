@@ -109,16 +109,30 @@ export function FkpCreatePage() {
     }, [watchDistributor])
 
     useEffect(() => {
-        if (distributors.length >= 1 && lokasiMode === null) {
-            const d = distributors[0]
-            setLokasiMode('hierarki')
-            setValue(
-                'lokasi_pembelian',
-                `[${d.kode_distributor}] ${d.nama_perusahaan}`,
-                { shouldValidate: true }
-            )
+        // Default tab begitu distributor termuat & user belum pilih mode apa pun
+        if (lokasiMode === null) {
+            if (distributors.length > 0) setLokasiMode('hierarki')
+            return
         }
-    }, [distributors])
+
+        if (lokasiMode === 'hierarki') {
+            if (distributors.length === 1) {
+                const d = distributors[0]
+                setValue(
+                    'lokasi_pembelian',
+                    `[${d.kode_distributor}] ${d.nama_perusahaan}`,
+                    { shouldValidate: true }
+                )
+            } else {
+                // 0 atau >1 distributor → jangan menebak, user wajib pilih manual
+                setValue('lokasi_pembelian', '')
+            }
+        } else if (lokasiMode === 'online') {
+            setValue('lokasi_pembelian', 'Online / E-commerce', { shouldValidate: true })
+        } else if (lokasiMode === 'lain') {
+            setValue('lokasi_pembelian', '')
+        }
+    }, [lokasiMode, distributors, setValue])
 
     const outletBelumTerdaftar = isOutlet && !loadingDist && distributors.length === 0
     const lokasi_pembelian = watch('lokasi_pembelian')
@@ -216,7 +230,7 @@ export function FkpCreatePage() {
     }
 
     return (
-        <div className="max-w-3xl mx-auto animate-fade-in">
+        <div className="mx-auto animate-fade-in">
 
             {/* Page header */}
             <div className="flex items-center gap-3 mb-6">
@@ -242,53 +256,74 @@ export function FkpCreatePage() {
                 </div>
             )}
 
+
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-
-                {/* ── Section 1: Identitas FKP ─────────────────────── */}
-                <div className="card">
-                    <div className="card-header">
-                        <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-                            <span className="w-6 h-6 rounded-full bg-brand-600 text-white text-xs
+                <div className="grid grid-cols-2 gap-4">
+                    {/* ── Section 1: Identitas FKP ─────────────────────── */}
+                    <div className="card">
+                        <div className="card-header">
+                            <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                                <span className="w-6 h-6 rounded-full bg-brand-600 text-white text-xs
                                              flex items-center justify-center font-bold">1</span>
-                            Identitas FKP
-                        </h2>
-                    </div>
-                    <div className="card-body space-y-4">
-                        {!outletBelumTerdaftar && (
-                            <div>
-                                <Select
-                                    label="Distributor" required
-                                    placeholder={loadingDist ? 'Memuat...' : '— Pilih distributor —'}
-                                    error={errors.distributor_id?.message}
-                                    disabled={(isOutlet || isDistributor) && distributors.length === 1}
-                                    {...register('distributor_id')}
-                                >
-                                    {distributors.map((d) => (
-                                        <option key={d.id} value={d.id}>
-                                            [{d.kode_distributor}] {d.nama_perusahaan}
-                                        </option>
-                                    ))}
-                                </Select>
-                                {(isOutlet || isDistributor) && distributors.length === 1 && (
-                                    <p className="text-xs text-gray-400 mt-1">
-                                        {isOutlet ? 'Outlet Anda terdaftar di distributor ini.' : 'Distributor Anda.'}
-                                    </p>
-                                )}
-                            </div>
-                        )}
+                                Identitas FKP
+                            </h2>
+                        </div>
+                        <div className="card-body space-y-4">
+                            {!outletBelumTerdaftar && (
+                                <div>
+                                    <Select
+                                        label="Distributor" required
+                                        placeholder={loadingDist ? 'Memuat...' : '— Pilih distributor —'}
+                                        error={errors.distributor_id?.message}
+                                        disabled={(isOutlet || isDistributor) && distributors.length === 1}
+                                        {...register('distributor_id')}
+                                    >
+                                        {distributors.map((d) => (
+                                            <option key={d.id} value={d.id}>
+                                                [{d.kode_distributor}] {d.nama_perusahaan}
+                                            </option>
+                                        ))}
+                                    </Select>
+                                    {(isOutlet || isDistributor) && distributors.length === 1 && (
+                                        <p className="text-xs text-gray-400 mt-1">
+                                            {isOutlet ? 'Outlet Anda terdaftar di distributor ini.' : 'Distributor Anda.'}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
 
-                        {watchDistributor && (
-                            // Role outlet: dropdown berisi HANYA outlet milik user ini
-                            // (sudah difilter backend by pic_user_id). Wajib dipilih —
-                            // divalidasi lewat superRefine di schema, bukan disabled,
-                            // karena bisa lebih dari 1 pilihan (multi-outlet PIC).
-                            isOutlet ? (
-                                outlets.length > 0 && (
-                                    <div>
+                            {watchDistributor && (
+                                // Role outlet: dropdown berisi HANYA outlet milik user ini
+                                // (sudah difilter backend by pic_user_id). Wajib dipilih —
+                                // divalidasi lewat superRefine di schema, bukan disabled,
+                                // karena bisa lebih dari 1 pilihan (multi-outlet PIC).
+                                isOutlet ? (
+                                    outlets.length > 0 && (
+                                        <div>
+                                            <Select
+                                                label="Outlet" required
+                                                placeholder={loadingOutlets ? 'Memuat...' : '— Pilih outlet Anda —'}
+                                                error={errors.outlet_id?.message}
+                                                {...register('outlet_id')}
+                                            >
+                                                {outlets.map((o) => (
+                                                    <option key={o.id} value={o.id}>
+                                                        [{o.kode_outlet}] {o.nama_toko}
+                                                    </option>
+                                                ))}
+                                            </Select>
+                                            <p className="text-xs text-gray-400 mt-1">
+                                                {outlets.length === 1
+                                                    ? 'Keluhan tercatat atas nama outlet Anda.'
+                                                    : 'Anda terdaftar sebagai PIC di lebih dari satu outlet — pilih salah satu.'}
+                                            </p>
+                                        </div>
+                                    )
+                                ) : (
+                                    outlets.length > 0 && (
                                         <Select
-                                            label="Outlet" required
-                                            placeholder={loadingOutlets ? 'Memuat...' : '— Pilih outlet Anda —'}
-                                            error={errors.outlet_id?.message}
+                                            label={`Outlet (opsional)${loadingOutlets ? ' — Memuat...' : ''}`}
+                                            placeholder="— Pilih Outlet —"
                                             {...register('outlet_id')}
                                         >
                                             {outlets.map((o) => (
@@ -297,31 +332,11 @@ export function FkpCreatePage() {
                                                 </option>
                                             ))}
                                         </Select>
-                                        <p className="text-xs text-gray-400 mt-1">
-                                            {outlets.length === 1
-                                                ? 'Keluhan tercatat atas nama outlet Anda.'
-                                                : 'Anda terdaftar sebagai PIC di lebih dari satu outlet — pilih salah satu.'}
-                                        </p>
-                                    </div>
+                                    )
                                 )
-                            ) : (
-                                outlets.length > 0 && (
-                                    <Select
-                                        label={`Outlet (opsional)${loadingOutlets ? ' — Memuat...' : ''}`}
-                                        placeholder="— Pilih Outlet —"
-                                        {...register('outlet_id')}
-                                    >
-                                        {outlets.map((o) => (
-                                            <option key={o.id} value={o.id}>
-                                                [{o.kode_outlet}] {o.nama_toko}
-                                            </option>
-                                        ))}
-                                    </Select>
-                                )
-                            )
-                        )}
+                            )}
 
-                        {/* <Select label="Prioritas" required error={errors.prioritas?.message}
+                            {/* <Select label="Prioritas" required error={errors.prioritas?.message}
                             {...register('prioritas')}>
                             <option value="top_urgent">🔴 Top Urgent</option>
                             <option value="urgent">🟠 Urgent</option>
@@ -329,209 +344,188 @@ export function FkpCreatePage() {
                             <option value="low">🔵 Low</option>
                         </Select> */}
 
-                        <div>
-                            {/* Lokasi Pembelian — Smart Selector */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Lokasi Pembelian <span className="text-red-500">*</span>
-                                </label>
+                                {/* Lokasi Pembelian — Smart Selector */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Lokasi Pembelian <span className="text-red-500">*</span>
+                                    </label>
 
-                                {/* Segmented control */}
-                                <div className="flex rounded-lg border border-gray-200 overflow-hidden mb-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setLokasiMode('hierarki')
-                                            setValue('lokasi_pembelian', '')
-                                        }}
-                                        className={`flex-1 py-2 text-sm transition-colors ${lokasiMode === 'hierarki'
-                                            ? 'bg-brand-600 text-white font-medium'
-                                            : 'bg-white text-gray-500 hover:bg-gray-50'
-                                            }`}
-                                    >
-                                        Dari distributor outlet
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setLokasiMode('online')
-                                            setValue('lokasi_pembelian', 'Online / E-commerce', { shouldValidate: true })
-                                        }}
-                                        className={`flex-1 py-2 text-sm border-l border-gray-200 transition-colors ${lokasiMode === 'online'
-                                            ? 'bg-brand-600 text-white font-medium'
-                                            : 'bg-white text-gray-500 hover:bg-gray-50'
-                                            }`}
-                                    >
-                                        Online / E-commerce
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setLokasiMode('lain')
-                                            setValue('lokasi_pembelian', '')
-                                        }}
-                                        className={`flex-1 py-2 text-sm border-l border-gray-200 transition-colors ${lokasiMode === 'lain'
-                                            ? 'bg-brand-600 text-white font-medium'
-                                            : 'bg-white text-gray-500 hover:bg-gray-50'
-                                            }`}
-                                    >
-                                        Lokasi lain / Subdist
-                                    </button>
-                                </div>
+                                    {/* Segmented control */}
+                                    <div className="flex rounded-lg border border-gray-200 overflow-hidden mb-3">
+                                        {/* Segmented control — onClick cuma ganti mode, value diurus effect di atas */}
+                                        <button type="button" onClick={() => setLokasiMode('hierarki')}
+                                            className={`flex-1 py-2 text-sm transition-colors ${lokasiMode === 'hierarki'
+                                                ? 'bg-brand-600 text-white font-medium' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
+                                            Dari distributor outlet
+                                        </button>
+                                        {/* <button type="button" onClick={() => setLokasiMode('online')}
+                                            className={`flex-1 py-2 text-sm border-l border-gray-200 transition-colors ${lokasiMode === 'online'
+                                                ? 'bg-brand-600 text-white font-medium' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
+                                            Online / E-commerce
+                                        </button> */}
+                                        <button type="button" onClick={() => setLokasiMode('lain')}
+                                            className={`flex-1 py-2 text-sm border-l border-gray-200 transition-colors ${lokasiMode === 'lain'
+                                                ? 'bg-brand-600 text-white font-medium' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
+                                            Lokasi lain / Subdist
+                                        </button>
+                                    </div>
 
-                                {/* Mode: dari hierarki → radio distributor */}
-                                {lokasiMode === 'hierarki' && (
-                                    <div className="space-y-2">
-                                        {distributors.map((d) => (
-                                            <label
-                                                key={d.id}
-                                                className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${watch('lokasi_pembelian') === d.nama_perusahaan
-                                                    ? 'border-brand-400 bg-brand-50'
-                                                    : 'border-gray-200 hover:border-gray-300'
-                                                    }`}
-                                            >
+                                    {/* Mode: dari hierarki */}
+                                    {lokasiMode === 'hierarki' && (
+                                        <div className="space-y-2">
+                                            {distributors.length === 1 ? (
+                                                <div className="flex items-center gap-3 p-3 rounded-xl border border-brand-400 bg-brand-50">
+                                                        <p className="text-sm font-medium text-gray-800">{distributors[0].nama_perusahaan}</p>
+                                                        <p className="text-xs text-gray-400 ml-auto">{distributors[0].kode_distributor}</p>
+                                                </div>
+                                            ) : (
+                                                distributors.map((d) => {
+                                                    const value = `[${d.kode_distributor}] ${d.nama_perusahaan}`
+                                                    const isChecked = watch('lokasi_pembelian') === value   // fix: banding value lengkap
+                                                    return (
+                                                        <label key={d.id}
+                                                            className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${isChecked
+                                                                ? 'border-brand-400 bg-brand-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                                                            <input
+                                                                type="radio"
+                                                                name="lokasi_radio"
+                                                                className="accent-brand-600"
+                                                                checked={isChecked}
+                                                                onChange={() => setValue('lokasi_pembelian', value, { shouldValidate: true })}
+                                                            />
+                                                            <div>
+                                                                <p className="text-sm font-medium text-gray-800">{d.nama_perusahaan}</p>
+                                                                <p className="text-xs text-gray-400">{d.kode_distributor}</p>
+                                                            </div>
+                                                            {isChecked && (
+                                                                <span className="ml-auto text-xs bg-brand-100 text-brand-700 px-2 py-0.5 rounded-full">
+                                                                    ✓ Terisi otomatis
+                                                                </span>
+                                                            )}
+                                                        </label>
+                                                    )
+                                                })
+                                            )}
+                                            <input type="hidden" {...register('lokasi_pembelian')} />
+                                            {errors.lokasi_pembelian && (
+                                                <p className="text-xs text-red-500 mt-1">{errors.lokasi_pembelian.message}</p>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* {lokasiMode === 'online' && (
+                                        <div className="space-y-2">
+                                            <label className="flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors bg-brand-50 border-brand-400">
                                                 <input
                                                     type="radio"
                                                     name="lokasi_radio"
                                                     className="accent-brand-600"
-                                                    onChange={() =>
-                                                        setValue(
-                                                            'lokasi_pembelian',
-                                                            `[${d.kode_distributor}] ${d.nama_perusahaan}`,
-                                                            { shouldValidate: true }
-                                                        )
-                                                    }
+                                                    checked
+                                                    onChange={() => { }}
                                                 />
                                                 <div>
-                                                    <p className="text-sm font-medium text-gray-800">{d.nama_perusahaan}</p>
-                                                    <p className="text-xs text-gray-400">{d.kode_distributor}</p>
+                                                    <p className="text-sm font-medium text-gray-800">Online / E-commerce</p>
+                                                    <p className="text-xs text-gray-400">Shopee, Tokopedia, Lazada, dll.</p>
                                                 </div>
-                                                {watch('lokasi_pembelian') === `[${d.kode_distributor}] ${d.nama_perusahaan}` && (
-                                                    <span className="ml-auto text-xs bg-brand-100 text-brand-700 px-2 py-0.5 rounded-full">
-                                                        ✓ Terisi otomatis
-                                                    </span>
-                                                )}
                                             </label>
-                                        ))}
-                                        {/* Field tersembunyi — auto-isi dari radio di atas */}
-                                        <input type="hidden" {...register('lokasi_pembelian')} />
-                                        {errors.lokasi_pembelian && (
-                                            <p className="text-xs text-red-500 mt-1">{errors.lokasi_pembelian.message}</p>
-                                        )}
-                                    </div>
-                                )}
-                                
-                                {lokasiMode === 'online' && (
-                                    <div className="space-y-2">
-                                        <label className="flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors bg-brand-50 border-brand-400">
-                                            <input
-                                                type="radio"
-                                                name="lokasi_radio"
-                                                className="accent-brand-600"
-                                                checked
-                                                onChange={() => { }}
+                                            <input type="hidden" {...register('lokasi_pembelian')} />
+                                        </div>
+                                    )} */}
+
+                                    {/* Mode: lokasi lain → input manual */}
+                                    {lokasiMode === 'lain' && (
+                                        <div>
+                                            <Input
+                                                placeholder="Contoh: Toko Barokah, Jl. Slamet Riyadi No. 12"
+                                                icon={<MapPin className="w-4 h-4" />}
+                                                error={errors.lokasi_pembelian?.message}
+                                                {...register('lokasi_pembelian')}
                                             />
-                                            <div>
-                                                <p className="text-sm font-medium text-gray-800">Online / E-commerce</p>
-                                                <p className="text-xs text-gray-400">Shopee, Tokopedia, Lazada, dll.</p>
-                                            </div>
-                                        </label>
-                                        {/* Field tersembunyi — hanya untuk registrasi; value diisi via setValue di onClick */}
-                                        <input type="hidden" {...register('lokasi_pembelian')} />
-                                    </div>
-                                )}
+                                        </div>
+                                    )}
 
-                                {/* Mode: lokasi lain → input manual */}
-                                {lokasiMode === 'lain' && (
-                                    <div>
-                                        <Input
-                                            placeholder="Contoh: Toko Barokah, Jl. Slamet Riyadi No. 12"
-                                            icon={<MapPin className="w-4 h-4" />}
-                                            error={errors.lokasi_pembelian?.message}
-                                            {...register('lokasi_pembelian')}
-                                        />
-                                    </div>
-                                )}
+                                    {/* Belum pilih mode */}
+                                    {lokasiMode === null && errors.lokasi_pembelian && (
+                                        <p className="text-xs text-red-500 mt-1">{errors.lokasi_pembelian.message}</p>
+                                    )}
 
-                                {/* Belum pilih mode */}
-                                {lokasiMode === null && errors.lokasi_pembelian && (
-                                    <p className="text-xs text-red-500 mt-1">{errors.lokasi_pembelian.message}</p>
-                                )}
-
-                                <p className="text-xs text-gray-400 mt-1">
-                                    Semua produk dalam 1 FKP diasumsikan dari lokasi yang sama.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* ── Section 2: Item Produk ───────────────────────── */}
-                <div className="card">
-                    <div className="card-header">
-                        <div className="flex items-center justify-between">
-                            <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-                                <span className="w-6 h-6 rounded-full bg-brand-600 text-white text-xs
-                                                 flex items-center justify-center font-bold">2</span>
-                                Item Produk
-                            </h2>
-                            <span className="text-xs text-gray-400">{items.length} item</span>
-                        </div>
-                    </div>
-                    <div className="card-body space-y-3">
-                        {items.length === 0 && (
-                            <div className="flex items-start gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
-                                <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                                <p className="text-xs text-amber-700">
-                                    Minimal 1 item produk wajib ditambahkan sebelum menyimpan FKP.
-                                </p>
-                            </div>
-                        )}
-
-                        {items.map((item, idx) => {
-                            const keluhan = JENIS_KELUHAN_LABEL[item.payload.jenis_keluhan] ?? item.payload.jenis_keluhan
-                            const qtyLabel = item.payload.qty > 0
-                                ? `${item.payload.qty} ${item.payload.jenis_kemasan ?? 'unit'}`
-                                : ''
-
-                            return (
-                                <div key={item._key}
-                                    className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 bg-gray-50">
-                                    <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 text-sm font-bold
-                                                    flex items-center justify-center shrink-0">
-                                        {idx + 1}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-gray-800 truncate">{item.namaLabel}</p>
-                                        <p className="text-xs text-gray-500 mt-0.5">
-                                            {keluhan}
-                                            {qtyLabel && <> · <span className="font-medium">{qtyLabel}</span></>}
-                                        </p>
-                                        {item.files.length > 0 && (
-                                            <p className="text-xs text-brand-600 mt-1">
-                                                📎 {item.files.length} foto terlampir
-                                            </p>
-                                        )}
-                                    </div>
-                                    <button type="button" onClick={() => openEditItemModal(item)}
-                                        className="p-1.5 text-gray-400 hover:text-brand-500 hover:bg-brand-50 rounded-lg transition-colors">
-                                        <Pencil className="w-4 h-4" />
-                                    </button>
-                                    <button type="button" onClick={() => removeItem(item._key)}
-                                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
+                                    <p className="text-xs text-gray-400 mt-1">
+                                        Semua produk dalam 1 FKP diasumsikan dari lokasi yang sama.
+                                    </p>
                                 </div>
-                            )
-                        })}
+                            </div>
+                        </div>
+                    </div>
 
-                        <button type="button" onClick={openAddItemModal} disabled={loadingProd}
-                            className="w-full border-2 border-dashed border-gray-200 rounded-xl py-4
+                    {/* ── Section 2: Item Produk ───────────────────────── */}
+                    <div className="card">
+                        <div className="card-header">
+                            <div className="flex items-center justify-between">
+                                <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                                    <span className="w-6 h-6 rounded-full bg-brand-600 text-white text-xs
+                                                 flex items-center justify-center font-bold">2</span>
+                                    Item Produk
+                                </h2>
+                                <span className="text-xs text-gray-400">{items.length} item</span>
+                            </div>
+                        </div>
+                        <div className="card-body space-y-3">
+                            {items.length === 0 && (
+                                <div className="flex items-start gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                                    <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                                    <p className="text-xs text-amber-700">
+                                        Minimal 1 item produk wajib ditambahkan sebelum menyimpan FKP.
+                                    </p>
+                                </div>
+                            )}
+
+                            {items.map((item, idx) => {
+                                const keluhan = JENIS_KELUHAN_LABEL[item.payload.jenis_keluhan] ?? item.payload.jenis_keluhan
+                                const qtyLabel = item.payload.qty > 0
+                                    ? `${item.payload.qty} ${item.payload.jenis_kemasan ?? 'unit'}`
+                                    : ''
+
+                                return (
+                                    <div key={item._key}
+                                        className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 bg-gray-50">
+                                        <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 text-sm font-bold
+                                                    flex items-center justify-center shrink-0">
+                                            {idx + 1}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-semibold text-gray-800 truncate">{item.namaLabel}</p>
+                                            <p className="text-xs text-gray-500 mt-0.5">
+                                                {keluhan}
+                                                {qtyLabel && <> · <span className="font-medium">{qtyLabel}</span></>}
+                                            </p>
+                                            {item.files.length > 0 && (
+                                                <p className="text-xs text-brand-600 mt-1">
+                                                    📎 {item.files.length} foto terlampir
+                                                </p>
+                                            )}
+                                        </div>
+                                        <button type="button" onClick={() => openEditItemModal(item)}
+                                            className="p-1.5 text-gray-400 hover:text-brand-500 hover:bg-brand-50 rounded-lg transition-colors">
+                                            <Pencil className="w-4 h-4" />
+                                        </button>
+                                        <button type="button" onClick={() => removeItem(item._key)}
+                                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                )
+                            })}
+
+                            <button type="button" onClick={openAddItemModal} disabled={loadingProd}
+                                className="w-full border-2 border-dashed border-gray-200 rounded-xl py-4
                                        flex items-center justify-center gap-2 text-gray-400 text-sm
                                        hover:border-brand-400 hover:text-brand-500 hover:bg-brand-50 transition-all">
-                            <Plus className="w-4 h-4" /> Tambah Item Produk
-                        </button>
+                                <Plus className="w-4 h-4" /> Tambah Item Produk
+                            </button>
+                        </div>
                     </div>
+
                 </div>
 
                 {/* ── Section 3: Catatan ───────────────────────────── */}

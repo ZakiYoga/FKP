@@ -18,12 +18,12 @@ export function FkpCard({ fkp }: FkpCardProps) {
                  transition-all duration-200 group"
     >
       {/* Top row: nomor + prioritas */}
-      <div className="flex items-start justify-between gap-3 mb-3">
+      <div className="flex items-start flex-col">
         <div>
-          <p className="text-xs font-mono text-gray-400 mb-1">{fkp.nomor_fkp}</p>
+          <p className="text-sm font-mono font-medium text-gray-800 mb-1">{fkp.nomor_fkp}</p>
           {/* <PrioritasBadge prioritas={fkp.prioritas} /> */}
         </div>
-        <StatusBadge status={fkp.status} />
+        <StatusBadge classname='rounded-sm' status={fkp.status} />
       </div>
 
       {/* Jenis keluhan */}
