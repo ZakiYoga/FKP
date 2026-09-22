@@ -69,11 +69,9 @@ PERMISSION_CATALOG: List[Dict] = [
         "module": "fkp", "action": "rsm_approve_final",
         "label": "RSM Approve Final (Jalur Cepat)",
         "deskripsi": (
-            "RSM menyetujui/menolak FKP secara final pada jalur cepat "
-            "(total qty klaim ≤ BATAS_QTY_DIREKTUR) — langsung ke accepted, "
-            "tanpa melalui Direktur. Dicek manual via require_permission() "
-            "di rsm_approve_final(), bukan lewat STATUS_TO_PERMISSION, karena "
-            "target status ACCEPTED sudah dipakai fkp.direktur_approve."
+            "RSM approve/tolak FKP jalur cepat (qty ≤ BATAS_QTY_DIREKTUR) "
+            "langsung ke accepted, skip Direktur. Dicek manual, bukan lewat "
+            "STATUS_TO_PERMISSION (target ACCEPTED sudah dipakai fkp.direktur_approve)."
         ),
         "roles": ["rsm"],
     },
