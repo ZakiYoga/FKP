@@ -461,7 +461,7 @@
           <table class="tbl-meta">
             <tr>
               <td class="meta-label">No. Dokumen</td>
-              <td colspan="2">SPP/QC/FORM 25</td>
+              <td colspan="2">SPP/QC/FORM 24</td>
             </tr>
             <tr>
               <td class="meta-label">Revisi</td>
@@ -541,37 +541,40 @@
       <div class="produk-wrap">
         <div class="produk-head">Produk {{ loop.index }}</div>
         <table class="tbl-produk">
+          <colgroup>
+            <col style="width: 20%" />
+            <col style="width: 30%" />
+            <col style="width: 20%" />
+            <col style="width: 30%" />
+          </colgroup>
           <tr>
             <td class="plbl">Nama Produk</td>
-            <td class="pval" colspan="3">{{ item.nama_produk }}</td>
-          </tr>
-          <tr>
-            <td class="plbl">Jenis Kemasan</td>
-            <td class="pval" colspan="3">{{ item.jenis_kemasan or '' }}</td>
-          </tr>
-          <tr>
+            <td class="pval">{{ item.nama_produk }}</td>
             <td class="plbl">Jumlah Produk</td>
-            <td class="pval">{{ item.qty }} pcs</td>
-            <td class="hlbl">Kode Produksi</td>
-            <td class="hval">{{ item.batch_number or '' }}</td>
+            <td class="pval">
+              {{ item.qty }} {% if item.jenis_kemasan %} ({{ item.jenis_kemasan
+              }}){% endif %}
+            </td>
           </tr>
           <tr>
+            <td class="plbl">Kode Produksi</td>
+            <td class="pval">{{ item.batch_number or '-' }}</td>
             <td class="plbl">Tanggal Kadaluarsa</td>
             <td class="pval">
               {{ item.expired_date | format_date if item.expired_date else '-'
               }}
             </td>
-            <td class="hlbl">Tanggal Pembelian</td>
-            <td class="hval">
-              {{ item.tanggal_pembelian | format_date if item.tanggal_pembelian
-              else '-' }}
-            </td>
           </tr>
           <tr>
             <td class="plbl">Tanggal Dikonsumsi</td>
-            <td class="pval" colspan="3">
+            <td class="pval">
               {{ item.tanggal_dikonsumsi | format_date if
               item.tanggal_dikonsumsi else '-' }}
+            </td>
+            <td class="plbl">Tanggal Pembelian</td>
+            <td class="pval">
+              {{ item.tanggal_pembelian | format_date if item.tanggal_pembelian
+              else '-' }}
             </td>
           </tr>
           <tr>
@@ -584,26 +587,27 @@
             <td class="plbl">Sample Keluhan</td>
             <td class="pval">
               {% set sv = item.ada_sample_keluhan %}
-              <span class="cb"> {% if sv == 'ada' %}&#10003;{% endif %} </span>
+              <span class="cb">{% if sv == 'ada' %}&#10003;{% endif %}</span>
               <span class="cb-label">Ada</span><br />
-              <span class="cb"> {% if sv == 'foto' %}&#10003;{% endif %} </span>
-              <span class="cb-label">Foto</span><br />
+              <span class="cb">{% if sv == 'foto' %}&#10003;{% endif %}</span>
+              <span class="cb-label">Foto</span>
             </td>
-            <td class="hlbl">Kondisi Sample</td>
-            <td class="hval">
+            <td class="plbl">Kondisi Sample</td>
+            <td class="pval">
               <span class="cb">{% if kd == 'utuh' %}&#10003;{% endif %}</span>
-              <span class="cb-label"> Kemasan Utuh (segel) </span><br />
-              <span class="cb">
-                {% if kd == 'terbuka' %}&#10003;{% endif %}
-              </span>
+              <span class="cb-label">Kemasan Utuh (segel)</span><br />
+              <span class="cb"
+                >{% if kd == 'terbuka' %}&#10003;{% endif %}</span
+              >
               <span class="cb-label">Kemasan Sudah Dibuka</span><br />
-              <span class="cb">
-                {% if kd and kd not in ['utuh','terbuka'] %}&#10003;{% endif %}
-              </span>
+              <span class="cb"
+                >{% if kd and kd not in ['utuh','terbuka'] %}&#10003;{% endif
+                %}</span
+              >
               <span class="cb-label"
-                >Lainnya {% if kd and kd not in ['utuh','terbuka'] %}: {{ kd
-                }}{% endif %}
-              </span>
+                >Lainnya{% if kd and kd not in ['utuh','terbuka'] %}: {{ kd }}{%
+                endif %}</span
+              >
             </td>
           </tr>
           <tr>
@@ -625,8 +629,8 @@
           <tr>
             <td class="plbl">Rekomendasi Fisik</td>
             <td class="pval">{{ item.rekomendasi_fisik }}</td>
-            <td class="hlbl">Penanganan</td>
-            <td class="hval">{{ item.rekomendasi_penanganan }}</td>
+            <td class="plbl">Penanganan</td>
+            <td class="pval">{{ item.rekomendasi_penanganan }}</td>
           </tr>
           <tr>
             <td class="plbl">Persentase Disetujui</td>
@@ -634,8 +638,8 @@
               {{ item.rekomendasi_persentase ~ '%' if
               item.rekomendasi_persentase is not none else '-' }}
             </td>
-            <td class="hlbl">Catatan APSM</td>
-            <td class="hval">{{ item.catatan_apsm }}</td>
+            <td class="plbl">Catatan APSM</td>
+            <td class="pval">{{ item.catatan_apsm }}</td>
           </tr>
         </table>
       </div>
@@ -665,7 +669,9 @@
         {% if not is_jalur_cepat %}
         <tr>
           <td class="lbl">Catatan MSM (Investigasi)</td>
-          <td class="val" style="min-height: 20pt">{{ catatan_msm_investigasi }}</td>
+          <td class="val" style="min-height: 20pt">
+            {{ catatan_msm_investigasi }}
+          </td>
         </tr>
         {% endif %}
         <tr>
@@ -730,7 +736,9 @@
           </td>
           <td>
             <div class="ttd-space"></div>
-            <div class="ttd-name">{{ marketing_name if marketing_name else '-' }}</div>
+            <div class="ttd-name">
+              {{ marketing_name if marketing_name else '-' }}
+            </div>
             <div class="ttd-date">Tgl: ____/____/20___</div>
           </td>
           <td>

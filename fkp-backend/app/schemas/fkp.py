@@ -94,11 +94,11 @@ class FkpItemCreate(BaseModel):
     """
     Body untuk menambahkan 1 item produk ke dalam FKP.
     Bisa dipakai saat create FKP (multi-item) atau tambah item belakangan.
-    Minimal salah satu dari product_id atau nama_produk_custom harus diisi.
+    product_id WAJIB — setiap item harus merujuk produk yang terdaftar di
+    ProductCatalog (kemampuan item custom dihapus total).
     """
-    product_id: Optional[uuid.UUID] = None
-    nama_produk_custom: Optional[str] = None
-    jenis_kemasan: Optional[str] = None     # "karton" | "renceng" | "ball" | "zak" | "pcs" | None
+    product_id: uuid.UUID
+    jenis_kemasan: Optional[str] = None
 
     qty: int = 1
     batch_number: Optional[str] = None
@@ -113,12 +113,6 @@ class FkpItemCreate(BaseModel):
     deskripsi_keluhan: Optional[str] = None
 
     @model_validator(mode="after")
-    def produk_harus_diisi(self):
-        if not self.product_id and not self.nama_produk_custom:
-            raise ValueError("Salah satu dari product_id atau nama_produk_custom wajib diisi")
-        return self
-
-    @model_validator(mode="after")
     def qty_minimal_satu(self):
         if self.qty <= 0:
             raise ValueError("Quantity harus lebih dari 0")
@@ -127,8 +121,8 @@ class FkpItemCreate(BaseModel):
     @field_validator("ada_sample_keluhan")
     @classmethod
     def validate_sample(cls, v):
-        if v not in ("ada", "foto", "tidak_ada"):
-            raise ValueError("ada_sample_keluhan harus 'ada' atau 'foto keluhan'")
+        if v not in ("ada", "foto"):
+            raise ValueError("ada_sample_keluhan harus 'ada' atau 'foto'")
         return v
 
     @field_validator("jenis_kemasan")
@@ -158,7 +152,6 @@ class FkpItemCreate(BaseModel):
 class FkpItemUpdate(BaseModel):
     """Edit item FKP — hanya boleh saat status draft atau need_revision."""
     product_id: Optional[uuid.UUID] = None
-    nama_produk_custom: Optional[str] = None
     jenis_kemasan: Optional[str] = None
     qty: Optional[int] = None
     batch_number: Optional[str] = None
@@ -173,8 +166,8 @@ class FkpItemUpdate(BaseModel):
     @field_validator("ada_sample_keluhan")
     @classmethod
     def validate_sample(cls, v):
-        if v is not None and v not in ("ada", "foto", "tidak_ada"):
-            raise ValueError("ada_sample_keluhan harus 'ada' atau 'foto keluhan'")
+        if v is not None and v not in ("ada", "foto"):
+            raise ValueError("ada_sample_keluhan harus 'ada' atau 'foto'")
         return v
 
     @field_validator("jenis_kemasan")
@@ -188,8 +181,7 @@ class FkpItemUpdate(BaseModel):
 class FkpItemResponse(BaseModel):
     id: uuid.UUID
     fkp_id: uuid.UUID
-    product_id: Optional[uuid.UUID]
-    nama_produk_custom: Optional[str]
+    product_id: uuid.UUID   # DIUBAH — wajib, kolom DB sekarang NOT NULL
     jenis_kemasan: Optional[str]
     qty: int
     batch_number: Optional[str]

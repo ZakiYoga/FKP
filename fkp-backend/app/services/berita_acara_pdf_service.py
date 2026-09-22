@@ -223,11 +223,7 @@ def build_berita_acara_context(
     # ── Items → tabel barang ──────────────────────────────────────────────────
     items_ctx: List[Dict] = []
     for item in items:
-        nama_produk = (
-            item.nama_produk_custom
-            or (item.product.nama_produk if item.product else None)
-            or "—"
-        )
+        nama_produk = item.product.nama_produk if item.product else "—"
         batch_parts = [
             p for p in [
                 item.batch_number,

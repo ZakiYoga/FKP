@@ -23,12 +23,6 @@ export const apsmReviewSchema = z.object({
     persentase_disetujui_apsm:    persentaseField,
 })
 
-// DIHAPUS: adminHoReviewSchema, AdminHoReviewState, ADMIN_HO_REVIEW_BLANK,
-// AdminHoReviewErrors, validateAdminHoReview.
-// Admin HO tidak lagi mengisi rekomendasi per item — aksinya sekarang murni
-// "teruskan ke RSM" (lihat Modal admin_ho_review di FkpDetailPage.tsx, cukup
-// field catatan_admin level FKP, tanpa form per item).
-
 // ── Tipe state (dari schema, bukan definisi manual) ───────────────────────────
 
 export type ApsmReviewState    = z.infer<typeof apsmReviewSchema>
@@ -78,7 +72,7 @@ export function FkpItemReviewForm(props: Props) {
     const [expanded, setExpanded] = useState(true)
 
     const produk     = products.find((p) => p.id === item.product_id)
-    const namaProduk = item.nama_produk_custom ?? produk?.nama_produk ?? 'Produk'
+    const namaProduk = produk?.nama_produk ?? 'Produk'
 
     // Akses error sebagai Record biasa agar tidak perlu casting berulang
     const err = errors as Record<string, string | undefined>

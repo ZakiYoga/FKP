@@ -954,8 +954,15 @@ async def update_fkp_item(fkp_id, item_id, data: FkpItemUpdate, user, kode_role,
     item = r.scalar_one_or_none()
     if not item:
         raise HTTPException(status_code=404, detail="Item tidak ditemukan.")
+
+    if "product_id" in data.model_dump(exclude_unset=True) and data.product_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="product_id tidak boleh dikosongkan — setiap item FKP wajib merujuk produk di katalog.",
+        )
+
     for k, v in data.model_dump(exclude_none=True).items():
-        setattr(item, k, v)
+        setattr(item, k, v) 
     item.updated_at = datetime.now(timezone.utc)
     db.add(item)
     await db.commit()

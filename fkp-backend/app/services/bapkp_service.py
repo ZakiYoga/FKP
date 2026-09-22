@@ -144,11 +144,7 @@ async def get_bapkp_draft(
     draft_items = [
         BapkpDraftItem(
             fkp_item_id=item.id,
-            nama_produk=(
-                item.nama_produk_custom
-                or (item.product.nama_produk if item.product else None)
-                or "\u2014"
-            ),
+            nama_produk=item.product.nama_produk if item.product else "\u2014",
             jenis_kemasan=item.jenis_kemasan or (item.product.jenis_kemasan if item.product else None),
             batch_number=item.batch_number,
             qty=item.qty,
@@ -406,11 +402,7 @@ async def build_bapkp_context(fkp_id: uuid.UUID, db: AsyncSession, upload_dir: s
         if src is None:
             continue  # item asli sudah tidak ada -- seharusnya tidak terjadi
 
-        nama_produk = (
-            src.nama_produk_custom
-            or (src.product.nama_produk if src.product else None)
-            or "\u2014"
-        )
+        nama_produk = src.product.nama_produk if src.product else "\u2014"
         item_attachments = att_by_item.get(src.id, [])
         foto_types = {
             _FOTO_TIPE_MAP[a.tipe_dokumen]

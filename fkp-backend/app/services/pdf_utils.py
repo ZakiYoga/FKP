@@ -76,7 +76,7 @@ def format_datetime_id(value: Any) -> str:
     tanggal = f"{value_wib.day} {_BULAN_ID[value_wib.month]} {value_wib.year}"
     jam12 = value_wib.strftime("%I.%M")
     ampm = value_wib.strftime("%p")
-    return f"{tanggal}, Pukul {jam12} {ampm}"
+    return f"{tanggal}, {jam12} {ampm}"
 
 # ─── File helpers ─────────────────────────────────────────────────────────────
 

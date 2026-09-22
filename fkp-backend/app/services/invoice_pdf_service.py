@@ -11,6 +11,7 @@ from sqlmodel import select
 from app.services.pdf_utils import build_jinja_env, render_html_to_pdf, load_logo_base64, get_user_nama
 from app.models.fkp import FkpComplaint, FkpItem, FkpResolution, StatusItem
 from app.models.distributor import Distributor
+from app.models.product import ProductCatalog
 
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates" / "Invoice"
 TEMPLATE_NAME = "invoice_template.html"
@@ -29,12 +30,10 @@ async def _build_invoice_items(fkp_id, db) -> List[Dict]:
 
     rows = []
     for item in items:
-        nama = item.nama_produk_custom
-        if not nama and item.product_id:
-            from app.models.product import ProductCatalog
-            rp = await db.execute(select(ProductCatalog).where(ProductCatalog.id == item.product_id))
-            product = rp.scalar_one_or_none()
-            nama = product.nama_produk if product else "Produk"
+        # DIUBAH — product_id selalu ada (NOT NULL), nama_produk_custom dihapus.
+        rp = await db.execute(select(ProductCatalog).where(ProductCatalog.id == item.product_id))
+        product = rp.scalar_one_or_none()
+        nama = product.nama_produk if product else "Produk"
         rows.append({
             "nama_produk": nama or "Produk",
             "qty": item.qty,

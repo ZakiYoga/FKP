@@ -160,7 +160,7 @@ export function FkpCreatePage() {
             const prod = products.find((p) => p.id === payload.product_id)
             const namaLabel = prod
                 ? `[${prod.kode_produk}] ${prod.nama_produk}`
-                : payload.nama_produk_custom ?? 'Produk manual'
+                : 'Produk'
 
             if (editingKey) {
                 setItems((prev) => prev.map((i) =>
@@ -258,7 +258,8 @@ export function FkpCreatePage() {
 
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid md:grid-cols-2 gap-4">
+
                     {/* ── Section 1: Identitas FKP ─────────────────────── */}
                     <div className="card">
                         <div className="card-header">
@@ -376,8 +377,8 @@ export function FkpCreatePage() {
                                         <div className="space-y-2">
                                             {distributors.length === 1 ? (
                                                 <div className="flex items-center gap-3 p-3 rounded-xl border border-brand-400 bg-brand-50">
-                                                        <p className="text-sm font-medium text-gray-800">{distributors[0].nama_perusahaan}</p>
-                                                        <p className="text-xs text-gray-400 ml-auto">{distributors[0].kode_distributor}</p>
+                                                    <p className="text-sm font-medium text-gray-800">{distributors[0].nama_perusahaan}</p>
+                                                    <p className="text-xs text-gray-400 ml-auto">{distributors[0].kode_distributor}</p>
                                                 </div>
                                             ) : (
                                                 distributors.map((d) => {
@@ -528,44 +529,44 @@ export function FkpCreatePage() {
 
                 </div>
 
-                {/* ── Section 3: Catatan ───────────────────────────── */}
-                <div className="card">
-                    <div className="card-header">
-                        <h2 className="font-semibold text-gray-900">Catatan Tambahan</h2>
+                    {/* ── Section 3: Catatan ───────────────────────────── */}
+                    <div className="card">
+                        <div className="card-header">
+                            <h2 className="font-semibold text-gray-900">Catatan Tambahan</h2>
+                        </div>
+                        <div className="card-body">
+                            <Textarea
+                                placeholder="Catatan tambahan, kondisi penyimpanan, atau info lain yang relevan..."
+                                rows={3}
+                                {...register('catatan_distributor')}
+                            />
+                        </div>
                     </div>
-                    <div className="card-body">
-                        <Textarea
-                            placeholder="Catatan tambahan, kondisi penyimpanan, atau info lain yang relevan..."
-                            rows={3}
-                            {...register('catatan_distributor')}
-                        />
-                    </div>
-                </div>
 
                 {/* ── Actions ─────────────────────────────────────── */}
-                <div className="flex items-center justify-between gap-3 pb-8">
+                <div className="flex flex-col md:flex-row items-center justify-between gap-3 pb-8">
                     <button type="button" onClick={() => navigate('/fkp')}
-                        className="btn-secondary" disabled={isCreating}>
+                        className="w-full md:w-fit btn-secondary" disabled={isCreating}>
                         Batal
                     </button>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col w-full md:w-fit sm:flex-row items-center gap-2">
                         <button
                             type="submit"
                             onClick={() => setSubmitMode('draft')}
                             disabled={isCreating || outletBelumTerdaftar || !lokasi_pembelian || items.length === 0}
-                            className="btn-secondary">
+                            className="btn-secondary w-full md:w-fit">
                             {isCreating && submitMode === 'draft'
                                 ? <><Loader2 className="w-4 h-4 animate-spin" /> Menyimpan...</>
-                                : <><Package className="w-4 h-4" /> Simpan Draft</>}
+                                : <><Package className="w-4 h-4" />Simpan Draft</>}
                         </button>
                         <button
                             type="submit"
                             onClick={() => setSubmitMode('submit')}
                             disabled={isCreating || outletBelumTerdaftar || !lokasi_pembelian || items.length === 0}
-                            className="btn-primary">
+                            className="btn-primary w-full md:w-fit">
                             {isCreating && submitMode === 'submit'
                                 ? <><Loader2 className="w-4 h-4 animate-spin" /> Mengajukan...</>
-                                : <><Send className="w-4 h-4" /> Simpan & Submit</>}
+                                : <><Send className="w-4 h-4" />Submit</>}
                         </button>
                     </div>
                 </div>

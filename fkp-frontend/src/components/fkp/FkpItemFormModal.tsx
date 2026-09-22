@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
-    itemSchema, type ItemFormData, ITEM_FORM_BLANK, JENIS_KEMASAN_OPTIONS,
+    buildItemSchema, type ItemFormData, ITEM_FORM_BLANK, JENIS_KEMASAN_OPTIONS,
     ADA_SAMPLE_KELUHAN_OPTIONS, KONDISI_SAMPLE_OPTIONS,
 } from '@/schemas/itemFKPSchema'
 import { Upload, Plus, CheckCircle2, AlertCircle, Info, Trash } from 'lucide-react'
@@ -85,14 +85,14 @@ export function FkpItemFormModal({
 
     const TIMEZONE = 'Asia/Jakarta'
     const today = format(toZonedTime(new Date(), TIMEZONE), 'yyyy-MM-dd')
+    const originalExpired = initialData?.expired_date || null
+    const schema = useMemo(() => buildItemSchema(originalExpired), [originalExpired])
 
-    const {
-        register, handleSubmit, watch, reset, setValue,
-        formState: { errors },
-    } = useForm<ItemFormData>({
-        resolver: zodResolver(itemSchema),
-        defaultValues: ITEM_FORM_BLANK,
-    })
+    const { register, handleSubmit, watch, reset, setValue, formState: { errors } } =
+        useForm<ItemFormData>({
+            resolver: zodResolver(schema),
+            defaultValues: ITEM_FORM_BLANK,
+        })
 
     // ── Reset form & file lokal saat modal dibuka / item berganti ──────────────
     // Sengaja TIDAK menyertakan `existingAttachments` di sini — efek ini hanya
@@ -134,9 +134,13 @@ export function FkpItemFormModal({
     const watchProduk = watch('product_id')
     const watchTanggalBeli = watch('tanggal_pembelian')
     const watchJenisKeluhan = watch('jenis_keluhan')
-    // BARU — dropdown bertingkat sample keluhan.
     const watchAdaSampleKeluhan = watch('ada_sample_keluhan')
     const watchKondisiSample = watch('kondisi_sample')
+
+    const produkKatalog = useMemo(
+        () => products.filter((p) => p.is_active || p.id === watchProduk),
+        [products, watchProduk],
+    )
 
     const tipeTerpenuhi = new Set([
         ...localExisting.map((a) => a.tipe_dokumen).filter((t): t is string => !!t),
@@ -208,19 +212,13 @@ export function FkpItemFormModal({
         setFotoError(false)
 
         const payload: FkpItemCreatePayload = {
-            product_id: data.product_id || null,
-            nama_produk_custom: data.product_id ? null : (data.nama_produk_custom || null),
+            product_id: data.product_id,
             jenis_kemasan: data.jenis_kemasan || null,
             qty: data.qty,
             batch_number: data.batch_number || null,
             expired_date: data.expired_date || null,
             ada_sample_keluhan: data.ada_sample_keluhan,
             ada_foto_sample: data.ada_foto_sample,
-            // BARU — dropdown bertingkat. kondisi_sample hanya relevan kalau
-            // ada_sample_keluhan === 'ada'; kondisi_sample_lainnya hanya
-            // relevan kalau kondisi_sample === 'lainnya'. Dikirim null di luar
-            // kondisi itu supaya tidak ada data basi tersisa (misal user
-            // sempat pilih 'ada' + 'lainnya' lalu balik ke 'tidak_ada').
             kondisi_sample: data.ada_sample_keluhan === 'ada' ? (data.kondisi_sample || null) : null,
             kondisi_sample_lainnya:
                 data.ada_sample_keluhan === 'ada' && data.kondisi_sample === 'lainnya'
@@ -238,7 +236,7 @@ export function FkpItemFormModal({
 
     // Label qty dinamis sesuai kemasan
     const qtyLabel = watchKemasan
-        ? `Jumlah ${JENIS_KEMASAN_OPTIONS.find((o) => o.value === watchKemasan)?.label ?? 'Unit'}`
+        ? `Jumlah ${JENIS_KEMASAN_OPTIONS.find((o) => o.value === watchKemasan)?.label ?? 'pcs'}`
         : 'Quantity'
 
     return (
@@ -257,23 +255,12 @@ export function FkpItemFormModal({
                         error={errors.product_id?.message}
                         {...register('product_id')}
                     >
-                        {products.map((p) => (
+                        {produkKatalog.map((p) => (
                             <option key={p.id} value={p.id}>
                                 {p.nama_produk}
                             </option>
                         ))}
                     </Select>
-                    <div className="flex items-center gap-2 text-xs text-gray-400">
-                        <div className="flex-1 h-px bg-gray-200" />
-                        atau isi manual
-                        <div className="flex-1 h-px bg-gray-200" />
-                    </div>
-                    <Input
-                        label="Nama Produk Manual"
-                        placeholder="Isi jika produk tidak ada di katalog"
-                        disabled={!!watchProduk}
-                        {...register('nama_produk_custom')}
-                    />
                 </div>
 
                 {/* ── Kemasan & Qty ───────────────────────────────────── */}
@@ -293,7 +280,7 @@ export function FkpItemFormModal({
                         label={qtyLabel}
                         type="number"
                         min={1}
-                        placeholder="0"
+                        placeholder="1"
                         error={errors.qty?.message}
                         disabled={!watchKemasan}
                         {...register('qty')}
@@ -309,7 +296,9 @@ export function FkpItemFormModal({
                     <Input
                         label="Tanggal Kadaluarsa"
                         type="date"
+                        min={originalExpired && originalExpired < today ? originalExpired : today}
                         required
+                        error={errors.expired_date?.message}
                         {...register('expired_date')} />
                 </div>
 
@@ -358,6 +347,7 @@ export function FkpItemFormModal({
                         3. Kalau "Lainnya" -> field teks bebas wajib diisi */}
                     <Select
                         label="Ada Sample Keluhan?"
+                        className="truncate"
                         error={errors.ada_sample_keluhan?.message}
                         {...register('ada_sample_keluhan', {
                             onChange: (e) => {
@@ -420,7 +410,7 @@ export function FkpItemFormModal({
                         <Input
                             label="Tanggal Dikonsumsi"
                             type="date"
-                            min={watchTanggalBeli || "2025-01-01"}
+                            min={watchTanggalBeli}
                             required
                             error={errors.tanggal_dikonsumsi?.message}
                             {...register('tanggal_dikonsumsi')}
@@ -551,17 +541,11 @@ export function FkpItemFormModal({
                     )}
                 </div>
 
-                <div className={`flex items-start gap-2 px-3 py-2.5 rounded-lg border ${fotoError
-                    ? 'bg-red-50 border-red-200'
-                    : 'bg-amber-50 border-amber-200'
-                    }`}>
-                    {fotoError
-                        ? <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" />
-                        : <Info className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-                    }
-                    <p className={`text-xs ${fotoError ? 'text-red-700' : 'text-amber-700'}`}>
-                        {fotoError
-                            ? (() => {
+                {fotoError && (
+                    <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg border bg-red-50 border-red-200">
+                        <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" />
+                        <p className="text-xs text-red-700">
+                            {(() => {
                                 const fotoKurang = [
                                     !cekFotoWajib.exp && 'foto exp',
                                     !cekFotoWajib.keluhan && 'foto kondisi keluhan',
@@ -572,15 +556,10 @@ export function FkpItemFormModal({
                                         <span className="font-semibold">Tambahkan {fotoKurang.join(' dan ')}.</span>
                                     </>
                                 )
-                            })()
-                            : (
-                                <>
-                                    <span className="font-semibold">Wajib</span>: lampiran foto kadaluarsa dan kondisi produk.
-                                </>
-                            )
-                        }
-                    </p>
-                </div>
+                            })()}
+                        </p>
+                    </div>
+                )}
 
                 {/* ── Footer ──────────────────────────────────────────── */}
                 <div className="flex gap-2 justify-end pt-2 border-t border-gray-100">

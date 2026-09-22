@@ -305,7 +305,6 @@ export function FkpEditPage() {
     const isCustomKeluhan = !Object.keys(JENIS_KELUHAN_LABEL).includes(item.jenis_keluhan)
     return {
       product_id: item.product_id ?? '',
-      nama_produk_custom: item.nama_produk_custom ?? '',
       jenis_kemasan: (item.jenis_kemasan as ItemFormData['jenis_kemasan']) ?? undefined,
       qty: item.qty,
       batch_number: item.batch_number ?? '',
@@ -507,7 +506,7 @@ export function FkpEditPage() {
               const prod = products.find((p) => p.id === item.product_id)
               const namaLabel = prod
                 ? `[${prod.kode_produk}] ${prod.nama_produk}`
-                : item.nama_produk_custom ?? 'Produk manual'
+                : 'Produk'
               const keluhan = JENIS_KELUHAN_LABEL[item.jenis_keluhan] ?? item.jenis_keluhan
               const qtyLabel = item.qty > 0 ? `${item.qty} ${item.jenis_kemasan ?? 'unit'}` : ''
               const isModified = !!editState.updated[item.id]
@@ -559,7 +558,7 @@ export function FkpEditPage() {
               const prod = products.find((p) => p.id === item.payload.product_id)
               const namaLabel = prod
                 ? `[${prod.kode_produk}] ${prod.nama_produk}`
-                : item.payload.nama_produk_custom ?? 'Produk manual'
+                : 'Produk'
               const keluhan = JENIS_KELUHAN_LABEL[item.payload.jenis_keluhan] ?? item.payload.jenis_keluhan
               const qtyLabel = item.payload.qty > 0
                 ? `${item.payload.qty} ${item.payload.jenis_kemasan ?? 'unit'}`

@@ -2,7 +2,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, FileText, Clock, CheckCircle2, Loader2, Send,
-  AlertTriangle, ShieldCheck, XCircle, Edit2, Plus, Package,
+  AlertTriangle, XCircle, Edit2, Plus, Package,
   QrCode, Download, Copy, Check, ExternalLink,
   Paperclip, Truck, Banknote, FileDown,
   Upload,
@@ -25,7 +25,7 @@ import { butuhApprovalDirektur, BATAS_QTY_DIREKTUR } from '@/lib/fkpUtils'
 import { useAuthStore, useKodeRole } from '@/store/authStore'
 import { FKP_STATUS_LABEL, METODE_PENANGANAN_LABEL, TIPE_RESOLUSI_LABEL, SURAT_JALAN_STATUS_LABEL, SAMPLE_STATUS_LABEL, SAMPLE_STATUS_TERMINAL } from '@/types'
 import type {
-  FkpStatusKey, FkpItemCreatePayload, TipeResolusi, MetodePenangananFisik,
+  FkpStatusKey, FkpItem, FkpItemCreatePayload, TipeResolusi, MetodePenangananFisik,
   RekomendasiPenanganan, RekomendasiKompensasi,
 } from '@/types'
 import { fkpApi } from '@/api/fkp'
@@ -363,6 +363,10 @@ export function FkpDetailPage() {
   // sample lengkap dengan aksi ada di SampleShipmentSection tersendiri.
   const { data: sampleListForGate = [] } = useSampleList(id)
 
+  // Helper tunggal dipakai di semua tempat yang perlu label nama produk per item.
+  const namaProdukItem = (item?: FkpItem) =>
+    (item && products.find((p) => p.id === item.product_id)?.nama_produk) ?? 'Produk'
+
   const closeModal = () => { setModal(null); setCatatan('') }
 
   const runAction = async (fn: () => Promise<unknown>) => {
@@ -559,25 +563,42 @@ export function FkpDetailPage() {
 
       case 'buat_resolusi': {
         if (fkp?.status === 'accepted' && tipeResolusiAktif === 'tukar_barang') {
-          // [FIX] Guard qty terkunci — cermin guard backend (400) supaya
-          // admin_ho tidak mengisi form lalu baru dapat toast error.
           if (fkp?.resolution?.diteruskan_ke_warehouse) {
             toast.error('Qty disetujui sudah dikunci — FKP sudah diteruskan ke Warehouse.')
             return
           }
+          if (!resolusiForm.metode_penanganan_fisik) {
+            toast.error('Metode penanganan fisik wajib dipilih.')
+            return
+          }
+          if (tipeResolusi === 'potong_tagihan') {
+            const persentase = Number(resolusiForm.persentase_kompensasi_disetujui)
+            if (!resolusiForm.persentase_kompensasi_disetujui || Number.isNaN(persentase)) {
+              toast.error('Persentase kompensasi disetujui wajib diisi.')
+              return
+            }
+            if (persentase < 1 || persentase > 100) {
+              toast.error('Persentase kompensasi disetujui harus antara 1 dan 100.')
+              return
+            }
+          }
+
           const itemsDiterima = fkp?.items.filter((item) => item.status_item === 'diterima') ?? []
           if (itemsDiterima.length === 0) { toast.error('Tidak ada item berstatus diterima.'); return }
           for (const item of itemsDiterima) {
             const qtyInput = Number(itemQtyDisetujui[item.id] ?? item.qty)
+
             if (qtyInput > item.qty) {
-              toast.error(`Qty disetujui ${item.nama_produk_custom ?? 'produk'} (${qtyInput}) tidak boleh melebihi qty pengajuan (${item.qty}).`)
+              toast.error(`Qty disetujui ${namaProdukItem(item)} (${qtyInput}) tidak boleh melebihi qty pengajuan (${item.qty}).`)
               return
             }
+
             if (qtyInput <= 0) {
-              toast.error(`Qty disetujui ${item.nama_produk_custom ?? 'produk'} harus lebih dari 0.`)
+              toast.error(`Qty disetujui ${namaProdukItem(item)} harus lebih dari 0.`)
               return
             }
           }
+
           return runAction(() => fkpApi.updateDetailResolusi(id, {
             item_qty_disetujui: itemsDiterima.map((item) => ({
               item_id: item.id,
@@ -630,7 +651,7 @@ export function FkpDetailPage() {
           const qtyInput = Number(itemQtyDisetujui[item.id] ?? item.qty_disetujui ?? item.qty)
           const sisa = sisaKuotaItem(item.id)
           if (sisa !== null && qtyInput > sisa) {
-            toast.error(`Qty ${item.nama_produk_custom ?? 'produk'} (${qtyInput}) melebihi sisa kuota disetujui (${sisa}).`)
+            toast.error(`Qty ${namaProdukItem(item)} (${qtyInput}) melebihi sisa kuota disetujui (${sisa}).`)
             return
           }
         }
@@ -655,7 +676,7 @@ export function FkpDetailPage() {
             catatan: sjForm.catatan || null,
             items: itemsDiterima.map((item) => ({
               fkp_item_id: item.id,
-              nama_produk: item.nama_produk_custom ?? 'Produk',
+              nama_produk: namaProdukItem(item),
               qty: Number(itemQtyDisetujui[item.id] ?? item.qty_disetujui ?? item.qty),
               satuan: item.jenis_kemasan ?? 'pcs',
             })),
@@ -1169,7 +1190,7 @@ export function FkpDetailPage() {
                 {fkp.status === 'submitted' && kodeRole === 'apsm' && (
                   <>
                     <button className="btn-primary w-full" onClick={() => setModal('apsm_review')}>
-                      <ShieldCheck className="w-4 h-4" /> Review & Teruskan ke Admin HO
+                      Review & Teruskan ke Admin HO
                     </button>
                     <button className="btn-secondary w-full" onClick={() => setModal('revision')}>
                       <AlertTriangle className="w-4 h-4" /> Minta Revisi
@@ -1180,7 +1201,7 @@ export function FkpDetailPage() {
                 {fkp.status === 'apsm_reviewed' && kodeRole === 'admin_ho' && (
                   <>
                     <button className="btn-primary w-full" onClick={() => setModal('admin_ho_review')}>
-                      <ShieldCheck className="w-4 h-4" /> Teruskan ke RSM
+                      Teruskan ke RSM
                     </button>
                     <button className="btn-secondary w-full" onClick={() => setModal('revision')}>
                       <AlertTriangle className="w-4 h-4" /> Minta Revisi ke APSM
@@ -1195,7 +1216,7 @@ export function FkpDetailPage() {
                   <>
                     <button className="btn-primary w-full flex flex-col" onClick={() => setModal('rsm_investigasi_ok')}>
                       <span className="flex items-center gap-1 justify-center">
-                        <ShieldCheck className="w-4 h-4" /> Setujui Pengajuan
+                        Setujui Pengajuan
                       </span>
                       <span className="text-xs text-gray-200">(Mulai Investigasi QC)</span>
                     </button>
@@ -1208,9 +1229,7 @@ export function FkpDetailPage() {
                   </>
                 )}
 
-                {/* BARU — Jalur cepat: RSM approval AKHIR, resolusi belum ada.
-                    Beda dari rsm_approval_investigasi: approve di sini LANGSUNG
-                    ke accepted, tidak lewat investigasi/Direktur sama sekali. */}
+
                 {fkp.status === 'rsm_approval_final' && kodeRole === 'rsm' && (
                   <>
                     <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-700">
@@ -1219,7 +1238,7 @@ export function FkpDetailPage() {
                       Admin HO akan mengisi resolusi & bisa langsung buat Surat Jalan setelahnya. */}
                     </div>
                     <button className="btn-primary w-full" onClick={() => setModal('rsm_final_ok')}>
-                      <ShieldCheck className="w-4 h-4" /> Setujui — Terima FKP
+                      Setujui — Terima FKP
                     </button>
                     <button className="btn-secondary w-full" onClick={() => setModal('revision')}>
                       <AlertTriangle className="w-4 h-4" /> Kembalikan ke APSM
@@ -1274,7 +1293,7 @@ export function FkpDetailPage() {
                           </button>
                         )}
                         <button className="btn-primary w-full" onClick={() => setModal('request_resolusi_approval')}>
-                          <ShieldCheck className="w-4 h-4" /> Ajukan Resolusi ke RSM
+                          Ajukan Resolusi ke RSM
                         </button>
                         <button className="btn-danger w-full" onClick={() => setModal('reject')}>
                           <XCircle className="w-4 h-4" /> Tolak FKP
@@ -1298,7 +1317,7 @@ export function FkpDetailPage() {
                         : `ℹ️ Total klaim ${totalQtyKlaim} zak — tidak memerlukan persetujuan Direktur, langsung diterima setelah disetujui.`}
                     </div>
                     <button className="btn-primary w-full" onClick={() => setModal('rsm_resolusi_ok')}>
-                      <ShieldCheck className="w-4 h-4" />
+
                       {akanKeDirektur ? 'Setujui Resolusi → Ke Direktur' : 'Setujui Resolusi → Terima FKP'}
                     </button>
                     <button className="btn-secondary w-full" onClick={() => setModal('revision')}>
@@ -1731,7 +1750,7 @@ export function FkpDetailPage() {
               <ul className="list-disc list-inside">
                 {samplesBelumSelesai.map((s) => (
                   <li key={s.id}>
-                    {fkp?.items.find((it) => it.id === s.fkp_item_id)?.nama_produk_custom ?? 'Produk'} — {SAMPLE_STATUS_LABEL[s.status]}
+                    {namaProdukItem(fkp?.items.find((it) => it.id === s.fkp_item_id))} — {SAMPLE_STATUS_LABEL[s.status]}
                   </li>
                 ))}
               </ul>
@@ -1749,7 +1768,7 @@ export function FkpDetailPage() {
               const r = qcResults[item.id] ?? { status_item: 'diterima', catatan_qc: '', alasan_penolakan: '' }
               return (
                 <div key={item.id} className="p-3 rounded-xl bg-gray-50 border border-gray-100 space-y-2">
-                  <p className="text-sm font-semibold text-gray-800">{item.nama_produk_custom ?? 'Produk'}</p>
+                  <p className="text-sm font-semibold text-gray-800">{namaProdukItem(item)}</p>
                   <Select label="Status Item" value={r.status_item}
                     onChange={(e) => setQcResults((p) => ({ ...p, [item.id]: { ...r, status_item: e.target.value } }))}>
                     <option value="diterima">✅ Diterima</option>
@@ -1795,7 +1814,7 @@ export function FkpDetailPage() {
                   <div key={item.id}
                     className="flex items-center justify-between gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
                     <p className="text-xs font-semibold text-gray-700">
-                      {item.nama_produk_custom ?? 'Produk'}{' '}
+                      {namaProdukItem(item)}{' '}
                       <span className="text-gray-400 font-normal">(Qty keluhan: {item.qty})</span>
                     </p>
                     <p className="text-sm font-semibold text-gray-800 shrink-0">
@@ -1814,7 +1833,7 @@ export function FkpDetailPage() {
                 {itemsDiterima.map((item) => (
                   <div key={item.id} className="p-3 rounded-xl bg-gray-50 border border-gray-100">
                     <p className="text-xs font-semibold text-gray-700 mb-1.5">
-                      {item.nama_produk_custom ?? 'Produk'}{' '}
+                      {namaProdukItem(item)}{' '}
                       <span className="text-gray-400 font-normal">(Qty keluhan: {item.qty})</span>
                     </p>
                     <Input label="Qty Disetujui" type="number" required max={item.qty} placeholder={String(item.qty)}
@@ -1934,7 +1953,7 @@ export function FkpDetailPage() {
                 return (
                   <div key={item.id} className="p-3 rounded-xl bg-gray-50 border border-gray-100">
                     <p className="text-xs font-semibold text-gray-700 mb-1.5">
-                      {item.nama_produk_custom ?? 'Produk'}{' '}
+                      {namaProdukItem(item)}{' '}
                       <span className="text-gray-400 font-normal">(Qty keluhan: {item.qty})</span>
                     </p>
                     {/* [FIX] disabled={kodeRole === 'warehouse'} DIHAPUS — sejak

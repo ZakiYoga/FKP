@@ -19,7 +19,7 @@ function FkpItemCard({ item, idx, canDelete, onDelete, attachments, products }: 
   products: Product[]
 }) {
   const produk = products.find(p => p.id === item.product_id)
-  const namaProduk = item.nama_produk_custom ?? produk?.nama_produk ?? 'Produk'
+  const namaProduk = produk?.nama_produk ?? 'Produk'
   const rawKemasan = item.jenis_kemasan ?? produk?.jenis_kemasan ?? null
   const labelKemasan = rawKemasan
     ? JENIS_KEMASAN_OPTIONS.find(o => o.value === rawKemasan)?.label ?? rawKemasan

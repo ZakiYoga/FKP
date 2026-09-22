@@ -115,7 +115,7 @@ export function ProductPage() {
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
@@ -128,7 +128,7 @@ export function ProductPage() {
         <select
           value={kemasanFilter}
           onChange={(e) => setKemasanFilter(e.target.value)}
-          className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
+          className="min-w-fit pr-8.5 text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
                      focus:outline-hidden focus:ring-2 focus:ring-brand-500/20"
         >
           <option value="">Semua Kemasan</option>
@@ -146,7 +146,7 @@ export function ProductPage() {
               onChange={(e) => setShowInactive(e.target.checked)}
               className="rounded-sm border-gray-300 text-brand-600"
             />
-            Tampilkan nonaktif
+            show nonaktif
           </label>
         )}
       </div>
@@ -248,7 +248,7 @@ export function ProductPage() {
             >
               <option value="zak">Zak (10 kg)</option>
               <option value="karton">Karton</option>
-              <option value="renceng">Renceng (Sachet)</option>
+              <option value="renceng">Renceng</option>
               <option value="ball">Ball</option>
               <option value="pcs">Pcs</option>
             </Select>

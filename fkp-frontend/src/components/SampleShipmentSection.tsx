@@ -106,11 +106,9 @@ export function SampleShipmentSection({ fkpId, fkpItems, fkpStatus, attachments 
   }
 
   const itemName = (fkpItemId: string) => {
-    const item = fkpItems.find((it) => it.id === fkpItemId)
-    if (!item) return 'Produk'
-    return (item.product_id && productNameMap.get(item.product_id))
-      ?? item.nama_produk_custom
-      ?? 'Produk'
+     const item = fkpItems.find((it) => it.id === fkpItemId)
+     if (!item) return 'Produk'
+     return productNameMap.get(item.product_id) ?? 'Produk'
   }
 
   // [FIX] Sisa kuota qty sample per item — cermin dari validasi backend
@@ -371,7 +369,7 @@ export function SampleShipmentSection({ fkpId, fkpItems, fkpStatus, attachments 
               }))
             }}>
             {fkpItems.map((it) => {
-              const nama = (it.product_id && productNameMap.get(it.product_id)) ?? it.nama_produk_custom ?? 'Produk'
+              const nama = productNameMap.get(it.product_id) ?? 'Produk'
               const kuota = sisaKuota(it.id)
               return (
                 <option key={it.id} value={it.id} disabled={kuota <= 0}>

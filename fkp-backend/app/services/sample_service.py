@@ -98,15 +98,10 @@ async def _get_item_nama_produk(fkp_item_id: uuid.UUID, db: AsyncSession) -> str
     item = r.scalar_one_or_none()
     if not item:
         return "Produk"
-    if item.nama_produk_custom:
-        return item.nama_produk_custom
-    if item.product_id:
-        from app.models.product import ProductCatalog
-        rp = await db.execute(select(ProductCatalog).where(ProductCatalog.id == item.product_id))
-        product = rp.scalar_one_or_none()
-        if product:
-            return product.nama_produk
-    return "Produk"
+    from app.models.product import ProductCatalog
+    rp = await db.execute(select(ProductCatalog).where(ProductCatalog.id == item.product_id))
+    product = rp.scalar_one_or_none()
+    return product.nama_produk if product else "Produk"
 
 
 async def create_sample_shipment(

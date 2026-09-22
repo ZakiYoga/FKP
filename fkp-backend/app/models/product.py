@@ -15,5 +15,6 @@ class ProductCatalog(SQLModel, table=True):
     berat_gr: Optional[int] = Field(default=None)
     foto_url: Optional[str] = Field(default=None)
     is_active: bool = Field(default=True)
+    qty_per_kemasan: Optional[int] = Field(default=None)
     
     fkp_items: List["FkpItem"] = Relationship(back_populates="product")

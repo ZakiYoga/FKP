@@ -161,11 +161,7 @@ def build_fkp_context(
 
         # Nama produk dan kemasan: item override > relasi product
         # item.product sudah di-eager load via selectinload di generate_fkp_pdf
-        nama_produk = (
-            item.nama_produk_custom
-            or (item.product.nama_produk if item.product else None)
-            or "—"
-        )
+        nama_produk = item.product.nama_produk if item.product else "—"
         jenis_kemasan = (
             item.jenis_kemasan
             or (item.product.jenis_kemasan if item.product else None)

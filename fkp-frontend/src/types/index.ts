@@ -244,19 +244,14 @@ export interface Product {
 export interface FkpItem {
   id: string
   fkp_id: string
-  product_id: string | null
-  nama_produk_custom: string | null
+  product_id: string
   jenis_kemasan: string | null
   qty: number
   batch_number: string | null
   expired_date: string | null
-  // "ada" | "tidak_ada" (lihat AdaSampleKeluhan). Nilai lama "foto" (kalau
-  // masih ada di data historis) dianggap setara "ada" oleh backend.
   ada_sample_keluhan: string
   ada_foto_sample: boolean
-  // BARU — hanya relevan kalau ada_sample_keluhan === "ada". Lihat KondisiSample.
   kondisi_sample: string | null
-  // BARU — wajib terisi kalau kondisi_sample === "lainnya", teks bebas.
   kondisi_sample_lainnya: string | null
   tanggal_pembelian: string | null
   tanggal_dikonsumsi: string | null
@@ -288,8 +283,7 @@ export interface FkpItem {
 }
 
 export interface FkpItemCreatePayload {
-  product_id?: string | null
-  nama_produk_custom?: string | null
+  product_id: string
   jenis_kemasan?: string | null
   qty: number
   batch_number?: string | null

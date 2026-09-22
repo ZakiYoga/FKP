@@ -110,21 +110,22 @@ class StatusItem:
     ALL = [PENDING, DITERIMA, DITOLAK]
 
 
-# ─── Sample keluhan yang disertakan saat FKP diajukan ─────────────────────
-# BARU (bonus permintaan) — dropdown bertingkat di form FKP:
-#   1. AdaSampleKeluhan: Ada / Tidak Ada
+# Dropdown bertingkat di form FKP:
+#   1. AdaSampleKeluhan: Ada (sample fisik dikirim) / Foto (bukti hanya
+#      lewat foto) — TIDAK ADA opsi "tidak ada sample sama sekali", karena
+#      foto bukti (foto_expired/foto_keluhan) selalu wajib per item di FE.
 #   2. Kalau "Ada" -> KondisiSample: Kemasan Utuh / Kemasan Sudah Dibuka /
-#      Kemasan Plastik (BARU — sample kecil non-zak untuk dianalisa QC,
-#      bukan kiriman produk utuh) / Lainnya (free text)
+#      Kemasan Plastik (sample kecil non-zak untuk dianalisa QC, bukan
+#      kiriman produk utuh) / Lainnya (free text)
 class AdaSampleKeluhan:
-    ADA        = "ada"
-    TIDAK_ADA  = "tidak_ada"
+    ADA  = "ada"
+    FOTO = "foto"
 
-    ALL = [ADA, TIDAK_ADA]
+    ALL = [ADA, FOTO]
 
     LABELS = {
-        ADA:       "Ada",
-        TIDAK_ADA: "Tidak Ada",
+        ADA:  "Ada",
+        FOTO: "Foto",
     }
 
 
@@ -452,13 +453,10 @@ class FkpItem(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     fkp_id: uuid.UUID = Field(foreign_key="fkp_complaints.id", index=True)
-    product_id: Optional[uuid.UUID] = Field(default=None, foreign_key="product_catalog.id")
-
-    # Detail produk per item
-    nama_produk_custom: Optional[str] = Field(default=None, max_length=200)
-
-    # jenis_kemasan OPSIONAL — override dari ProductCatalog.jenis_kemasan.
-    # Jika None → frontend/service fallback ke ProductCatalog.jenis_kemasan.
+    product_id: uuid.UUID = Field(foreign_key="product_catalog.id", index=True)
+    # SNAPSHOT WAJIB saat komplain dibuat — independen dari
+    # ProductCatalog.jenis_kemasan setelah tersimpan. Hanya bisa diedit
+    # ulang selagi status draft/need_revision.
     jenis_kemasan: Optional[str] = Field(default=None, max_length=20)
 
     qty: int = Field(default=0) 
@@ -466,12 +464,7 @@ class FkpItem(SQLModel, table=True):
     expired_date: Optional[date] = Field(default=None)
 
     # Detail keluhan
-    # ── Sample keluhan (BARU — dropdown bertingkat, lihat AdaSampleKeluhan
-    #    & KondisiSample di atas) ─────────────────────────────────────────
-    # ada_sample_keluhan: "ada" | "tidak_ada" (dulu ada nilai "foto" yang
-    # sekarang di-drop — foto sample sekarang murni ditentukan lewat upload
-    # attachment tipe foto_sample, bukan value terpisah di field ini).
-    ada_sample_keluhan: str = Field(default=AdaSampleKeluhan.TIDAK_ADA, max_length=20)
+    ada_sample_keluhan: str = Field(default=AdaSampleKeluhan.FOTO, max_length=20)
     ada_foto_sample: bool = Field(default=False)
     # kondisi_sample hanya relevan kalau ada_sample_keluhan == "ada".
     # Nilai: utuh | terbuka | kemasan_plastik | lainnya (lihat KondisiSample).
