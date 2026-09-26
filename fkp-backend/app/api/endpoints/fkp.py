@@ -43,9 +43,11 @@ _BA_ROLES dan _BA_MANUAL_ROLES dihapus karena tidak lagi dipakai.
 import os
 import uuid
 from decimal import Decimal
+from datetime import date, datetime, timezone, timedelta
 from typing import Optional, List
 from fastapi import APIRouter, Depends, Response, UploadFile, File, Query, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
+from app.services.export_service import export_fkp_excel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -115,6 +117,8 @@ _FORMULIR_DOWNLOADABLE_STATUS = {
     FkpStatus.CLOSED,
     FkpStatus.REJECTED,
 }
+
+_WIB = timezone(timedelta(hours=7))
 
 @router.get(
     "/penerbitan",
@@ -231,18 +235,34 @@ async def list_tipe_dokumen():
 
 @router.get("", response_model=List[FkpListResponse])
 async def get_list_fkp(
-    status:    Optional[str] = Query(None, description="Filter berdasarkan status FKP"),
-    prioritas: Optional[str] = Query(None, description="Filter berdasarkan prioritas"),
-    db:        AsyncSession = Depends(get_db),
-    user:      User = Depends(get_current_user),
-    kode_role: str  = Depends(get_kode_role),
+    status:             Optional[str] = Query(None, description="Filter berdasarkan status FKP"),
+    prioritas:          Optional[str] = Query(None, description="Filter berdasarkan prioritas"),
+    outlet_id:          Optional[uuid.UUID] = Query(None, description="Filter berdasarkan outlet"),
+    distributor_id:     Optional[uuid.UUID] = Query(None, description="Filter berdasarkan distributor"),
+    area_id:            Optional[uuid.UUID] = Query(None, description="Filter berdasarkan area"),
+    tanggal_dari:       Optional[date] = Query(None, description="Filter tanggal dibuat, dari (inklusif)"),
+    tanggal_sampai:     Optional[date] = Query(None, description="Filter tanggal dibuat, sampai (inklusif)"),
+    db:                 AsyncSession = Depends(get_db),
+    user:               User = Depends(get_current_user),
+    kode_role:          str  = Depends(get_kode_role),
 ):
     """
     Ambil daftar FKP. Otomatis difilter berdasarkan role:
     - outlet/distributor/sc_spv/apsm → hanya FKP area mereka
     - rsm/admin_ho/qc/direktur/superadmin → semua FKP
+ 
+    Filter tambahan (opsional): outlet_id, distributor_id, area_id, tanggal_dari, tanggal_sampai.
     """
-    return await list_fkp(db, user, kode_role, status, prioritas)
+    return await list_fkp(
+        db, user, kode_role,
+        status_filter=status,
+        prioritas_filter=prioritas,
+        outlet_id=outlet_id,
+        distributor_id=distributor_id,
+        area_id=area_id,
+        tanggal_dari=tanggal_dari,
+        tanggal_sampai=tanggal_sampai,
+    )
 
 
 @router.post("", response_model=FkpDetailResponse, status_code=201)
@@ -1165,3 +1185,44 @@ async def teruskan_warehouse_endpoint(
     db: AsyncSession = Depends(get_db),
 ):
     return await fkp_service.teruskan_ke_warehouse(fkp_id, data, user, kode_role, db)
+
+@router.get("/export/excel")
+async def download_fkp_excel(
+    status:             Optional[str] = Query(None, description="Filter berdasarkan status FKP"),
+    prioritas:          Optional[str] = Query(None, description="Filter berdasarkan prioritas"),
+    outlet_id:          Optional[uuid.UUID] = Query(None, description="Filter berdasarkan outlet"),
+    distributor_id:     Optional[uuid.UUID] = Query(None, description="Filter berdasarkan distributor"),
+    area_id:            Optional[uuid.UUID] = Query(None, description="Filter berdasarkan area"),
+    tanggal_dari:       Optional[date] = Query(None, description="Filter tanggal dibuat, dari (inklusif)"),
+    tanggal_sampai:     Optional[date] = Query(None, description="Filter tanggal dibuat, sampai (inklusif)"),
+    db:                 AsyncSession = Depends(get_db),
+    user:               User = Depends(get_current_user),
+    kode_role:          str  = Depends(get_kode_role),
+):
+    """
+    Export FKP ke Excel (.xlsx) — scoping & filter identik dengan GET /fkp.
+    Butuh permission 'fkp.export_excel'.
+    """
+    # Cek permission DULU, sebelum query berat (list_fkp + eager_full=True).
+    await require_permission(kode_role, "fkp.export_excel", db)
+ 
+    # PENTING: export_fkp_excel() menerima keyword `status` / `prioritas`
+    # (BUKAN `status_filter` / `prioritas_filter` seperti di list_fkp()).
+    # Salah nama keyword di sini langsung TypeError saat dipanggil.
+    buf = await export_fkp_excel(
+        db, user, kode_role,
+        status=status,
+        prioritas=prioritas,
+        outlet_id=outlet_id,
+        distributor_id=distributor_id,
+        area_id=area_id,
+        tanggal_dari=tanggal_dari,
+        tanggal_sampai=tanggal_sampai,
+    )
+ 
+    filename = f"FKP_Export_{datetime.now(_WIB):%Y%m%d_%H%M}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

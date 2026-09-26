@@ -45,7 +45,7 @@ workflow (urutan status), bukan soal "siapa boleh apa".
     sudah dibatasi per-area).
 """
 import uuid
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone, date, time, timedelta
 from decimal import Decimal
 from typing import List, Optional
 
@@ -106,6 +106,8 @@ _ROLE_GLOBAL_ACCESS = {"admin_ho", "qc", "rsm", "direktur", "superadmin", "finan
 # qc, superadmin TIDAK kena batasan ini — mereka memang punya wewenang
 # proses lintas-pembuat sesuai alur kerja.
 OWNERSHIP_SCOPED_ROLES = {"outlet", "distributor", "sc_spv", "apsm"}
+
+_WIB = timezone(timedelta(hours=7))
 
 
 # ─── STATE MACHINE ────────────────────────────────────────────────────────────
@@ -436,7 +438,7 @@ async def _validasi_dan_simpan_qty_disetujui(fkp_id, item_qty_list, db):
 # ─── LIST & DETAIL ────────────────────────────────────────────────────────────
 # JANGAN DIUBAH — data-scope/hierarchy logic (Lapis 2), bukan action permission.
 
-async def list_fkp(db, user, kode_role, status_filter=None, prioritas_filter=None):
+async def list_fkp(db, user, kode_role, status_filter=None, prioritas_filter=None, outlet_id=None, distributor_id=None, area_id=None, tanggal_dari=None, tanggal_sampai=None, eager_full: bool = False):
     query = select(FkpComplaint)
 
     if kode_role == "outlet":
@@ -499,15 +501,38 @@ async def list_fkp(db, user, kode_role, status_filter=None, prioritas_filter=Non
         query = query.where(FkpComplaint.status == status_filter)
     if prioritas_filter:
         query = query.where(FkpComplaint.prioritas == prioritas_filter)
+    if outlet_id:
+      query = query.where(FkpComplaint.outlet_id == outlet_id)
+    if distributor_id:
+        query = query.where(FkpComplaint.distributor_id == distributor_id)
+    if area_id:
+        query = query.where(FkpComplaint.distributor_id.in_(
+            select(Distributor.id).where(Distributor.area_id == area_id)))
+    if tanggal_dari and tanggal_sampai and tanggal_dari > tanggal_sampai:
+        raise HTTPException(400, "tanggal_dari tidak boleh setelah tanggal_sampai.")
+    if tanggal_dari:
+        query = query.where(FkpComplaint.created_at >=
+            datetime.combine(tanggal_dari, time.min, tzinfo=_WIB))
+    if tanggal_sampai:
+        query = query.where(FkpComplaint.created_at <=
+            datetime.combine(tanggal_sampai + timedelta(days=1), time.min, tzinfo=_WIB))
+        
+    opts = [selectinload(FkpComplaint.distributor), selectinload(FkpComplaint.outlet)]
+    if eager_full:
+        opts = [
+            selectinload(FkpComplaint.distributor).selectinload(Distributor.area),
+            selectinload(FkpComplaint.outlet),
+            selectinload(FkpComplaint.items).selectinload(FkpItem.product),
+            selectinload(FkpComplaint.resolution),
+            selectinload(FkpComplaint.sample_shipments),
+            selectinload(FkpComplaint.warehouse_surat_jalan),
+            selectinload(FkpComplaint.status_logs),
+        ]
 
     result = await db.execute(
-        query
-        .options(
-            selectinload(FkpComplaint.distributor),
-            selectinload(FkpComplaint.outlet),
-        )
-        .order_by(FkpComplaint.created_at.desc())
+        query.options(*opts).order_by(FkpComplaint.created_at.desc())
     )
+    
     return result.scalars().all()
 
 # ─── PENERBITAN FORMULIR ──────────────────────────────────────────────────────

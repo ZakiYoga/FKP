@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fkpApi } from '@/api/fkp'
+import { fkpApi, type FkpListParams } from '@/api/fkp'
 import type {
   FkpCreatePayload,
   FkpItemCreatePayload,
@@ -19,10 +19,49 @@ export const fkpKeys = {
 }
 
 // ── List & Detail ──────────────────────────────────────────────────────────
-export function useFkpList(filters?: { status?: string; prioritas?: string }) {
+export function useFkpList(filters?: FkpListParams) {
   return useQuery({
     queryKey: fkpKeys.list(filters),
     queryFn: () => fkpApi.list(filters),
+  })
+}
+
+export function useExportFkpExcel() {
+  return useMutation({
+    mutationFn: (params?: FkpListParams) => fkpApi.exportExcel(params),
+
+    onSuccess: (res) => {
+      const disposition = res.headers['content-disposition'] as string | undefined
+      const match = disposition?.match(/filename="?([^";]+)"?/)
+      const filename = match?.[1] ?? `FKP_Export_${new Date().toISOString().slice(0, 10)}.xlsx`
+
+      const url = URL.createObjectURL(new Blob([res.data]))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    },
+
+    onError: async (e: unknown) => {
+      // responseType 'blob' berarti body error 403/400 dari BE juga ikut
+      // jadi Blob, bukan object JSON — getErrorMessage() tidak bisa
+      // membacanya langsung. Parse manual dulu sebelum fallback.
+      let msg = getErrorMessage(e)
+      const responseData = (e as { response?: { data?: unknown } }).response?.data
+      if (responseData instanceof Blob) {
+        try {
+          const text = await responseData.text()
+          const parsed = JSON.parse(text)
+          msg = parsed?.detail ?? msg
+        } catch {
+          // body bukan JSON valid — pakai msg dari getErrorMessage() apa adanya
+        }
+      }
+      notifications.show({ message: msg, color: 'red' })
+    },
   })
 }
 

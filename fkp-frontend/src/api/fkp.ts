@@ -12,11 +12,29 @@ import type {
   BeritaAcaraGenerateResponse,
 } from '@/types'
 
+export interface FkpListParams {
+  status?: string
+  prioritas?: string
+  outlet_id?: string
+  distributor_id?: string
+  area_id?: string
+  tanggal_dari?: string
+  tanggal_sampai?: string
+}
+
 export const fkpApi = {
   // ── List & Detail ──────────────────────────────────────────────────────
-  list: async (params?: { status?: string; prioritas?: string }): Promise<FkpListItem[]> => {
+  list: async (params?: FkpListParams): Promise<FkpListItem[]> => {
     const res = await api.get<FkpListItem[]>('/fkp', { params })
     return res.data
+  },
+
+  exportExcel: async (params?: FkpListParams) => {
+    return api.get('/fkp/export/excel', {
+      params,
+      responseType: 'blob',
+      timeout: 120000,
+    })
   },
 
   detail: async (id: string): Promise<FkpDetail> => {

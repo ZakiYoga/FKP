@@ -553,6 +553,19 @@ PERMISSION_CATALOG: List[Dict] = [
         ),
         "roles": ["admin_ho"],
     },
+    # ── 4.16 Module fkp — Export Excel (BARU, rencana-export-excel-fkp v2.0) ─
+    {
+        "code": "fkp.export_excel",
+        "module": "fkp", "action": "export_excel",
+        "label": "Export Excel FKP",
+        "deskripsi": (
+            "Download rekap FKP ke Excel (item x sample, KPI durasi RSM/QC, "
+            "status pengiriman barang pengganti). Mengikuti filter aktif di "
+            "halaman List FKP — scoping data-nya TETAP mengikuti list_fkp() "
+            "per role (apsm tetap ter-scope area-nya), bukan permission ini."
+        ),
+        "roles": ["admin_ho", "rsm", "direktur", "apsm"],
+    },
     {
         "code": "fkp.finance.invoice",
         "module": "fkp", "action": "finance.invoice",
@@ -604,6 +617,13 @@ PERMISSION_CATALOG: List[Dict] = [
         "module": "fkp", "action": "bapkp.download",
         "label": "Download PDF BAPKP",
         "deskripsi": "Mengunduh dokumen BAPKP yang sudah dibuat dalam format PDF.",
+        "roles": ["qc"],
+    },
+    {
+        "code": "fkp.bapkp.manage",
+        "module": "fkp", "action": "bapkp.manage",
+        "label": "Kelola BAPKP",
+        "deskripsi": "Mengelola data BAPKP untuk suatu FKP.",
         "roles": ["qc"],
     },
 ]
