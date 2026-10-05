@@ -17,7 +17,7 @@ Endpoint yang tersedia:
 """
 import uuid
 from datetime import datetime, timezone
-from typing import Optional, List
+from typing import Optional, List, Literal
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -25,18 +25,40 @@ from sqlmodel import select
 from pydantic import BaseModel
 
 from app.core.dependencies import get_db
-from app.models.fkp import FkpComplaint, FkpStatus
+from app.models.fkp import (
+    BATAS_QTY_DIREKTUR, FkpComplaint, FkpItem, FkpStatus, JenisKeluhan,
+)
+from app.models.distributor import Distributor
+
 
 router = APIRouter()
 
 
 # ─── Response Schemas (non-sensitif) ─────────────────────────────────────────
 
-class TrackingStage(BaseModel):
+StepState = Literal["done", "current", "pending", "rejected"]
+
+
+class TrackingStep(BaseModel):
+    key: str
     label: str
-    timestamp: Optional[datetime] = None   # None = tahap belum dicapai
-    is_current: bool
-    is_completed: bool
+    state: StepState
+    timestamp: Optional[datetime] = None
+
+class TrackingItem(BaseModel):
+    nama_produk: str
+    jenis_kemasan: Optional[str] = None
+    qty: int
+    jenis_keluhan: str
+    jenis_keluhan_label: str
+    deskripsi_keluhan: Optional[str] = None
+
+class TrackingPhase(BaseModel):
+    key: str
+    label: str
+    state: StepState
+    timestamp: Optional[datetime] = None
+    steps: List[TrackingStep]
 
 
 class PublicTrackingResponse(BaseModel):
@@ -44,12 +66,15 @@ class PublicTrackingResponse(BaseModel):
     nomor_fkp: str
     nama_distributor: Optional[str] = None
     nama_outlet: Optional[str] = None
+    area: Optional[str] = None                 # BARU
     status: str
     status_label: str
     prioritas: str
     tanggal_pengajuan: Optional[datetime] = None
     tanggal_selesai: Optional[datetime] = None
-    timeline: List[TrackingStage]
+    catatan_pembuat: Optional[str] = None
+    items: List[TrackingItem] = []
+    phases: List[TrackingPhase]
     is_closed: bool
     is_rejected: bool
 
@@ -65,9 +90,6 @@ PUBLIC_STATUS_LABELS = {
     FkpStatus.INVESTIGATED:             "Investigasi Selesai — Menyusun Resolusi",
     FkpStatus.RSM_APPROVAL_RESOLUSI:    "Menunggu Persetujuan Resolusi",
     FkpStatus.DIREKTUR_APPROVAL:        "Menunggu Persetujuan Final",
-    # BARU — jalur cepat. Diposisikan setara dengan RSM_APPROVAL_INVESTIGASI
-    # di STAGE_ORDER (lihat catatan di bawah kenapa ini aman meski dua
-    # cabang saling eksklusif).
     FkpStatus.RSM_APPROVAL_FINAL:       "Menunggu Persetujuan Akhir",
     FkpStatus.ACCEPTED:                 "Disetujui — Sedang Diproses",
     FkpStatus.IN_PROCESS:               "Dalam Proses Penyelesaian",
@@ -76,87 +98,168 @@ PUBLIC_STATUS_LABELS = {
     FkpStatus.CLOSED:                   "Selesai",
 }
 
-# Urutan maju (tidak termasuk need_revision / rejected / draft).
-#
-# BARU: RSM_APPROVAL_FINAL disisipkan di sini walau jalur cepat & jalur
-# biasa saling eksklusif (satu FKP cuma lewat salah satu). Ini AMAN karena
-# _build_timeline() di bawah hanya menampilkan stage yang punya timestamp
-# log ASLI (benar-benar pernah disinggahi) atau stage yang sedang current —
-# stage yang tidak pernah disinggahi (ts=None) selalu di-skip lewat
-# `continue`, terlepas dari posisinya di list ini. Jadi tidak ada risiko
-# "RSM_APPROVAL_FINAL muncul completed" untuk FKP jalur biasa, atau
-# sebaliknya — posisi relatif dua stage yang mutually-exclusive ini tidak
-# pernah dibandingkan satu sama lain di FKP yang sama.
-STAGE_ORDER = [
-    FkpStatus.SUBMITTED,
-    FkpStatus.APSM_REVIEWED,
-    FkpStatus.RSM_APPROVAL_INVESTIGASI,
-    FkpStatus.RSM_APPROVAL_FINAL,
-    FkpStatus.IN_INVESTIGATION,
-    FkpStatus.INVESTIGATED,
-    FkpStatus.RSM_APPROVAL_RESOLUSI,
-    FkpStatus.DIREKTUR_APPROVAL,
-    FkpStatus.ACCEPTED,
-    FkpStatus.IN_PROCESS,
-    FkpStatus.CLOSED,
+STEP_ORDER = [
+    "submitted", "apsm_review", "ho_review",
+    "pemeriksaan", "approval", "pengiriman", "selesai",
 ]
 
+STEP_LABELS = {
+    "submitted":   "Keluhan diajukan",
+    "apsm_review": "Review APSM",
+    "ho_review":   "Masuk ke HO",
+    "pemeriksaan": "Pemeriksaan & penyusunan resolusi",
+    "approval":    "Proses approval",
+    "pengiriman":  "Proses pengiriman",
+    "selesai":     "Selesai",
+}
 
-# ─── Helper ───────────────────────────────────────────────────────────────────
+PHASES = [
+    ("submitted",  "Diajukan",               ["submitted"]),
+    ("review",     "Review APSM & Admin HO", ["apsm_review", "ho_review", "pemeriksaan"]),
+    ("approval",   "Proses Approval",        ["approval"]),
+    ("pengiriman", "Proses Pengiriman",      ["pengiriman", "selesai"]),
+]
 
-def _build_timeline(current_status: str, status_logs: list) -> List[TrackingStage]:
-    """
-    Bangun timeline publik.
+# Status FKP saat ini -> langkah yang SEDANG berjalan
+STATUS_TO_STEP = {
+    FkpStatus.SUBMITTED:                "apsm_review",
+    FkpStatus.APSM_REVIEWED:            "ho_review",
+    FkpStatus.RSM_APPROVAL_INVESTIGASI: "pemeriksaan",
+    FkpStatus.IN_INVESTIGATION:         "pemeriksaan",
+    FkpStatus.INVESTIGATED:             "pemeriksaan",
+    FkpStatus.RSM_APPROVAL_RESOLUSI:    "approval",
+    FkpStatus.DIREKTUR_APPROVAL:        "approval",
+    FkpStatus.ACCEPTED:                 "pengiriman",
+    FkpStatus.IN_PROCESS:               "pengiriman",
+}
 
-    Aturan:
-    - Hanya status dalam STAGE_ORDER yang masuk timeline
-    - Timestamp diambil dari log aktual (pertama kali status dicapai)
-    - Tahap yang belum dicapai: timestamp=None, is_completed=False, is_current=False
-    - Tampilkan satu tahap ke depan (next step) agar user tahu akan ke mana
-    - need_revision / rejected ditambahkan di akhir jika itu status saat ini
-    """
-    # Lookup: status → waktu pertama kali dicapai
-    status_timestamps: dict = {}
-    for log in sorted(status_logs, key=lambda l: l.changed_at):
-        if log.status_baru not in status_timestamps:
-            status_timestamps[log.status_baru] = log.changed_at
+# Sebuah langkah dianggap SELESAI saat FKP masuk ke salah satu status ini
+STEP_DONE_AT = {
+    "submitted":   [FkpStatus.SUBMITTED],
+    "apsm_review": [FkpStatus.APSM_REVIEWED],
+    "ho_review":   [FkpStatus.RSM_APPROVAL_INVESTIGASI, FkpStatus.RSM_APPROVAL_FINAL],
+    "pemeriksaan": [FkpStatus.RSM_APPROVAL_RESOLUSI],   # jalur cepat: resolution.created_at
+    "approval":    [FkpStatus.ACCEPTED],
+    "pengiriman":  [FkpStatus.CLOSED],
+    "selesai":     [FkpStatus.CLOSED],
+}
 
-    try:
-        current_idx = STAGE_ORDER.index(current_status)
-    except ValueError:
-        current_idx = -1  # rejected / need_revision / draft
 
-    timeline: List[TrackingStage] = []
-    for stage in STAGE_ORDER:
-        stage_idx = STAGE_ORDER.index(stage)
-        ts = status_timestamps.get(stage)
 
-        is_completed = stage_idx < current_idx if current_idx >= 0 else False
-        is_current = stage == current_status
+def _step_for_status(status: Optional[str], has_resolution: bool) -> Optional[str]:
+    if status == FkpStatus.RSM_APPROVAL_FINAL:
+        # Jalur cepat: Admin HO membuat resolusi SAAT status ini, baru RSM approve.
+        # Ini hanya membaca status, bukan menentukan jalur.
+        return "approval" if has_resolution else "pemeriksaan"
+    return STATUS_TO_STEP.get(status)
 
-        # Lewati tahap yang belum dicapai kecuali satu "next step"
-        if ts is None and not is_current:
-            if stage_idx != current_idx + 1:
-                continue  # sembunyikan tahap jauh ke depan
+def _build_phases(fkp: FkpComplaint) -> List[TrackingPhase]:
+    logs = sorted(fkp.status_logs or [], key=lambda l: l.changed_at)
 
-        timeline.append(TrackingStage(
-            label=PUBLIC_STATUS_LABELS.get(stage, stage),
-            timestamp=ts,            # None jika belum dicapai
-            is_current=is_current,
-            is_completed=is_completed,
+    # status -> waktu TERAKHIR FKP masuk status itu. Log tanpa perpindahan
+    # (status_lama == status_baru, mis. "diteruskan ke Warehouse") bukan transisi.
+    ts_by_status: dict = {}
+    for log in logs:
+        if log.status_lama != log.status_baru:
+            ts_by_status[log.status_baru] = log.changed_at
+
+    resolution = fkp.resolution
+    has_resolution = resolution is not None
+
+    # Posisi FKP: langkah sebelum marker = done, marker = current/rejected,
+    # sesudahnya = pending.
+    if fkp.status == FkpStatus.CLOSED:
+        marker_idx, marker_state = len(STEP_ORDER), "done"     # semua selesai
+    elif fkp.status == FkpStatus.REJECTED:
+        lama = next(
+            (l.status_lama for l in reversed(logs) if l.status_baru == FkpStatus.REJECTED),
+            None,
+        )
+        key = _step_for_status(lama, has_resolution) or "ho_review"  # fallback jika log hilang
+        marker_idx, marker_state = STEP_ORDER.index(key), "rejected"
+    else:
+        key = _step_for_status(fkp.status, has_resolution)
+        marker_idx = STEP_ORDER.index(key) if key else -1      # draft / need_revision
+        marker_state = "current"
+
+    def done_at(key: str) -> Optional[datetime]:
+        times = [ts_by_status[s] for s in STEP_DONE_AT[key] if s in ts_by_status]
+        if not times and key == "pemeriksaan" and resolution:
+            return resolution.created_at    # jalur cepat: tidak ada status khusus
+        return max(times) if times else None
+
+    steps: List[TrackingStep] = []
+    prev_ts: Optional[datetime] = None
+    for idx, key in enumerate(STEP_ORDER):
+        if idx < marker_idx:
+            state = "done"
+        elif idx == marker_idx:
+            state = marker_state
+        else:
+            state = "pending"
+
+        if fkp.status == FkpStatus.REJECTED and state == "pending":
+            continue  # FKP ditolak: tahap setelahnya tidak relevan
+
+        if state == "done":
+            ts = done_at(key)
+        elif state == "current":
+            ts = prev_ts          # "sejak" = langkah sebelumnya selesai
+        elif state == "rejected":
+            ts = ts_by_status.get(FkpStatus.REJECTED)
+        else:
+            ts = None
+
+        steps.append(TrackingStep(key=key, label=STEP_LABELS[key], state=state, timestamp=ts))
+        prev_ts = ts
+
+    by_key = {s.key: s for s in steps}
+    phases: List[TrackingPhase] = []
+    for pkey, plabel, keys in PHASES:
+        p_steps = [by_key[k] for k in keys if k in by_key]
+        if not p_steps:
+            continue
+        states = [s.state for s in p_steps]
+        if all(st == "done" for st in states):
+            pstate = "done"
+        elif "rejected" in states:
+            pstate = "rejected"
+        elif all(st == "pending" for st in states):
+            pstate = "pending"
+        else:
+            pstate = "current"
+
+        if pstate == "done":
+            pts = p_steps[-1].timestamp
+        elif pstate in ("current", "rejected"):
+            pts = next((s.timestamp for s in p_steps if s.state in ("current", "rejected")), None)
+        else:
+            pts = None
+
+        phases.append(TrackingPhase(
+            key=pkey, label=plabel, state=pstate, timestamp=pts, steps=p_steps,
         ))
+    return phases
 
-    # Tambahkan need_revision / rejected di akhir jika itu status aktif
-    if current_status in (FkpStatus.REJECTED, FkpStatus.NEED_REVISION):
-        ts = status_timestamps.get(current_status)
-        timeline.append(TrackingStage(
-            label=PUBLIC_STATUS_LABELS.get(current_status, current_status),
-            timestamp=ts,
-            is_current=True,
-            is_completed=False,
-        ))
+def _resolve_area(fkp: FkpComplaint) -> Optional[str]:
+    if fkp.distributor and fkp.distributor.area:
+        return fkp.distributor.area.nama_area
+    return None
 
-    return timeline
+
+def _build_items(fkp: FkpComplaint) -> List[TrackingItem]:
+    items = sorted(fkp.items or [], key=lambda i: i.created_at)
+    return [
+        TrackingItem(
+            nama_produk=i.product.nama_produk if i.product else "-",  # GANTI jika beda
+            jenis_kemasan=i.jenis_kemasan,
+            qty=i.qty,
+            jenis_keluhan=i.jenis_keluhan,
+            jenis_keluhan_label=JenisKeluhan.LABELS.get(i.jenis_keluhan, i.jenis_keluhan),
+            deskripsi_keluhan=i.deskripsi_keluhan,
+        )
+        for i in items
+    ]
 
 
 # ─── Endpoint ─────────────────────────────────────────────────────────────────
@@ -183,10 +286,12 @@ async def track_fkp(
     r = await db.execute(
         select(FkpComplaint)
         .where(FkpComplaint.id == fkp_id)
-        .options(
+                .options(
             selectinload(FkpComplaint.status_logs),
-            selectinload(FkpComplaint.distributor),
+            selectinload(FkpComplaint.distributor).selectinload(Distributor.area),
             selectinload(FkpComplaint.outlet),
+            selectinload(FkpComplaint.items).selectinload(FkpItem.product),
+            selectinload(FkpComplaint.resolution),
         )
     )
     fkp = r.scalar_one_or_none()
@@ -197,21 +302,22 @@ async def track_fkp(
             detail="FKP tidak ditemukan. Pastikan UUID yang Anda masukkan sudah benar.",
         )
 
-    timeline = _build_timeline(fkp.status, fkp.status_logs or [])
-
+    phases = _build_phases(fkp)
+    
     return PublicTrackingResponse(
         fkp_id=str(fkp.id),
         nomor_fkp=fkp.nomor_fkp,
-        # Sesuai model Distributor: field nama_perusahaan
-        # Sesuai model Outlet: field nama_toko
         nama_distributor=fkp.distributor.nama_perusahaan if fkp.distributor else None,
         nama_outlet=fkp.outlet.nama_toko if fkp.outlet else None,
+        area=_resolve_area(fkp),
         status=fkp.status,
         status_label=PUBLIC_STATUS_LABELS.get(fkp.status, fkp.status),
         prioritas=fkp.prioritas,
         tanggal_pengajuan=fkp.tanggal_pengajuan,
         tanggal_selesai=fkp.tanggal_selesai,
-        timeline=timeline,
+        catatan_pembuat=fkp.catatan_distributor,
+        items=_build_items(fkp),
+        phases=phases,
         is_closed=fkp.status == FkpStatus.CLOSED,
         is_rejected=fkp.status == FkpStatus.REJECTED,
     )

@@ -2,21 +2,30 @@ import uuid
 from typing import Optional, List, Any
 from datetime import datetime, date
 from decimal import Decimal
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, computed_field
+from app.utils.durasi import hitung_durasi_detik, format_durasi
 
 from app.models.fkp import (
-    FkpPrioritas, RekomendasiTipe, StatusItem,
+    FkpPrioritas, JenisKemasan, RekomendasiTipe, StatusItem,
     TipeResolusi, JenisKeluhan,
+    AdaSampleKeluhan, KondisiSample,
 )
 
 
 # ─── TYPED REVIEW SUB-SCHEMAS ─────────────────────────────────────────────────
+class AreaInfo(BaseModel):
+    id: uuid.UUID
+    nama_area: str                     
+    kode_area: Optional[str] = None
+
+    class Config:
+        from_attributes = True
 
 class ItemApsmReview(BaseModel):
     """Sub-schema untuk review APSM per item."""
     item_id: uuid.UUID
 
-    # PERUBAHAN: rekomendasi_apsm dipecah menjadi dua field
+    # Rekomendasi dipecah menjadi dua field
     rekomendasi_penanganan_apsm: Optional[str] = None   # apa yang dilakukan thd barang fisik
     rekomendasi_kompensasi_apsm: Optional[str] = None   # kompensasi finansial ke distributor
 
@@ -26,18 +35,18 @@ class ItemApsmReview(BaseModel):
     @field_validator("rekomendasi_penanganan_apsm")
     @classmethod
     def validate_rekomendasi_penanganan(cls, v):
-        if v is not None and v not in RekomendasiTipe.ALL:
+        if v is not None and v not in RekomendasiTipe.PENANGANAN:
             raise ValueError(
-                f"rekomendasi_penanganan_apsm harus salah satu dari: {RekomendasiTipe.ALL}"
+                f"rekomendasi_penanganan_apsm harus salah satu dari: {RekomendasiTipe.PENANGANAN}"
             )
         return v
 
     @field_validator("rekomendasi_kompensasi_apsm")
     @classmethod
     def validate_rekomendasi_kompensasi(cls, v):
-        if v is not None and v not in RekomendasiTipe.ALL:
+        if v is not None and v not in RekomendasiTipe.KOMPENSASI:
             raise ValueError(
-                f"rekomendasi_kompensasi_apsm harus salah satu dari: {RekomendasiTipe.ALL}"
+                f"rekomendasi_kompensasi_apsm harus salah satu dari: {RekomendasiTipe.KOMPENSASI}"
             )
         return v
 
@@ -49,43 +58,73 @@ class ItemApsmReview(BaseModel):
         return v
 
 
-# DIHAPUS: ItemAdminHoReview
-# Admin HO tidak lagi mengisi rekomendasi per item (rekomendasi_penanganan_admin_ho /
-# rekomendasi_kompensasi_admin_ho). Admin HO sekarang hanya meneruskan FKP dari
-# apsm_reviewed -> rsm_approval_investigasi (lihat AdminHoReviewRequest di bawah).
-# Kolom DB terkait tetap ada (backward compat / data historis), hanya berhenti diisi.
+# CATATAN: tidak ada ItemAdminHoReview. Admin HO tidak mengisi rekomendasi per
+# item (rekomendasi_penanganan_admin_ho / rekomendasi_kompensasi_admin_ho) —
+# Admin HO hanya meneruskan FKP dari apsm_reviewed ke RSM (lihat
+# AdminHoReviewRequest di bawah). Kolom DB terkait tetap ada (backward compat /
+# data historis), hanya berhenti diisi.
 
 class ItemQtyDisetujui(BaseModel):
-    """Sub-schema untuk mengisi qty_disetujui per item saat fase accepted (tukar_barang)."""
+    """
+    Sub-schema untuk mengisi qty_disetujui per item, khusus resolusi
+    tukar_barang. Diisi Admin HO bersamaan dengan pembuatan resolusi di Fase 1
+    (status investigated / rsm_approval_resolusi / rsm_approval_final), dan
+    masih boleh dikoreksi di Fase 2 (accepted) selama belum diteruskan ke
+    Warehouse.
+
+    DIUBAH: qty_disetujui = 0 sekarang berarti item DITOLAK — status_item
+    langsung berubah jadi 'ditolak' saat ini juga (bukan menunggu approval
+    terakhir), dan alasan_penolakan WAJIB diisi. qty_disetujui > 0 berarti
+    item DISETUJUI — status_item langsung 'diterima'. Di FE, ini dipetakan
+    ke dropdown "Setujui item ini?" per item: pilih "Ya" → field qty_disetujui
+    muncul (nilai > 0); pilih "Tidak" → qty_disetujui dikirim 0 dan field qty
+    disembunyikan, alasan_penolakan yang diminta sebagai gantinya.
+
+    qty_disetujui dipakai untuk pengiriman barang pengganti. Nilai ini TIDAK
+    menentukan jalur approval maupun keterlibatan Direktur — itu murni dari
+    total qty klaim saat pengajuan (FkpItem.qty).
+    """
     item_id: uuid.UUID
     qty_disetujui: int
+    alasan_penolakan: Optional[str] = None
+
 
     @field_validator("qty_disetujui")
     @classmethod
-    def qty_positif(cls, v):
-        if v <= 0:
-            raise ValueError("qty_disetujui harus lebih dari 0")
-        return v
-    
-class ItemQcResult(BaseModel):
-    """Sub-schema untuk hasil investigasi QC per item."""
-    item_id: uuid.UUID
-    status_item: str
-    catatan_qc: Optional[str] = None
-    alasan_penolakan: Optional[str] = None
-
-    @field_validator("status_item")
-    @classmethod
-    def validate_status(cls, v):
-        if v not in StatusItem.ALL:
-            raise ValueError(f"status_item harus salah satu dari: {StatusItem.ALL}")
+    def qty_tidak_negatif(cls, v):
+        if v < 0:
+            raise ValueError("qty_disetujui tidak boleh negatif (0 = item ditolak)")
         return v
 
     @model_validator(mode="after")
     def alasan_wajib_jika_ditolak(self):
-        if self.status_item == StatusItem.DITOLAK and not self.alasan_penolakan:
-            raise ValueError("alasan_penolakan wajib diisi jika status_item adalah 'ditolak'")
+        if self.qty_disetujui == 0 and not self.alasan_penolakan:
+            raise ValueError("alasan_penolakan wajib diisi jika qty_disetujui = 0 (item ditolak)")
         return self
+    
+class ItemQcResult(BaseModel):
+    """
+    Sub-schema untuk hasil investigasi QC per item.
+
+    QC TIDAK mengubah status_item (diterima/ditolak) secara langsung —
+    keputusan final itu otomatis dari approval terakhir (rsm_approve_final()
+    di jalur cepat, direktur_approve() di jalur reguler; lihat
+    _tandai_item_diterima_setelah_approval_final() di fkp_service.py).
+    QC hanya memberi rekomendasi berupa persentase_disetujui_qc per item —
+    setara persentase_disetujui_apsm tapi dari sisi hasil pemeriksaan QC —
+    murni insight untuk pertimbangan Admin HO/RSM, tidak mengikat resolusi.
+    """
+    item_id: uuid.UUID
+    persentase_disetujui_qc: Optional[int] = None
+    catatan_qc: Optional[str] = None
+    alasan_penolakan: Optional[str] = None
+
+    @field_validator("persentase_disetujui_qc")
+    @classmethod
+    def validate_persentase(cls, v):
+        if v is not None and not (0 <= v <= 100):
+            raise ValueError("persentase_disetujui_qc harus antara 0 dan 100")
+        return v
 
 
 # ─── FKP ITEM SCHEMAS ─────────────────────────────────────────────────────────
@@ -96,6 +135,10 @@ class FkpItemCreate(BaseModel):
     Bisa dipakai saat create FKP (multi-item) atau tambah item belakangan.
     product_id WAJIB — setiap item harus merujuk produk yang terdaftar di
     ProductCatalog (kemampuan item custom dihapus total).
+
+    `qty` dan `jenis_kemasan` menentukan jalur approval FKP (cepat/reguler)
+    lewat total qty klaim saat pengajuan — lihat BATAS_QTY_DIREKTUR di
+    models/fkp.py.
     """
     product_id: uuid.UUID
     jenis_kemasan: Optional[str] = None
@@ -104,11 +147,12 @@ class FkpItemCreate(BaseModel):
     batch_number: Optional[str] = None
     expired_date: Optional[date] = None
 
-    ada_sample_keluhan: str = "foto"   # "ada" | "foto"
+    ada_sample_keluhan: str = AdaSampleKeluhan.FOTO   # "ada" | "foto"
     ada_foto_sample: bool = False
     tanggal_pembelian: Optional[date] = None
     tanggal_dikonsumsi: Optional[date] = None
-
+    kondisi_sample: Optional[str] = None
+    kondisi_sample_lainnya: Optional[str] = Field(default=None, max_length=100)
     jenis_keluhan: str
     deskripsi_keluhan: Optional[str] = None
 
@@ -121,16 +165,38 @@ class FkpItemCreate(BaseModel):
     @field_validator("ada_sample_keluhan")
     @classmethod
     def validate_sample(cls, v):
-        if v not in ("ada", "foto"):
-            raise ValueError("ada_sample_keluhan harus 'ada' atau 'foto'")
+        if v not in AdaSampleKeluhan.ALL:
+            raise ValueError(f"ada_sample_keluhan harus salah satu dari: {AdaSampleKeluhan.ALL}")
+        return v
+
+    @field_validator("kondisi_sample")
+    @classmethod
+    def validate_kondisi(cls, v):
+        if v is not None and v not in KondisiSample.ALL:
+            raise ValueError(f"kondisi_sample harus salah satu dari: {KondisiSample.ALL}")
         return v
 
     @field_validator("jenis_kemasan")
     @classmethod
     def validate_kemasan(cls, v):
-        if v is not None and v not in ("karton", "renceng", "ball", "zak", "pcs"):
-            raise ValueError("jenis_kemasan harus salah satu dari: karton, renceng, ball, zak, pcs")
+        if v is not None and v not in JenisKemasan.ALL:
+            raise ValueError(f"jenis_kemasan harus salah satu dari: {JenisKemasan.ALL}")
         return v
+
+    @model_validator(mode="after")
+    def normalisasi_kondisi_sample(self):
+        if self.ada_sample_keluhan == AdaSampleKeluhan.ADA:
+            if not self.kondisi_sample:
+                raise ValueError("kondisi_sample wajib diisi jika ada_sample_keluhan = 'ada'")
+            if self.kondisi_sample == KondisiSample.LAINNYA:
+                if not (self.kondisi_sample_lainnya or "").strip():
+                    raise ValueError("kondisi_sample_lainnya wajib diisi jika kondisi_sample = 'lainnya'")
+            else:
+                self.kondisi_sample_lainnya = None
+        else:
+            self.kondisi_sample = None
+            self.kondisi_sample_lainnya = None
+        return self
 
     class Config:
         json_schema_extra = {
@@ -158,56 +224,75 @@ class FkpItemUpdate(BaseModel):
     expired_date: Optional[date] = None
     ada_sample_keluhan: Optional[str] = None
     ada_foto_sample: Optional[bool] = None
+    kondisi_sample: Optional[str] = None
+    kondisi_sample_lainnya: Optional[str] = Field(default=None, max_length=100)
     tanggal_pembelian: Optional[date] = None
     tanggal_dikonsumsi: Optional[date] = None
     jenis_keluhan: Optional[str] = None
     deskripsi_keluhan: Optional[str] = None
 
+    @field_validator("qty")
+    @classmethod
+    def validate_qty(cls, v):
+        if v is not None and v <= 0:
+            raise ValueError("Quantity harus lebih dari 0")
+        return v
+
     @field_validator("ada_sample_keluhan")
     @classmethod
     def validate_sample(cls, v):
-        if v is not None and v not in ("ada", "foto"):
-            raise ValueError("ada_sample_keluhan harus 'ada' atau 'foto'")
+        if v is not None and v not in AdaSampleKeluhan.ALL:
+            raise ValueError(f"ada_sample_keluhan harus salah satu dari: {AdaSampleKeluhan.ALL}")
+        return v
+
+    @field_validator("kondisi_sample")
+    @classmethod
+    def validate_kondisi(cls, v):
+        if v is not None and v not in KondisiSample.ALL:
+            raise ValueError(f"kondisi_sample harus salah satu dari: {KondisiSample.ALL}")
         return v
 
     @field_validator("jenis_kemasan")
     @classmethod
     def validate_kemasan(cls, v):
-        if v is not None and v not in ("karton", "renceng", "ball", "zak", "pcs"):
-            raise ValueError("jenis_kemasan harus salah satu dari: karton, renceng, ball, zak, pcs")
+        if v is not None and v not in JenisKemasan.ALL:
+            raise ValueError(f"jenis_kemasan harus salah satu dari: {JenisKemasan.ALL}")
         return v
 
 
 class FkpItemResponse(BaseModel):
     id: uuid.UUID
     fkp_id: uuid.UUID
-    product_id: uuid.UUID   # DIUBAH — wajib, kolom DB sekarang NOT NULL
-    jenis_kemasan: Optional[str]
+    product_id: uuid.UUID
+    jenis_kemasan: Optional[str] = None
     qty: int
-    batch_number: Optional[str]
-    expired_date: Optional[date]
+    batch_number: Optional[str] = None
+    expired_date: Optional[date] = None
     ada_sample_keluhan: str
     ada_foto_sample: bool
-    tanggal_pembelian: Optional[date]
-    tanggal_dikonsumsi: Optional[date]
+    kondisi_sample: Optional[str] = None
+    kondisi_sample_lainnya: Optional[str] = None
+    tanggal_pembelian: Optional[date] = None
+    tanggal_dikonsumsi: Optional[date] = None
     jenis_keluhan: str
-    deskripsi_keluhan: Optional[str]
+    deskripsi_keluhan: Optional[str] = None
 
-    # PERUBAHAN: field lama dihapus, diganti dua field baru masing-masing
-    rekomendasi_penanganan_apsm: Optional[str]
-    rekomendasi_kompensasi_apsm: Optional[str]
-    catatan_apsm: Optional[str]
-    persentase_disetujui_apsm: Optional[int]
+    rekomendasi_penanganan_apsm: Optional[str] = None
+    rekomendasi_kompensasi_apsm: Optional[str] = None
+    catatan_apsm: Optional[str] = None
+    persentase_disetujui_apsm: Optional[int] = None
 
-    rekomendasi_penanganan_admin_ho: Optional[str]
-    rekomendasi_kompensasi_admin_ho: Optional[str]
-    catatan_admin_ho: Optional[str]
-    persentase_disetujui_admin_ho: Optional[int]
+    # DEPRECATED: tidak lagi diisi untuk FKP baru (data historis saja)
+    rekomendasi_penanganan_admin_ho: Optional[str] = None
+    rekomendasi_kompensasi_admin_ho: Optional[str] = None
+    catatan_admin_ho: Optional[str] = None
+    persentase_disetujui_admin_ho: Optional[int] = None
 
     status_item: str
-    catatan_qc: Optional[str]
-    alasan_penolakan: Optional[str]
-    qty_disetujui: Optional[int]
+    catatan_qc: Optional[str] = None
+    alasan_penolakan: Optional[str] = None
+    persentase_disetujui_qc: Optional[int] = None
+    qty_disetujui: Optional[int] = None
 
     created_at: datetime
     updated_at: datetime
@@ -288,10 +373,14 @@ class FkpCreate(BaseModel):
 
 
 class FkpUpdate(BaseModel):
-    """Update FKP saat status masih draft atau need_revision."""
+    """
+    Update header FKP saat draft/need_revision. Field yang tidak dikirim tidak
+    berubah; null pada catatan_distributor / lokasi_pembelian = dikosongkan.
+    """
     outlet_id: Optional[uuid.UUID] = None
     prioritas: Optional[str] = None
     catatan_distributor: Optional[str] = None
+    lokasi_pembelian: Optional[str] = None
 
     @field_validator("prioritas")
     @classmethod
@@ -327,12 +416,16 @@ class ApsmReviewRequest(BaseModel):
 
 class AdminHoReviewRequest(BaseModel):
     """
-    Admin HO meneruskan FKP ke RSM. Status: apsm_reviewed -> rsm_approval_investigasi.
+    Admin HO meneruskan FKP ke MSM (dari apsm_reviewed). Tujuan status
+    ditentukan otomatis di admin_ho_review() dari total qty klaim saat
+    pengajuan, BUKAN dari input request ini:
+      - total qty ≤ BATAS_QTY_DIREKTUR → rsm_approval_final (jalur cepat)
+      - total qty >  BATAS_QTY_DIREKTUR → rsm_approval_investigasi (jalur reguler)
 
-    PERUBAHAN: Admin HO tidak lagi mengisi rekomendasi per item — rekomendasi
-    yang dipakai untuk validasi konsistensi resolusi (lihat
-    _validasi_konsistensi_rekomendasi di fkp_service.py) sekarang bersumber
-    dari rekomendasi APSM (rekomendasi_kompensasi_apsm), bukan admin_ho lagi.
+    Admin HO tidak mengisi rekomendasi per item — rekomendasi yang dipakai
+    untuk validasi konsistensi resolusi (lihat _validasi_konsistensi_rekomendasi
+    di fkp_service.py) bersumber dari rekomendasi APSM
+    (rekomendasi_kompensasi_apsm).
     """
     catatan_admin: Optional[str] = None
 
@@ -365,7 +458,16 @@ class DirekturApproveRequest(BaseModel):
 
 
 class InvestigasiQcRequest(BaseModel):
-    """QC mengisi hasil investigasi + status per item."""
+    """
+    QC mengisi hasil investigasi + rekomendasi persentase per item.
+    item_results tidak membawa status_item (lihat ItemQcResult) — QC hanya
+    memberi persentase_disetujui_qc sebagai rekomendasi/insight.
+
+    Dipakai oleh dua endpoint dengan skema yang sama:
+      - qc_investigasi()                  : jalur reguler, mengubah status
+                                            → investigated
+      - qc_catatan_investigasi_paralel()  : jalur cepat, tidak mengubah status
+    """
     sumber_ketidaksesuaian: str     # "internal" | "pelanggan"
     catatan_qc: Optional[str] = None
     item_results: Optional[List[ItemQcResult]] = None
@@ -385,7 +487,7 @@ class InvestigasiQcRequest(BaseModel):
                 "item_results": [
                     {
                         "item_id": "uuid-item",
-                        "status_item": "diterima",
+                        "persentase_disetujui_qc": 100,
                         "catatan_qc": "Cacat terbukti dari sisi produksi"
                     }
                 ]
@@ -411,8 +513,9 @@ class RevisionRequest(BaseModel):
 
 class UpdatePengirimanRequest(BaseModel):
     """
-    Admin HO mengupdate progres pengiriman atau proses potong tagihan
-    setelah Direktur menyetujui FKP.
+    DEPRECATED — dipakai stub update_pengiriman() yang meneruskan ke
+    buat_resolusi(). Progres pengiriman tukar_barang sekarang lewat modul
+    Warehouse Surat Jalan; potong_tagihan lewat terbitkan_invoice().
     """
     resi_pengiriman: Optional[str] = None
     ekspedisi: Optional[str] = None
@@ -434,10 +537,21 @@ class UpdatePengirimanRequest(BaseModel):
 
 class ResolusiCreate(BaseModel):
     """
-    Satu schema untuk dua fase:
-    - Fase 1 (investigated)  : wajib tipe_resolusi + metode_penanganan_fisik
-    - Fase 2 (accepted)      : isi detail eksekusi (nomor_do/rekening/dll)
-    Validasi ketat dilakukan di service berdasarkan status FKP saat itu.
+    Satu schema untuk dua fase (field yang dipakai difilter di service
+    berdasarkan status FKP saat itu — lihat buat_resolusi()):
+
+    - Fase 1 (investigated / rsm_approval_resolusi / rsm_approval_final —
+      SEBELUM approval final): wajib tipe_resolusi + metode_penanganan_fisik.
+      item_qty_disetujui (khusus tukar_barang) juga diisi di fase ini, 1 form
+      dengan resolusi — dan LANGSUNG memutuskan status_item per item
+      (0 = ditolak, >0 = diterima, lihat ItemQtyDisetujui).
+    - Fase 2 (accepted): isi detail eksekusi (nomor_do/rekening/dll).
+      item_qty_disetujui masih boleh dikoreksi di sini selama belum
+      diteruskan ke Warehouse.
+
+    tipe_resolusi dan item_qty_disetujui TIDAK mempengaruhi jalur approval
+    maupun keterlibatan Direktur (penentunya hanya total qty klaim saat
+    pengajuan). Validasi ketat dilakukan di service.
     """
     tipe_resolusi: Optional[str] = None
     metode_penanganan_fisik: Optional[str] = None
@@ -594,6 +708,7 @@ class FkpDetailResponse(BaseModel):
     distributor_id: uuid.UUID
     distributor_info: Optional[DistributorInfo] = None
     outlet_info: Optional[OutletInfo] = None
+    area_info: Optional[AreaInfo] = None
     submitted_by: uuid.UUID
     handled_by: Optional[uuid.UUID]
     prioritas: str
@@ -618,12 +733,26 @@ class FkpDetailResponse(BaseModel):
     attachments: List[AttachmentResponse] = []
     documents: List[FkpDocumentResponse] = []
 
+    @computed_field  # type: ignore[misc]
+    @property
+    def masa_penyelesaian_detik(self) -> Optional[int]:
+        return hitung_durasi_detik(self.tanggal_pengajuan, self.tanggal_selesai)
+
+    @computed_field  # type: ignore[misc]
+    @property
+    def masa_penyelesaian_label(self) -> Optional[str]:
+        detik = self.masa_penyelesaian_detik
+        return format_durasi(detik) if detik is not None else None
+    
     @model_validator(mode='before')
     @classmethod
     def extract_nested(cls, data):
         if hasattr(data, '__class__') and hasattr(data, 'distributor'):
             if data.distributor:
                 data.__dict__['distributor_info'] = data.distributor
+                area = getattr(data.distributor, 'area', None)   # ← BARU
+                if area:
+                    data.__dict__['area_info'] = area
             if data.outlet:
                 data.__dict__['outlet_info'] = data.outlet
         return data
@@ -639,7 +768,6 @@ class TipeDokumenInfo(BaseModel):
 
 
 class FkpListResponse(BaseModel):
-    """Response ringkas untuk list FKP."""
     id: uuid.UUID
     nomor_fkp: str
     outlet_id: Optional[uuid.UUID]
@@ -650,10 +778,16 @@ class FkpListResponse(BaseModel):
     status: str
     tanggal_pengajuan: Optional[datetime]
     created_at: datetime
-    # item_count dihapus — field ini tidak pernah di-populate oleh list_fkp()
-    # (butuh subquery COUNT tambahan) sehingga selalu None. Jika dibutuhkan
-    # di masa depan, tambahkan subquery di fkp_service.list_fkp() dan
-    # kembalikan field ini.
+
+    @model_validator(mode='before')
+    @classmethod
+    def extract_nested(cls, data):
+        if hasattr(data, 'distributor'):
+            if data.distributor:
+                data.__dict__['distributor_info'] = data.distributor
+            if data.outlet:
+                data.__dict__['outlet_info'] = data.outlet
+        return data
 
     class Config:
         from_attributes = True

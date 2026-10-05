@@ -113,6 +113,13 @@ async def deactivate_distributor(
 ):
     return await distributor_service.deactivate_distributor(distributor_id, db)
 
+@router.post("/{distributor_id}/activate", summary="Aktifkan kembali distributor")
+async def activate_distributor_endpoint(
+    distributor_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_permission_dep("distributor.activate")),
+):
+    return await distributor_service.activate_distributor(distributor_id, db)
 
 # ─── DISTRIBUTOR USERS ────────────────────────────────────────────────────────
 

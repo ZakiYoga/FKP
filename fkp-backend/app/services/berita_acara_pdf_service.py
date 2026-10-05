@@ -57,15 +57,12 @@ TEMPLATE_NAME = "berita_acara_pemusnahan.html"
 
 _METODE_MAP: Dict[str, str] = {
     # Metode penanganan fisik (MetodePenangananFisik)
-    "dimusnahkan":           "dibakar",
+    "dimusnahkan":           "dimusnahkan",
     "dijual_pakan_ternak":   "dijual_pakan_ternak",
     "dikirim_ke_ho":         "dikembalikan_ho",
-    "disimpan_distributor":  "disimpan_distributor",
-    "di_repack_oleh_pihak_internal": "di_repack_oleh_pihak_internal",
     # Rekomendasi lama dari APSM/Admin HO (backward compat)
     RekomendasiTipe.MUSNAHKAN:   "dibakar",
     RekomendasiTipe.KIRIM_KE_HO: "dikembalikan_ho",
-    # String literal legacy
     "dibakar":               "dibakar",
     "dihancurkan":           "dihancurkan",
     "dikembalikan_ho":       "dikembalikan_ho",
@@ -74,7 +71,6 @@ _METODE_MAP: Dict[str, str] = {
 _TINDAK_MAP: Dict[str, str] = {
     "tukar_barang":               "penukaran_barang",
     "potong_tagihan":             "potong_tagihan",
-    "tidak_ada_kompensasi":       "tanpa_kompensasi",
     RekomendasiTipe.GANTI_BARANG:   "penukaran_barang",
     RekomendasiTipe.POTONG_TAGIHAN: "potong_tagihan",
     "penukaran_barang":           "penukaran_barang",

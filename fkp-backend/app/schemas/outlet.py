@@ -1,15 +1,17 @@
 import uuid
-from typing import Optional
+from typing import Optional, Literal
 from datetime import datetime
 from pydantic import BaseModel, EmailStr
 
+TipeToko = Literal["retail_tradisional","retail_modern","grosir","horeca","umkm",
+                   "tobaku","bakery","catering","reseller","online_shop","lainnya"]
 
 class OutletCreate(BaseModel):
     distributor_id: uuid.UUID
     kode_outlet: str
     nama_toko: str
     pemilik_toko: str
-    tipe_toko: str              # "retail" | "grosir" | "horeka"
+    tipe_toko: TipeToko
     no_hp: Optional[str] = None
     email: Optional[EmailStr] = None
     kelurahan_id: Optional[int] = None

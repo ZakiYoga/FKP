@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Search, CheckCircle, XCircle, Clock, RefreshCw, Eye, Building2 } from 'lucide-react'
+import { Search, CheckCircle, XCircle, Clock, RefreshCw, Eye, Building2, Store } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -286,7 +286,7 @@ export function OutletRegistrationsPage() {
             </div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-gray-400">
-              <Building2 className="w-8 h-8" />
+              <Store className="w-8 h-8" />
               <p className="text-sm">
                 {search ? 'Tidak ada hasil untuk pencarian ini' : 'Tidak ada pendaftaran outlet yang menunggu verifikasi'}
               </p>

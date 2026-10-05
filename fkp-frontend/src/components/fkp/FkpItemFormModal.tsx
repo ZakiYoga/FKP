@@ -16,6 +16,7 @@ import toast from 'react-hot-toast'
 import { format, toZonedTime } from 'date-fns-tz'
 import { TIPE_FOTO_OPTIONS, getDefaultTipe } from '@/constants/fkpAttachment'
 import { AuthenticatedImage } from '../AuthenticatedImage'
+import { addDays } from 'date-fns'
 
 
 // ─── Tipe file dengan metadata ────────────────────────────────────────────────
@@ -296,10 +297,14 @@ export function FkpItemFormModal({
                     <Input
                         label="Tanggal Kadaluarsa"
                         type="date"
-                        min={originalExpired && originalExpired < today ? originalExpired : today}
+                        min={format(
+                            addDays(toZonedTime(new Date(), TIMEZONE), 1),
+                            'yyyy-MM-dd'
+                        )}
                         required
                         error={errors.expired_date?.message}
-                        {...register('expired_date')} />
+                        {...register('expired_date')}
+                    />
                 </div>
 
                 {/* ── Detail Keluhan ──────────────────────────────────── */}

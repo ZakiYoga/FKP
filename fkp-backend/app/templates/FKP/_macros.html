@@ -1,0 +1,27 @@
+{% macro cb(checked) -%}
+<span class="cb{% if checked %} on{% endif %}"></span>
+{%- endmacro %}
+
+{# Satu sel foto di tabel lampiran.
+   lst = list attachment, i = index baris, label = teks alt gambar. #}
+{% macro foto_cell(lst, i, label) -%}
+  {% if i < lst | length %}
+    {% set a = lst[i] %}
+    <div class="foto-img-wrap">
+      <img
+        src="data:image/jpeg;base64,{{ a.base64 }}"
+        alt="{{ label }} {{ i + 1 }}"
+      />
+    </div>
+    <table class="tbl-fotometa">
+      {% if a.keterangan %}
+      <tr>
+        <td class="fmlbl">Keterangan</td>
+        <td>{{ a.keterangan }}</td>
+      </tr>
+      {% endif %}
+    </table>
+  {% else %}
+    <div class="foto-kosong">—</div>
+  {% endif %}
+{%- endmacro %}

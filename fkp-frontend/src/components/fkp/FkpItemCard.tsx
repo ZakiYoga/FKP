@@ -28,14 +28,14 @@ function FkpItemCard({ item, idx, canDelete, onDelete, attachments, products }: 
   return (
     <div className="p-4 rounded-xl border border-gray-100 bg-white shadow-2xs space-y-3">
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
+        <div className="flex w-full border-gray-100 items-center border-b pb-4 gap-3">
           <div className="w-7 h-7 rounded-full bg-brand-100 text-brand-700 text-xs font-bold
                                     flex items-center justify-center shrink-0 mt-0.5">{idx + 1}</div>
           <div>
             <p className="text-sm font-semibold text-gray-800">{namaProduk}</p>
             {produk && <p className="text-xs text-gray-400 font-mono">{produk.kode_produk}</p>}
             <p className="text-xs text-gray-500 mt-0.5">
-              {JENIS_KELUHAN_LABEL[item.jenis_keluhan] ?? item.jenis_keluhan}
+              Jenis Keluhan : {JENIS_KELUHAN_LABEL[item.jenis_keluhan] ?? item.jenis_keluhan}
             </p>
           </div>
         </div>
@@ -55,9 +55,13 @@ function FkpItemCard({ item, idx, canDelete, onDelete, attachments, products }: 
       </dl>
 
       {item.deskripsi_keluhan && (
-        <div className="flex flex-col gap-1 bg-gray-50 rounded-sm p-3 border border-gray-100">
-          <h1 className="text-xs font-medium text-gray-800">Deskripsi Keluhan : </h1>
-          <p className="text-xs italic capitalize">{item.deskripsi_keluhan}</p>
+        <div className="flex gap-1 border-b pb-4">
+          <div className="text-xs">
+            <h1 className="text-xs font-medium text-gray-800 mb-1">Deskripsi Keluhan : </h1>
+            <p className="first-letter:uppercase">
+              {item.deskripsi_keluhan} Lorem ipsum dolor sit amet consectetur adipisicing elit. Quia, velit sunt. Beatae harum, ipsam sunt mollitia autem minima blanditiis, placeat non soluta, deleniti inventore velit doloremque consectetur neque quasi expedita?
+            </p>
+          </div>
         </div>
       )}
       {/* ── Rekomendasi APSM ──────────────────────────────── */}
@@ -145,15 +149,14 @@ function FkpItemCard({ item, idx, canDelete, onDelete, attachments, products }: 
             Hasil Investigasi QC
           </p>
           <div className="flex items-center gap-2 text-xs">
-            <span className="text-gray-500 w-28 shrink-0">Status item</span>
-            <span className={`font-semibold ${item.status_item === 'diterima' ? 'text-emerald-600'
-                : item.status_item === 'ditolak' ? 'text-red-600'
-                  : 'text-amber-600'
-              }`}>
-              {item.status_item === 'diterima' ? '✅ Diterima'
-                : item.status_item === 'ditolak' ? '❌ Ditolak'
-                  : '⏳ Pending'}
-            </span>
+            {/* BARU — rekomendasi QC, bukan keputusan (keputusan = status di atas,
+              berubah otomatis saat approval terakhir, bukan diisi QC lagi) */}
+            {item.persentase_disetujui_qc != null && (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-gray-500 w-28 shrink-0">% Rekomendasi QC</span>
+                <span className="font-medium text-gray-800">{item.persentase_disetujui_qc}%</span>
+              </div>
+            )}
           </div>
           {item.alasan_penolakan && (
             <p className="text-xs text-red-600 bg-red-50 rounded-sm px-2 py-1">

@@ -361,8 +361,6 @@ export function FkpActionPanel({ fkp }: FkpActionPanelProps) {
                 <option value="dimusnahkan">Dimusnahkan</option>
                 <option value="dijual_pakan_ternak">Dijual sebagai pakan ternak</option>
                 <option value="dikirim_ke_ho">Dikirim ke Head Office</option>
-                <option value="disimpan_distributor">Disimpan di distributor</option>
-                <option value="di_repack_oleh_pihak_internal">Di Repack oleh pihak internal</option>
               </Select>
 
               {metodePenanganan === 'dimusnahkan' && (

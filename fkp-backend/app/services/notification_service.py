@@ -7,12 +7,17 @@ Setiap peran menerima notifikasi yang relevan dengan tugasnya.
 Pemetaan notifikasi per transisi (sinkron dengan fkp_service.py):
   DRAFT → SUBMITTED                    → APSM (area distributor) + Admin HO
   SUBMITTED → APSM_REVIEWED            → Submitter + Admin HO (need action)
-  APSM_REVIEWED → RSM_APPROVAL_INVESTIGASI → Submitter + RSM area (need action)
+  APSM_REVIEWED → RSM_APPROVAL_INVESTIGASI → Submitter + RSM area (need action)   [jalur reguler]
+  APSM_REVIEWED → RSM_APPROVAL_FINAL       → Submitter + RSM area (need action)   [jalur cepat]
   RSM_APPROVAL_INVESTIGASI → IN_INVESTIGATION → Submitter + QC (need action)
   IN_INVESTIGATION → INVESTIGATED      → Admin HO + RSM area
   INVESTIGATED → RSM_APPROVAL_RESOLUSI → RSM area (need action)
   RSM_APPROVAL_RESOLUSI → DIREKTUR_APPROVAL → Direktur (need action)
-  DIREKTUR_APPROVAL → ACCEPTED         → Admin HO + Submitter + QC
+  buat_resolusi() pertama di jalur cepat (status rsm_approval_final) → QC
+    (need action) — TIDAK lewat kirim_notifikasi_transisi(), dipicu langsung
+    dari fkp_service.buat_resolusi() karena bukan transisi status.
+  DIREKTUR_APPROVAL → ACCEPTED         → Admin HO + Submitter                     [jalur reguler]
+  RSM_APPROVAL_FINAL → ACCEPTED        → Admin HO + Submitter                     [jalur cepat]
   ACCEPTED → IN_PROCESS                → Submitter + Admin HO
   IN_PROCESS → CLOSED                  → Semua pihak terkait
   * → NEED_REVISION                    → Submitter (need action)
@@ -174,9 +179,9 @@ async def kirim_notifikasi_transisi(
     Menentukan siapa yang harus menerima notifikasi dan jenis notifnya.
 
     Semua konstanta status mengacu pada FkpStatus di fkp_service.py:
-      SUBMITTED, APSM_REVIEWED, RSM_APPROVAL_INVESTIGASI, IN_INVESTIGATION,
-      INVESTIGATED, RSM_APPROVAL_RESOLUSI, DIREKTUR_APPROVAL, ACCEPTED,
-      IN_PROCESS, NEED_REVISION, REJECTED, CLOSED
+      SUBMITTED, APSM_REVIEWED, RSM_APPROVAL_INVESTIGASI, RSM_APPROVAL_FINAL,
+      IN_INVESTIGATION, INVESTIGATED, RSM_APPROVAL_RESOLUSI, DIREKTUR_APPROVAL,
+      ACCEPTED, IN_PROCESS, NEED_REVISION, REJECTED, CLOSED
     """
     nomor  = fkp.nomor_fkp
     fkp_id = fkp.id
@@ -259,6 +264,34 @@ async def kirim_notifikasi_transisi(
                 pesan=(
                     f"Admin HO telah meneruskan FKP {nomor} untuk persetujuan "
                     f"investigasi. Silakan review dan berikan keputusan."
+                ),
+                tipe=TipeNotifikasi.NEED_ACTION,
+            )
+
+    # ── APSM_REVIEWED → RSM_APPROVAL_FINAL (jalur cepat) ─────────────────────
+    # SEBELUMNYA TIDAK ADA branch untuk status_baru ini sama sekali — berarti
+    # RSM tidak pernah diberi tahu ada FKP jalur cepat menunggu approval
+    # akhirnya (admin_ho_review() bisa mengarah ke sini, bukan cuma ke
+    # RSM_APPROVAL_INVESTIGASI). Simetris dengan branch di atas.
+    elif status_baru == FkpStatus.RSM_APPROVAL_FINAL:
+        # Notify submitter — info
+        await _buat_notif(db, fkp.submitted_by, fkp_id,
+            judul=f"FKP Menunggu Persetujuan RSM: {nomor}",
+            pesan=(
+                f"FKP {nomor} (jalur cepat) telah disetujui Admin HO ({aktor.nama}) "
+                f"dan menunggu persetujuan akhir RSM."
+            ),
+            tipe=TipeNotifikasi.STATUS_CHANGE,
+        )
+        # Notify RSM area — perlu action
+        rsm_ids = await _get_rsm_for_distributor(db, dist_id)
+        for uid in rsm_ids:
+            await _buat_notif(db, uid, fkp_id,
+                judul=f"FKP Menunggu Persetujuan Akhir Anda: {nomor}",
+                pesan=(
+                    f"Admin HO telah membuat resolusi dan meneruskan FKP {nomor} "
+                    f"(jalur cepat) untuk persetujuan akhir. Direktur tidak "
+                    f"dilibatkan di jalur ini — keputusan Anda final."
                 ),
                 tipe=TipeNotifikasi.NEED_ACTION,
             )
@@ -364,12 +397,15 @@ async def kirim_notifikasi_transisi(
             tipe=TipeNotifikasi.STATUS_CHANGE,
         )
 
-    # ── RSM_APPROVAL_RESOLUSI / DIREKTUR_APPROVAL → ACCEPTED ─────────────────
-    # BARU: bisa datang dari 2 sumber sekarang —
-    #   - DIREKTUR_APPROVAL → ACCEPTED  (qty > batas, lewat Direktur)
-    #   - RSM_APPROVAL_RESOLUSI → ACCEPTED (qty ≤ batas, skip Direktur)
-    # Pesan disesuaikan supaya tidak salah klaim "disetujui Direktur"
-    # padahal Direktur tidak dilibatkan sama sekali di jalur skip.
+    # ── RSM_APPROVAL_FINAL / DIREKTUR_APPROVAL → ACCEPTED ────────────────────
+    # Dua sumber yang mungkin sampai ke ACCEPTED sekarang:
+    #   - DIREKTUR_APPROVAL → ACCEPTED   (jalur reguler, Direktur wajib)
+    #   - RSM_APPROVAL_FINAL → ACCEPTED  (jalur cepat, Direktur tidak dilibatkan)
+    # RSM_APPROVAL_RESOLUSI TIDAK PERNAH langsung ke ACCEPTED lagi (selalu
+    # lewat DIREKTUR_APPROVAL — Direktur wajib untuk semua tipe_resolusi di
+    # jalur reguler, lihat rsm_approve_resolusi() di fkp_service.py).
+    # Pesan disesuaikan supaya tidak salah klaim "disetujui Direktur" padahal
+    # jalur cepat tidak pernah melibatkan Direktur sama sekali.
     elif status_baru == FkpStatus.ACCEPTED:
         disetujui_oleh = (
             "Direktur" if status_lama == FkpStatus.DIREKTUR_APPROVAL else "RSM"
@@ -383,23 +419,29 @@ async def kirim_notifikasi_transisi(
             ),
             tipe=TipeNotifikasi.STATUS_CHANGE,
         )
-        # Notify Admin HO — perlu action (buat resolusi)
+        # Notify Admin HO — perlu action lanjutkan eksekusi resolusi. Resolusi
+        # (tipe_resolusi, dll) SUDAH ADA sejak sebelum approval ini (dibuat di
+        # buat_resolusi() Fase 1) — pesan di sini TIDAK LAGI minta "buat
+        # resolusi", melainkan lanjutkan ke langkah eksekusi sesuai tipe
+        # resolusi yang sudah dipilih (isi detail Fase 2, lalu surat jalan /
+        # invoice / confirm-resolusi).
         for u in await _get_users_by_role(db, "admin_ho"):
             await _buat_notif(db, u.id, fkp_id,
-                judul=f"FKP Diterima — Buat Resolusi: {nomor}",
+                judul=f"FKP Diterima — Lanjutkan Proses Resolusi: {nomor}",
                 pesan=(
                     f"{disetujui_oleh} telah menyetujui FKP {nomor}. "
-                    f"Silakan buat resolusi (tukar barang / potong tagihan / pemusnahan)."
+                    f"Lengkapi detail eksekusi resolusi (Surat Jalan / invoice / "
+                    f"konfirmasi resolusi sesuai tipe yang sudah dipilih)."
                 ),
                 tipe=TipeNotifikasi.NEED_ACTION,
             )
-        # Notify QC — perlu action (input resolusi)
-        for u in await _get_users_by_role(db, "qc"):
-            await _buat_notif(db, u.id, fkp_id,
-                judul=f"FKP Diterima — Input Resolusi: {nomor}",
-                pesan=f"FKP {nomor} telah disetujui {disetujui_oleh}. Silakan input resolusi.",
-                tipe=TipeNotifikasi.NEED_ACTION,
-            )
+        # Notifikasi QC DIHAPUS dari sini — sebelumnya berbunyi "silakan
+        # input resolusi" yang sudah tidak relevan sejak resolusi dibuat
+        # Admin HO (QC tidak pernah mengisi resolusi). Untuk jalur cepat, QC
+        # sudah diberi tahu lebih awal saat resolusi pertama dibuat (lihat
+        # buat_resolusi() di fkp_service.py); untuk jalur reguler, QC sudah
+        # menuntaskan investigasi jauh sebelum titik ini.
+
 
     # ── ACCEPTED → IN_PROCESS ─────────────────────────────────────────────────
     # Dipanggil dari update_pengiriman untuk tipe tukar_barang / potong_tagihan

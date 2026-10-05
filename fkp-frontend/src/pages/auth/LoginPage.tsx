@@ -80,7 +80,7 @@ export function LoginPage() {
             id="email"
             type="email"
             autoComplete="email"
-            placeholder="nama@saktifood.com"
+            placeholder="mail@saktipangan.co.id"
             className={cn('input-base', errors.email && 'input-error')}
             {...register('email')}
           />

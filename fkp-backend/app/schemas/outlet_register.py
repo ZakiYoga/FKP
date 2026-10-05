@@ -124,8 +124,8 @@ class OutletApproveResponse(BaseModel):
  
 class OutletRejectRequest(BaseModel):
     """Body wajib saat menolak registrasi — alasan harus diisi."""
-    alasan: str
- 
+    alasan: Optional[str] = None
+     
     @field_validator("alasan")
     @classmethod
     def alasan_tidak_kosong(cls, v: str) -> str:

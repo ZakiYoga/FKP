@@ -134,7 +134,6 @@ async def kirim_email_fkp_closed(
     LABEL = {
         "tukar_barang":         "Penukaran Barang",
         "potong_tagihan":       "Potongan Tagihan / Cashback",
-        "tidak_ada_kompensasi": "Tanpa Kompensasi",
     }
     url      = f"{settings.FRONTEND_BASE_URL}/track/{fkp_id}"
     qr_bytes = _qr_png_bytes(fkp_id)

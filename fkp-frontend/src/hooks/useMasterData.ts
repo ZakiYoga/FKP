@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { areaApi, distributorApi, outletApi, productApi } from '@/api/masterdata'
 import { getErrorMessage } from '@/lib/utils'
+import api from '@/lib/axios'
 
 // ─── AREA ─────────────────────────────────────────────────────────────────────
 export function useAreas() {
@@ -94,6 +95,18 @@ export function useUpdateDistributor(id: string) {
   })
 }
 
+export function useActivateOutlet() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: outletApi.activate,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['outlets'] })
+      toast.success('Outlet diaktifkan kembali.')
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  })
+}
+
 export function useDeactivateDistributor() {
   const qc = useQueryClient()
   return useMutation({
@@ -103,6 +116,16 @@ export function useDeactivateDistributor() {
       toast.success('Distributor dinonaktifkan.')
     },
     onError: (e) => toast.error(getErrorMessage(e)),
+  })
+}
+
+export function useActivateDistributor() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => api.post(`/distributors/${id}/activate`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['distributors'] })
+    },
   })
 }
 
@@ -154,6 +177,30 @@ export function useDeactivateOutlet() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['outlets'] })
       toast.success('Outlet dinonaktifkan.')
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  })
+}
+
+export function useApproveOutlet() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: outletApi.approve,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['outlets'] })
+      toast.success('Pendaftaran outlet disetujui.')
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  })
+}
+
+export function useRejectOutlet() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: outletApi.reject,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['outlets'] })
+      toast.success('Pendaftaran outlet ditolak.')
     },
     onError: (e) => toast.error(getErrorMessage(e)),
   })

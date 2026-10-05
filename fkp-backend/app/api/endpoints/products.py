@@ -1,19 +1,29 @@
 """
 Product Catalog Endpoints:
-  GET    /api/products/      → List produk (semua role)
-  POST   /api/products/      → Buat produk baru (superadmin, admin_ho)
-  GET    /api/products/{id}  → Detail produk
-  PUT    /api/products/{id}  → Update produk (superadmin, admin_ho)
+  GET    /api/products/                → List produk (semua role), termasuk kemasan_tersedia
+  POST   /api/products/                → Buat produk baru (product.manage)
+  GET    /api/products/{id}            → Detail produk, termasuk kemasan_tersedia
+  PUT    /api/products/{id}            → Update data produk (product.manage), tanpa kemasan
+  PUT    /api/products/{id}/kemasan    → Atur kemasan produk (product.manage)
+  POST   /api/products/{id}/foto       → Upload foto produk (product.manage)
+
+Satu baris katalog = satu SKU (kode_produk). Kemasan berbeda dari SKU yang sama
+(mis. ball dan pcs) diatur lewat endpoint kemasan, bukan dengan produk baru.
+
+Foto: satu foto per produk, JPG/PNG/WebP maksimal 2 MB, disimpan di
+uploads/products dan dilayani publik lewat static mount di main.py. Mengunggah
+foto baru menghapus foto lama dari disk. qty_per_kemasan adalah isi kemasan
+utama produk (satu nilai per produk).
 """
 import uuid
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Query, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_permission_dep
-from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse
+from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse, KemasanUpdate
 from app.services import product_service
 
 router = APIRouter()
@@ -21,12 +31,17 @@ router = APIRouter()
 
 @router.get("/", response_model=List[ProductResponse], summary="List produk")
 async def list_products(
-    jenis_kemasan: Optional[str] = Query(default=None, description="zak | karton | renceng | ball | pcs "),
+    jenis_kemasan: Optional[str] = Query(
+        default=None,
+        description="Filter produk yang tersedia dalam kemasan ini: zak | ball | karton | renceng | pcs",
+    ),
     is_active: Optional[bool] = Query(default=None),
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),   # semua role
 ):
-    return await product_service.list_products(db, jenis_kemasan=jenis_kemasan, is_active=is_active)
+    return await product_service.list_products_with_kemasan(
+        db, jenis_kemasan=jenis_kemasan, is_active=is_active
+    )
 
 
 @router.post("/", response_model=ProductResponse, status_code=201, summary="Buat produk baru")
@@ -35,7 +50,8 @@ async def create_product(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission_dep("product.manage")),
 ):
-    return await product_service.create_product(data, db)
+    product = await product_service.create_product(data, db)
+    return await product_service.get_product_with_kemasan(product.id, db)
 
 
 @router.get("/{product_id}", response_model=ProductResponse, summary="Detail produk")
@@ -44,7 +60,7 @@ async def get_product(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    return await product_service.get_product(product_id, db)
+    return await product_service.get_product_with_kemasan(product_id, db)
 
 
 @router.put("/{product_id}", response_model=ProductResponse, summary="Update produk")
@@ -54,4 +70,40 @@ async def update_product(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission_dep("product.manage")),
 ):
-    return await product_service.update_product(product_id, data, db)
+    await product_service.update_product(product_id, data, db)
+    return await product_service.get_product_with_kemasan(product_id, db)
+
+
+@router.put(
+    "/{product_id}/kemasan",
+    response_model=ProductResponse,
+    summary="Atur kemasan produk",
+)
+async def set_kemasan(
+    product_id: uuid.UUID,
+    data: KemasanUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_permission_dep("product.manage")),
+):
+    """
+    Mengganti SELURUH daftar kemasan produk (mis. ['ball', 'pcs']).
+    Kemasan utama (pertama menurut urutan zak, ball, karton, renceng, pcs)
+    otomatis disimpan juga di kolom lama jenis_kemasan.
+    """
+    await product_service.set_kemasan(product_id, data.kemasan, db)
+    return await product_service.get_product_with_kemasan(product_id, db)
+
+@router.post(
+    "/{product_id}/foto",
+    response_model=ProductResponse,
+    summary="Upload foto produk",
+)
+async def upload_foto(
+    product_id: uuid.UUID,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_permission_dep("product.manage")),
+):
+    """JPG/PNG/WebP, maksimal 2 MB. Mengganti foto sebelumnya."""
+    await product_service.set_foto(product_id, file, db)
+    return await product_service.get_product_with_kemasan(product_id, db)

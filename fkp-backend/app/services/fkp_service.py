@@ -1,80 +1,121 @@
 """
 FKP Service — state machine engine.
 
-Alur status lengkap:
+── ALUR STATUS ────────────────────────────────────────────────────────────
+
   draft
     → submitted                   (distributor/outlet/sc_spv/apsm)
-    → apsm_reviewed               (apsm)           ← bisa minta revisi ke submitted
-    → rsm_approval_investigasi    (admin_ho)        ← bisa minta revisi ke submitted
-    → in_investigation            (rsm approve)     ← rsm bisa revisi ke apsm_reviewed
-    → investigated                (qc)
-    → rsm_approval_resolusi       (admin_ho)        ← rsm bisa revisi ke investigated
-    → direktur_approval           (rsm approve)
-    → accepted                    (direktur approve)
-    → in_process                  (admin_ho — tukar_barang / potong_tagihan)
-                                   atau langsung closed (pemusnahan)
-    → closed                      (admin_ho)
+    → apsm_reviewed               (apsm)
+    → [admin_ho_review()]         (admin_ho — percabangan jalur, lihat bawah)
 
-  Need revision — mundur 1 langkah ke pihak yang bertanggung jawab:
-    apsm_reviewed            → need_revision → kembali ke submitted
-    rsm_approval_investigasi → need_revision → kembali ke submitted (Admin HO)
-    rsm_approval_investigasi → kembali ke apsm_reviewed (RSM minta ke APSM)
-    rsm_approval_resolusi    → need_revision → kembali ke investigated
+  JALUR CEPAT — total qty klaim saat pengajuan ≤ BATAS_QTY_DIREKTUR
+    apsm_reviewed → rsm_approval_final → accepted
+      - Admin HO membuat resolusi (buat_resolusi() Fase 1) SAAT status masih
+        rsm_approval_final; rsm_approve_final() menolak approve kalau resolusi
+        belum ada.
+      - RSM adalah approval terakhir. Direktur TIDAK PERNAH dilibatkan.
+      - QC investigasi PARALEL (qc_catatan_investigasi_paralel()), tidak
+        menahan status.
 
-── RBAC dinamis (migrasi) ─────────────────────────────────────────────────
-Permission per role TIDAK lagi hardcode sebagai dict Python di sini.
+  JALUR REGULER — total qty klaim saat pengajuan > BATAS_QTY_DIREKTUR
+    apsm_reviewed → rsm_approval_investigasi → in_investigation
+      → investigated → rsm_approval_resolusi → direktur_approval → accepted
+      - Direktur WAJIB approve untuk SEMUA tipe_resolusi (tukar_barang,
+        potong_tagihan). Tidak ada cabang
+        skip Direktur di jalur ini.
+
+  SETELAH accepted (kedua jalur):
+    accepted → in_process   (trigger sesuai tipe_resolusi, BUKAN buat_resolusi()):
+                              tukar_barang              → create_surat_jalan()  (modul Warehouse)
+                              potong_tagihan            → terbitkan_invoice()
+    in_process → closed     (close_fkp())
+
+  Status terminal: rejected, closed.
+
+    Mundur (request_revision(), tujuan dari REVISION_TARGETS):
+      submitted                → need_revision   (apsm)
+      apsm_reviewed            → submitted       (apsm / admin_ho / superadmin)
+      rsm_approval_investigasi → apsm_reviewed   (rsm / admin_ho / superadmin)
+      rsm_approval_final       → apsm_reviewed   (rsm / admin_ho / superadmin)
+      rsm_approval_resolusi    → investigated    (rsm / admin_ho / superadmin)
+    need_revision → submitted lewat submit_fkp() oleh pembuat FKP.
+
+── PENENTUAN JALUR & KETERLIBATAN DIREKTUR ────────────────────────────────
+SATU aturan, satu sumber angka:
+  total qty klaim saat pengajuan = SUM(FkpItem.qty) seluruh item FKP, hanya
+  kemasan di KEMASAN_DIHITUNG_JALUR (zak/ball/karton; pcs/renceng SENGAJA
+  tidak dihitung), dihitung oleh _hitung_total_qty_jalur().
+
+  - Jalur ditentukan SEKALI di admin_ho_review() lewat angka itu.
+  - Direktur terlibat ⇔ FKP berada di jalur reguler. Tidak ada pengecekan
+    qty lagi di RSM/Direktur — status FKP itu sendiri yang membawa keputusan.
+  - Yang TIDAK mempengaruhi jalur/Direktur: qty_disetujui (acc Admin HO),
+    tipe_resolusi, dan persentase persetujuan (APSM/QC/kompensasi).
+
+── RBAC dinamis ───────────────────────────────────────────────────────────
+Permission per role TIDAK hardcode sebagai dict Python di sini.
 Dua lapis akses, jangan dicampur:
   1. Action/Feature Permission → tabel `permissions` + `role_permissions`,
      dicek lewat require_permission(). Bisa diatur lewat dashboard admin.
   2. Data Scope / Row-level & Ownership → TETAP di kode (fungsi list_fkp,
-     list_fkp_penerbitan, get_fkp_detail, validate_fkp_formulir_access, dan
-     _check_ownership() untuk WRITE). Tidak masuk dashboard karena butuh
-     JOIN/perbandingan data, bukan sekadar boolean role.
+     list_fkp_penerbitan, get_fkp_detail, validate_fkp_formulir_access,
+     _check_apsm_area_scope() dan _check_ownership() untuk WRITE). Tidak
+     masuk dashboard karena butuh JOIN/perbandingan data, bukan sekadar
+     boolean role.
 
 VALID_TRANSITIONS dan REVISION_TARGETS tetap hardcode — itu business
 workflow (urutan status), bukan soal "siapa boleh apa".
 
-── PERBAIKAN LANJUTAN (audit keamanan) ────────────────────────────────────
-  - REVISION_TARGETS: ditambah (APSM_REVIEWED, "admin_ho") -> SUBMITTED.
-    Sebelumnya admin_ho tidak punya jalur mengembalikan FKP ke APSM saat
-    status masih apsm_reviewed (hanya apsm sendiri/superadmin yang bisa).
-  - apsm_review(): ditambah _check_apsm_area_scope() — sebelumnya apsm bisa
-    mereview FKP distributor mana pun (di luar area-nya) selama punya
-    permission "fkp.apsm_review", karena tidak ada pengecekan data-scope
-    sama sekali di fungsi ini (berbeda dengan list_fkp/get_fkp_detail yang
-    sudah dibatasi per-area).
+── CATATAN KEAMANAN ───────────────────────────────────────────────────────
+  - REVISION_TARGETS memuat (APSM_REVIEWED, "admin_ho") -> SUBMITTED supaya
+    admin_ho punya jalur mengembalikan FKP saat status masih apsm_reviewed.
+  - apsm_review() memanggil _check_apsm_area_scope() — apsm hanya boleh
+    mereview FKP distributor di area-nya sendiri (selain permission
+    "fkp.apsm_review").
+
+── STATUS ITEM ────────────────────────────────────────────────────────────
+status_item per item TIDAK diisi QC secara langsung. QC hanya mengisi
+persentase_disetujui_qc (rekomendasi/insight). status_item berubah dari
+'pending' ke 'diterima' otomatis di titik approval TERAKHIR yang menyetujui
+FKP — rsm_approve_final() (jalur cepat) atau direktur_approve() (jalur
+reguler); lihat _tandai_item_diterima_setelah_approval_final().
 """
 import uuid
 from datetime import datetime, timezone, date, time, timedelta
 from decimal import Decimal
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import HTTPException
 from sqlmodel import select
 from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.services.authz_helpers import is_superadmin
 
 from app.models.fkp import (
-    BATAS_QTY_DIREKTUR, FkpComplaint, FkpItem, FkpStatus,
+    BATAS_QTY_DIREKTUR, KEMASAN_DIHITUNG_JALUR,
+    FkpComplaint, FkpItem, FkpStatus,
     FkpStatusLog, FkpResolution, FkpAttachment,
     FkpDocument,
-    TipeResolusi, MetodePenangananFisik, TipeDokumen,
-    butuh_approval_direktur,
+    TipeResolusi, MetodePenangananFisik, TipeDokumen, StatusItem,
+    AdaSampleKeluhan, KondisiSample,
 )
+
+from app.models.product import ProductCatalog
+from app.services.product_service import get_kemasan
+
 from app.models.distributor import Distributor, DistributorUser
 from app.models.outlet import Outlet
 from app.models.sc_spv import ScSpvDistributor
 from app.models.user import User
 from app.schemas.fkp import (
     FkpCreate, FkpUpdate,
-    FkpItemCreate, FkpItemUpdate,
+    FkpItemUpdate,
     ApsmReviewRequest, AdminHoReviewRequest,
     RsmApproveRequest, DirekturApproveRequest,
     InvestigasiQcRequest, RejectRequest, RevisionRequest,
-    UpdatePengirimanRequest,
 )
 from app.utils.fkp_number import generate_nomor_fkp
 from app.services.notification_service import kirim_notifikasi_transisi, kirim_notifikasi_qc_paralel
@@ -82,19 +123,18 @@ from app.services.email_trigger_service import trigger_email_after_transition
 from app.services.permission_service import require_permission
 from app.services.authz_helpers import get_apsm_distributor_ids
 
+# Zona waktu bisnis (Asia/Jakarta, tanpa DST). tanggal_pengajuan disimpan UTC (timezone-aware),
+# jadi filter tanggal dari pengguna harus dibaca sebagai hari kalender WIB.
+WIB = timezone(timedelta(hours=7))
+
 # ─── DATA SCOPE (Lapis 2) — TETAP DI KODE, TIDAK MASUK DASHBOARD ─────────────
 # Dipakai oleh list_fkp, list_fkp_penerbitan, get_fkp_detail,
-# validate_fkp_formulir_access — JANGAN DIUBAH, scope baca hierarki ini
-# sudah benar dan terpisah dari RBAC action permission.
-# [FIX BUG KRITIS #3 — audit modul Sample Shipment/Warehouse] "warehouse"
-# ditambahkan ke sini. Sebelumnya role ini TIDAK termasuk data-scope global
-# padahal §1.6 dokumen rencana modul mendefinisikan scope warehouse sebagai
-# GLOBAL (single entity 1 HO, tidak dibatasi per lokasi gudang). Akibat
-# sebelumnya: list_fkp()/list_fkp_penerbitan() selalu return [] untuk
-# warehouse, dan validate_fkp_formulir_access() 403. get_fkp_detail()
-# kebetulan tetap lolos (tidak ada else-raise di situ) — perilaku sekarang
-# dibuat konsisten & eksplisit lewat baris ini, bukan lagi kebetulan.
-_ROLE_GLOBAL_ACCESS = {"admin_ho", "qc", "rsm", "direktur", "superadmin", "finance", "warehouse"}
+# validate_fkp_formulir_access — scope baca hierarki ini terpisah dari RBAC
+# action permission, jangan dicampur.
+# "warehouse" termasuk data-scope GLOBAL (single entity 1 HO, tidak dibatasi
+# per lokasi gudang) sehingga list_fkp()/list_fkp_penerbitan()/
+# validate_fkp_formulir_access() konsisten untuk role ini.
+_ROLE_GLOBAL_ACCESS = {"admin_ho", "qc", "rsm", "direktur", "superadmin", "warehouse"}
 # Keputusan "RSM = global" sudah diresmikan di authz_helpers.py
 # (GLOBAL_ACCESS_ROLES, Kategori E audit RBAC Juni 2026). Duplikasi
 # konstanta ini disengaja, tapi keputusannya HARUS tetap sinkron —
@@ -107,7 +147,23 @@ _ROLE_GLOBAL_ACCESS = {"admin_ho", "qc", "rsm", "direktur", "superadmin", "finan
 # proses lintas-pembuat sesuai alur kerja.
 OWNERSHIP_SCOPED_ROLES = {"outlet", "distributor", "sc_spv", "apsm"}
 
-_WIB = timezone(timedelta(hours=7))
+# Tipe attachment yang dihitung sebagai "foto bukti" saat submit_fkp(). Hanya foto
+# fase pengajuan; foto fase lain (investigasi QC, serah terima, pemusnahan, kondisi
+# sample masuk) dan dokumen/BA tidak boleh memenuhi syarat ini.
+TIPE_FOTO_BUKTI_PENGAJUAN = (
+    TipeDokumen.FOTO_KELUHAN,
+    TipeDokumen.FOTO_SAMPLE,
+    TipeDokumen.FOTO_EXPIRED,
+    TipeDokumen.FOTO_KODE_PRODUKSI,
+)
+
+# Status di mana QC boleh mengisi catatan investigasi paralel (jalur cepat).
+# Whitelist, bukan blacklist: status baru di masa depan tidak otomatis lolos.
+STATUS_QC_PARALEL = (
+    FkpStatus.RSM_APPROVAL_FINAL,
+    FkpStatus.ACCEPTED,
+    FkpStatus.IN_PROCESS,
+)
 
 
 # ─── STATE MACHINE ────────────────────────────────────────────────────────────
@@ -116,11 +172,12 @@ VALID_TRANSITIONS = {
     FkpStatus.DRAFT:                    [FkpStatus.SUBMITTED],
     FkpStatus.SUBMITTED:                [FkpStatus.APSM_REVIEWED, FkpStatus.NEED_REVISION],
     FkpStatus.APSM_REVIEWED:            [
-        FkpStatus.RSM_APPROVAL_INVESTIGASI,  # jalur biasa — total qty klaim > BATAS_QTY_DIREKTUR
-        FkpStatus.RSM_APPROVAL_FINAL,        # BARU — jalur cepat — total qty klaim ≤ BATAS_QTY_DIREKTUR
+        FkpStatus.RSM_APPROVAL_INVESTIGASI,  # jalur reguler — total qty klaim > BATAS_QTY_DIREKTUR
+        FkpStatus.RSM_APPROVAL_FINAL,        # jalur cepat   — total qty klaim ≤ BATAS_QTY_DIREKTUR
         FkpStatus.NEED_REVISION,
         FkpStatus.REJECTED,
     ],
+    # ── Jalur reguler ─────────────────────────────────────────────────────
     FkpStatus.RSM_APPROVAL_INVESTIGASI: [
         FkpStatus.IN_INVESTIGATION,
         FkpStatus.NEED_REVISION,
@@ -132,23 +189,24 @@ VALID_TRANSITIONS = {
         FkpStatus.RSM_APPROVAL_RESOLUSI,
         FkpStatus.REJECTED,
     ],
+    # Jalur reguler SELALU lanjut ke Direktur (tidak ada skip ke ACCEPTED).
+    # INVESTIGATED = mundur untuk revisi (lihat REVISION_TARGETS).
     FkpStatus.RSM_APPROVAL_RESOLUSI:    [
         FkpStatus.DIREKTUR_APPROVAL,
-        FkpStatus.ACCEPTED,          # skip Direktur (lihat butuh_approval_direktur)
         FkpStatus.INVESTIGATED,
         FkpStatus.REJECTED,
     ],
     FkpStatus.DIREKTUR_APPROVAL:        [FkpStatus.ACCEPTED, FkpStatus.REJECTED],
-    # BARU — jalur cepat. Beda dari RSM_APPROVAL_RESOLUSI: di sini resolusi
-    # BELUM ADA sama sekali saat RSM approve (lihat rsm_approve_final()).
-    # Admin HO baru mengisi resolusi setelah status accepted (lihat perluasan
-    # buat_resolusi() di bawah). APSM_REVIEWED = kembalikan untuk revisi,
-    # simetris dengan pola RSM_APPROVAL_INVESTIGASI.
+    # ── Jalur cepat ───────────────────────────────────────────────────────
+    # Resolusi SUDAH ADA saat RSM approve (dibuat Admin HO di status ini,
+    # lihat rsm_approve_final()). APSM_REVIEWED = kembalikan untuk revisi,
+    # simetris dengan RSM_APPROVAL_INVESTIGASI.
     FkpStatus.RSM_APPROVAL_FINAL:       [
         FkpStatus.ACCEPTED,
         FkpStatus.APSM_REVIEWED,
         FkpStatus.REJECTED,
     ],
+    # ── Setelah accepted (kedua jalur) ────────────────────────────────────
     FkpStatus.ACCEPTED:                 [FkpStatus.IN_PROCESS],
     FkpStatus.IN_PROCESS:               [FkpStatus.CLOSED],
     FkpStatus.NEED_REVISION:            [FkpStatus.SUBMITTED],
@@ -156,14 +214,22 @@ VALID_TRANSITIONS = {
     FkpStatus.CLOSED:                   [],
 }
 
-# Mapping status tujuan -> permission code. Dicek via require_permission()
-# di _validate_transition(). VALID_TRANSITIONS (alur status) TETAP hardcode
-# karena itu business flow/urutan kerja, BUKAN soal "siapa boleh apa".
+  # Mapping status tujuan -> permission code DEFAULT. Dipakai _validate_transition()
+  # bila pemanggil tidak memberi permission_code. VALID_TRANSITIONS (alur status)
+  # TETAP hardcode: itu business flow, BUKAN soal "siapa boleh apa".
+  #
+  # Aksi berikut MENIMPA permission lewat permission_code karena status tujuannya
+  # dipakai bersama aksi lain (dan wajib mengisi expected_status):
+  #   rsm_approve_final()       → "fkp.rsm_approve_final"
+  #   rsm_approve_investigasi() → "fkp.rsm_approve_investigasi"
+  #   rsm_approve_resolusi()    → "fkp.rsm_approve_resolusi"
+  #   direktur_approve()        → "fkp.direktur_approve"
+  # reject_fkp() tetap memakai "fkp.reject".
 STATUS_TO_PERMISSION = {
     FkpStatus.SUBMITTED:                "fkp.submit",
     FkpStatus.APSM_REVIEWED:            "fkp.apsm_review",
     FkpStatus.RSM_APPROVAL_INVESTIGASI: "fkp.admin_ho_review",
-    FkpStatus.RSM_APPROVAL_FINAL:       "fkp.admin_ho_review",  # sama persis — aksi admin_ho yang sama, cuma target beda (lihat admin_ho_review)
+    FkpStatus.RSM_APPROVAL_FINAL:       "fkp.admin_ho_review",  # aksi admin_ho yang sama, cuma target beda (lihat admin_ho_review)
     FkpStatus.IN_INVESTIGATION:         "fkp.rsm_approve_investigasi",
     FkpStatus.INVESTIGATED:             "fkp.qc_investigasi",
     FkpStatus.RSM_APPROVAL_RESOLUSI:    "fkp.admin_ho_request_resolusi_approval",
@@ -178,17 +244,31 @@ STATUS_TO_PERMISSION = {
 # Format: { (status_asal, kode_role): status_tujuan }
 # Business logic mundur (request_revision) — TETAP hardcode, bukan permission.
 REVISION_TARGETS = {
-    (FkpStatus.SUBMITTED,                "apsm"):       FkpStatus.DRAFT,
+    # APSM meminta revisi saat FKP baru submitted
+    (FkpStatus.SUBMITTED,                "apsm"):       FkpStatus.NEED_REVISION,
+
+    # APSM melakukan review ulang terhadap FKP yang sudah direview
     (FkpStatus.APSM_REVIEWED,            "apsm"):       FkpStatus.SUBMITTED,
+
+    # Admin HO / Superadmin meminta perbaikan dari tahap review APSM
     (FkpStatus.APSM_REVIEWED,            "admin_ho"):   FkpStatus.SUBMITTED,
     (FkpStatus.APSM_REVIEWED,            "superadmin"): FkpStatus.SUBMITTED,
-    (FkpStatus.RSM_APPROVAL_INVESTIGASI, "admin_ho"):   FkpStatus.SUBMITTED,
+
+    # RSM meminta revisi investigasi → kembali ke checkpoint APSM
     (FkpStatus.RSM_APPROVAL_INVESTIGASI, "rsm"):        FkpStatus.APSM_REVIEWED,
-    (FkpStatus.RSM_APPROVAL_INVESTIGASI, "superadmin"): FkpStatus.SUBMITTED,
-    # BARU — jalur cepat, simetris dengan RSM_APPROVAL_INVESTIGASI di atas.
-    (FkpStatus.RSM_APPROVAL_FINAL,       "admin_ho"):   FkpStatus.SUBMITTED,
+
+    # Admin HO / Superadmin meminta revisi investigasi
+    (FkpStatus.RSM_APPROVAL_INVESTIGASI, "admin_ho"):   FkpStatus.APSM_REVIEWED,
+    (FkpStatus.RSM_APPROVAL_INVESTIGASI, "superadmin"): FkpStatus.APSM_REVIEWED,
+
+    # RSM meminta revisi final → kembali ke checkpoint APSM
     (FkpStatus.RSM_APPROVAL_FINAL,       "rsm"):        FkpStatus.APSM_REVIEWED,
-    (FkpStatus.RSM_APPROVAL_FINAL,       "superadmin"): FkpStatus.SUBMITTED,
+
+    # Admin HO / Superadmin meminta revisi final
+    (FkpStatus.RSM_APPROVAL_FINAL,       "admin_ho"):   FkpStatus.APSM_REVIEWED,
+    (FkpStatus.RSM_APPROVAL_FINAL,       "superadmin"): FkpStatus.APSM_REVIEWED,
+
+    # Revisi resolusi → kembali ke hasil investigasi
     (FkpStatus.RSM_APPROVAL_RESOLUSI,    "rsm"):        FkpStatus.INVESTIGATED,
     (FkpStatus.RSM_APPROVAL_RESOLUSI,    "admin_ho"):   FkpStatus.INVESTIGATED,
     (FkpStatus.RSM_APPROVAL_RESOLUSI,    "superadmin"): FkpStatus.INVESTIGATED,
@@ -197,15 +277,85 @@ REVISION_TARGETS = {
 
 # ─── HELPERS ──────────────────────────────────────────────────────────────────
 
-async def _validate_transition(fkp: FkpComplaint, new_status: str, kode_role: str, db: AsyncSession):
+
+async def set_jenis_kemasan(item_dict: dict, db) -> None:
+    """
+    Tetapkan jenis_kemasan item FKP dari kemasan yang tersedia untuk produknya
+    (get_kemasan). Nilai ini menentukan jalur approval
+    (lihat _hitung_total_qty_jalur), jadi input user divalidasi:
+      - 1 kemasan tersedia, input kosong → diisi otomatis
+      - >1 kemasan, input kosong         → 400, minta user memilih
+      - input di luar kemasan produk     → 400
+      - produk belum punya kemasan       → 400
+    """
+    pid = item_dict["product_id"]
+    r = await db.execute(
+        select(ProductCatalog.nama_produk, ProductCatalog.is_active)
+        .where(ProductCatalog.id == pid)
+    )
+    produk = r.first()
+    if produk is None:
+        raise HTTPException(status_code=404, detail="Produk tidak ditemukan di katalog.")
+    nama, aktif = produk
+    if not aktif:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Produk '{nama}' sudah nonaktif dan tidak dapat dipakai pada FKP. Pilih produk lain.",
+        )
+
+    tersedia = (await get_kemasan(db, [pid])).get(pid, [])
+    pilihan = item_dict.get("jenis_kemasan")
+
+    if not tersedia:
+        raise HTTPException(status_code=400, detail="Kemasan produk ini belum diatur. Hubungi admin katalog.")
+    if pilihan is None:
+        if len(tersedia) == 1:
+            item_dict["jenis_kemasan"] = tersedia[0]
+            return
+        raise HTTPException(status_code=400, detail=f"Pilih jenis_kemasan: {tersedia}.")
+    if pilihan not in tersedia:
+        raise HTTPException(
+            status_code=400,
+            detail=f"jenis_kemasan '{pilihan}' tidak tersedia untuk produk ini. Pilihan: {tersedia}.",
+        )
+    
+def _normalisasi_kondisi_sample(item: FkpItem) -> None:
+    """
+    Validasi silang kondisi_sample terhadap ada_sample_keluhan untuk jalur UPDATE
+    (schema tidak bisa melakukannya karena update parsial). Mengosongkan kondisi
+    bila sample tidak 'ada'.
+    """
+    if item.ada_sample_keluhan != AdaSampleKeluhan.ADA:
+        item.kondisi_sample = None
+        item.kondisi_sample_lainnya = None
+        return
+    if not item.kondisi_sample:
+        raise HTTPException(400, "kondisi_sample wajib diisi jika ada_sample_keluhan = 'ada'.")
+    if item.kondisi_sample == KondisiSample.LAINNYA:
+        if not (item.kondisi_sample_lainnya or "").strip():
+            raise HTTPException(400, "kondisi_sample_lainnya wajib diisi jika kondisi_sample = 'lainnya'.")
+    else:
+        item.kondisi_sample_lainnya = None
+
+async def _validate_transition(fkp, new_status, kode_role, db, permission_code=None, expected_status=None):
+    """
+    Validasi transisi + permission aksi.
+    expected_status: status asal yang WAJIB dipegang FKP untuk aksi ini. Wajib
+    diisi untuk aksi yang status tujuannya dipakai aksi lain (ACCEPTED,
+    REJECTED, APSM_REVIEWED), supaya aksi tidak bisa dipanggil di luar gilirannya.
+    """
+    if expected_status is not None and fkp.status != expected_status:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Aksi ini hanya untuk FKP berstatus '{expected_status}', status saat ini '{fkp.status}'.",
+        )
     allowed_next = VALID_TRANSITIONS.get(fkp.status, [])
     if new_status not in allowed_next:
         raise HTTPException(
             status_code=400,
             detail=f"Transisi dari '{fkp.status}' ke '{new_status}' tidak diizinkan.",
         )
-
-    permission_code = STATUS_TO_PERMISSION.get(new_status)
+    permission_code = permission_code or STATUS_TO_PERMISSION.get(new_status)
     if permission_code:
         await require_permission(kode_role, permission_code, db)
 
@@ -226,14 +376,13 @@ def _check_ownership(fkp: "FkpComplaint", user: "User", kode_role: str) -> None:
 
 async def _check_apsm_area_scope(fkp: "FkpComplaint", user: "User", kode_role: str, db: AsyncSession) -> None:
     """
-    PERBAIKAN: apsm_review() sebelumnya hanya dijaga oleh permission action
-    ("fkp.apsm_review") tanpa pengecekan data-scope, sehingga apsm bisa
-    mereview FKP distributor mana pun di luar area-nya selama dia punya
-    permission tersebut. list_fkp/get_fkp_detail/create_fkp sudah membatasi
-    apsm ke distributor dalam area-nya — fungsi ini menutup gap yang sama
-    untuk aksi tulis apsm_review, memakai resolver scope terpusat di
-    authz_helpers (sama yang dipakai upload_service & outlet_register_service)
-    supaya tidak ada logic scope APSM yang berbeda-beda di tempat lain.
+    Data-scope untuk aksi tulis apsm_review(): apsm hanya boleh mereview FKP
+    distributor dalam area-nya. Permission action ("fkp.apsm_review") saja
+    tidak cukup karena tidak membatasi data — list_fkp/get_fkp_detail/
+    create_fkp sudah membatasi apsm per-area, fungsi ini menyamakan hal itu
+    untuk aksi tulis. Memakai resolver scope terpusat di authz_helpers (sama
+    yang dipakai upload_service & outlet_register_service) supaya tidak ada
+    logic scope APSM yang berbeda-beda di tempat lain.
     """
     if kode_role != "apsm":
         return
@@ -245,6 +394,12 @@ async def _check_apsm_area_scope(fkp: "FkpComplaint", user: "User", kode_role: s
         )
 
 
+def _wajib_catatan_tolak(disetujui: bool, catatan: Optional[str]) -> None:
+    """Penolakan oleh RSM/Direktur wajib disertai alasan (konsisten dengan reject_fkp)."""
+    if not disetujui and not (catatan or "").strip():
+        raise HTTPException(status_code=400, detail="Catatan alasan penolakan wajib diisi.")
+
+
 async def _log(db, fkp_id, status_lama, status_baru, changed_by, catatan=None):
     db.add(FkpStatusLog(
         fkp_id=fkp_id, status_lama=status_lama, status_baru=status_baru,
@@ -252,8 +407,13 @@ async def _log(db, fkp_id, status_lama, status_baru, changed_by, catatan=None):
     ))
 
 
-async def _get_or_404(fkp_id, db) -> FkpComplaint:
-    r = await db.execute(select(FkpComplaint).where(FkpComplaint.id == fkp_id))
+async def _get_or_404(fkp_id, db, for_update: bool = False) -> FkpComplaint:
+    """for_update=True: kunci baris FKP sampai commit/rollback, supaya dua aksi
+    bersamaan pada FKP yang sama berjalan bergiliran (bukan saling menimpa status)."""
+    query = select(FkpComplaint).where(FkpComplaint.id == fkp_id)
+    if for_update:
+        query = query.with_for_update().execution_options(populate_existing=True)
+    r = await db.execute(query)
     fkp = r.scalar_one_or_none()
     if not fkp:
         raise HTTPException(status_code=404, detail="FKP tidak ditemukan.")
@@ -267,7 +427,7 @@ async def _load_fkp_detail(fkp_id, db) -> FkpComplaint:
         .where(FkpComplaint.id == fkp_id)
         .options(
             selectinload(FkpComplaint.items),
-            selectinload(FkpComplaint.distributor),
+            selectinload(FkpComplaint.distributor).selectinload(Distributor.area),
             selectinload(FkpComplaint.outlet),
             selectinload(FkpComplaint.status_logs),
             selectinload(FkpComplaint.resolution),
@@ -276,6 +436,37 @@ async def _load_fkp_detail(fkp_id, db) -> FkpComplaint:
         )
     )
     return r.scalar_one()
+
+
+async def _hitung_total_qty_jalur(fkp_id, db) -> int:
+    """
+    Total qty klaim untuk penentuan jalur approval (cepat vs reguler, yang
+    sekaligus menentukan keterlibatan Direktur — lihat docstring modul).
+
+    - Basis SELALU qty saat pengajuan (FkpItem.qty), BUKAN qty_disetujui.
+    - Hanya kemasan di KEMASAN_DIHITUNG_JALUR (zak/ball/karton) yang
+      dihitung. pcs/renceng SENGAJA tidak dihitung (FKP yang isinya hanya
+      pcs/renceng → total 0 → selalu jalur cepat).
+    - Kemasan efektif = FkpItem.jenis_kemasan, fallback ke
+      ProductCatalog.jenis_kemasan bila null.
+
+    Dipanggil oleh admin_ho_review() (menentukan jalur) dan
+    qc_catatan_investigasi_paralel() (guard hanya-jalur-cepat). Jangan buat
+    penghitungan qty kedua di tempat lain — satu helper, satu definisi.
+    """
+    kemasan_efektif = func.coalesce(
+        FkpItem.jenis_kemasan, ProductCatalog.jenis_kemasan
+    )
+    r = await db.execute(
+        select(func.coalesce(func.sum(FkpItem.qty), 0))
+        .select_from(FkpItem)
+        .join(ProductCatalog, ProductCatalog.id == FkpItem.product_id)
+        .where(
+            FkpItem.fkp_id == fkp_id,
+            kemasan_efektif.in_(KEMASAN_DIHITUNG_JALUR),
+        )
+    )
+    return int(r.scalar() or 0)
 
 
 async def buat_dokumen(fkp_id: uuid.UUID, data, user, kode_role: str, db):
@@ -303,8 +494,8 @@ async def buat_dokumen(fkp_id: uuid.UUID, data, user, kode_role: str, db):
 async def hapus_dokumen(fkp_id: uuid.UUID, dokumen_id: uuid.UUID, user, kode_role: str, db):
     """
     Hapus dokumen — hanya oleh pembuatnya atau superadmin.
-    TIDAK DIUBAH — ownership check existing ini sudah benar, bukan
-    permission RBAC biasa (pembuat dokumen tidak ditentukan oleh role).
+    Ownership check ini bukan permission RBAC biasa (pembuat dokumen tidak
+    ditentukan oleh role).
 
     KEPUTUSAN (Kategori D audit RBAC, opsi 1): kode permission
     "fkp.document.delete" SENGAJA tidak ada di seeds/seed_permissions.py.
@@ -325,7 +516,7 @@ async def hapus_dokumen(fkp_id: uuid.UUID, dokumen_id: uuid.UUID, user, kode_rol
     if not dokumen:
         raise HTTPException(status_code=404, detail="Dokumen tidak ditemukan.")
 
-    is_super = await is_superadmin(user, db)  # ← baru dicek setelah dokumen confirmed ada
+    is_super = await is_superadmin(user, db)  # dicek setelah dokumen confirmed ada
     if not is_super and dokumen.dibuat_oleh != user.id:
         raise HTTPException(status_code=403, detail="Hanya pembuat dokumen atau superadmin yang bisa menghapus.")
 
@@ -339,12 +530,10 @@ async def _validasi_konsistensi_rekomendasi(fkp_id, tipe_resolusi_baru, db):
     konsisten dengan tipe_resolusi yang dipilih Admin HO.
     Jika tidak konsisten → tolak dengan pesan jelas.
 
-    PERUBAHAN: Admin HO tidak lagi mengisi rekomendasi_kompensasi_admin_ho
-    (langkah rekomendasi admin_ho dihilangkan — admin_ho sekarang murni
-    meneruskan ke RSM). Sumber rekomendasi untuk validasi ini dialihkan ke
-    rekomendasi_kompensasi_apsm.
+    Sumber rekomendasi = rekomendasi_kompensasi_apsm. Admin HO tidak lagi
+    mengisi rekomendasi per item (murni meneruskan ke RSM), jadi kolom
+    rekomendasi_kompensasi_admin_ho tidak dipakai di sini.
     """
-    from app.models.fkp import TipeResolusi
 
     if not tipe_resolusi_baru:
         return
@@ -352,9 +541,6 @@ async def _validasi_konsistensi_rekomendasi(fkp_id, tipe_resolusi_baru, db):
     MAPPING = {
         "ganti_barang":       TipeResolusi.TUKAR_BARANG,
         "potong_tagihan":     TipeResolusi.POTONG_TAGIHAN,
-        "musnahkan":          TipeResolusi.TIDAK_ADA_KOMPENSASI,
-        "jual_pakan_ternak":  TipeResolusi.TIDAK_ADA_KOMPENSASI,
-        "kirim_ke_ho":        TipeResolusi.TIDAK_ADA_KOMPENSASI,
     }
 
     r = await db.execute(select(FkpItem).where(FkpItem.fkp_id == fkp_id))
@@ -388,11 +574,7 @@ async def _validasi_konsistensi_rekomendasi(fkp_id, tipe_resolusi_baru, db):
         )
 
 
-async def _validasi_dan_simpan_qty_disetujui(fkp_id, item_qty_list, db):
-    """
-    Validasi dan simpan qty_disetujui per item untuk resolusi tukar_barang.
-    Wajib dipanggil saat fase accepted.
-    """
+async def _validasi_dan_simpan_qty_disetujui(fkp_id, item_qty_list, db, sudah_approval_final: bool = False):
     if not item_qty_list:
         # Cek apakah ada item diterima yang belum punya qty_disetujui
         r = await db.execute(select(FkpItem).where(
@@ -431,14 +613,47 @@ async def _validasi_dan_simpan_qty_disetujui(fkp_id, item_qty_list, db):
                 )
             )
         item.qty_disetujui = item_qty.qty_disetujui
+        if item_qty.qty_disetujui == 0:
+            item.status_item = StatusItem.DITOLAK
+            item.alasan_penolakan = item_qty.alasan_penolakan
+        elif item.status_item == StatusItem.DITOLAK:
+            # dibuka kembali lewat koreksi
+            item.status_item = (
+                StatusItem.DITERIMA if sudah_approval_final else StatusItem.PENDING
+            )
+            item.alasan_penolakan = None
         item.updated_at = datetime.now(timezone.utc)
         db.add(item)
 
 
-# ─── LIST & DETAIL ────────────────────────────────────────────────────────────
-# JANGAN DIUBAH — data-scope/hierarchy logic (Lapis 2), bukan action permission.
+async def _tandai_item_diterima_setelah_approval_final(fkp_id, db):
+    """
+    Dipanggil dari titik approval TERAKHIR yang menyetujui FKP (hanya saat
+    disetujui=True):
+      - jalur cepat   → rsm_approve_final()
+      - jalur reguler → direktur_approve()
+    (rsm_approve_resolusi() BUKAN pemanggil — di jalur reguler RSM bukan
+    approval terakhir, Direktur yang terakhir.)
 
-async def list_fkp(db, user, kode_role, status_filter=None, prioritas_filter=None, outlet_id=None, distributor_id=None, area_id=None, tanggal_dari=None, tanggal_sampai=None, eager_full: bool = False):
+    Semua item FKP yang masih 'pending' ditandai 'diterima' — karena kalau
+    approval terakhir sudah menyetujui FKP, seluruh item complaint ini resmi
+    diterima (item yang QC anggap tidak valid tetap bisa dicatat via
+    alasan_penolakan/catatan_qc, tapi status resminya mengikuti keputusan
+    approval, bukan rekomendasi QC). Item yang sudah 'ditolak' (kalau ada
+    mekanisme reject per-item di masa depan) TIDAK ditimpa.
+    """
+    r = await db.execute(select(FkpItem).where(
+        FkpItem.fkp_id == fkp_id,
+        FkpItem.status_item == StatusItem.PENDING,
+    ))
+    items = r.scalars().all()
+    for item in items:
+        item.status_item = StatusItem.DITERIMA
+        item.updated_at = datetime.now(timezone.utc)
+        db.add(item)
+
+
+async def list_fkp(db, user, kode_role, status_filter=None, prioritas_filter=None):
     query = select(FkpComplaint)
 
     if kode_role == "outlet":
@@ -475,16 +690,6 @@ async def list_fkp(db, user, kode_role, status_filter=None, prioritas_filter=Non
         query = query.where(FkpComplaint.distributor_id.in_(dist_ids))
 
     elif kode_role == "finance":
-        r = await db.execute(
-            select(FkpResolution.fkp_id).where(
-                FkpResolution.tipe_resolusi == "potong_tagihan"
-            )
-        )
-        fkp_ids = r.scalars().all()
-        if not fkp_ids:
-            return []
-        query = query.where(FkpComplaint.id.in_(fkp_ids))
-
         if status_filter and status_filter not in FkpStatus.FINANCE_VISIBLE:
             raise HTTPException(
                 status_code=400,
@@ -493,6 +698,7 @@ async def list_fkp(db, user, kode_role, status_filter=None, prioritas_filter=Non
                     f"Status '{status_filter}' tidak relevan dengan role finance."
                 ),
             )
+        query = query.where(*_finance_scope_conditions())
     
     elif kode_role not in _ROLE_GLOBAL_ACCESS:
         return []
@@ -501,42 +707,97 @@ async def list_fkp(db, user, kode_role, status_filter=None, prioritas_filter=Non
         query = query.where(FkpComplaint.status == status_filter)
     if prioritas_filter:
         query = query.where(FkpComplaint.prioritas == prioritas_filter)
-    if outlet_id:
-      query = query.where(FkpComplaint.outlet_id == outlet_id)
-    if distributor_id:
-        query = query.where(FkpComplaint.distributor_id == distributor_id)
-    if area_id:
-        query = query.where(FkpComplaint.distributor_id.in_(
-            select(Distributor.id).where(Distributor.area_id == area_id)))
-    if tanggal_dari and tanggal_sampai and tanggal_dari > tanggal_sampai:
-        raise HTTPException(400, "tanggal_dari tidak boleh setelah tanggal_sampai.")
-    if tanggal_dari:
-        query = query.where(FkpComplaint.created_at >=
-            datetime.combine(tanggal_dari, time.min, tzinfo=_WIB))
-    if tanggal_sampai:
-        query = query.where(FkpComplaint.created_at <=
-            datetime.combine(tanggal_sampai + timedelta(days=1), time.min, tzinfo=_WIB))
-        
-    opts = [selectinload(FkpComplaint.distributor), selectinload(FkpComplaint.outlet)]
-    if eager_full:
-        opts = [
-            selectinload(FkpComplaint.distributor).selectinload(Distributor.area),
-            selectinload(FkpComplaint.outlet),
-            selectinload(FkpComplaint.items).selectinload(FkpItem.product),
-            selectinload(FkpComplaint.resolution),
-            selectinload(FkpComplaint.sample_shipments),
-            selectinload(FkpComplaint.warehouse_surat_jalan),
-            selectinload(FkpComplaint.status_logs),
-        ]
 
     result = await db.execute(
-        query.options(*opts).order_by(FkpComplaint.created_at.desc())
+        query
+        .options(
+            selectinload(FkpComplaint.distributor),
+            selectinload(FkpComplaint.outlet),
+        )
+        .order_by(FkpComplaint.created_at.desc())
     )
-    
     return result.scalars().all()
 
-# ─── PENERBITAN FORMULIR ──────────────────────────────────────────────────────
-# JANGAN DIUBAH — data-scope/hierarchy logic (Lapis 2).
+def _finance_scope_conditions():
+    """
+    SATU-SATUNYA definisi scope data finance (Lapis 2): FKP berresolusi
+    potong_tagihan DAN status ada di FkpStatus.FINANCE_VISIBLE.
+    Dipakai oleh list_fkp() dan list_fkp_penerbitan() sebagai filter query.
+    Untuk cek satu FKP, pakai _finance_boleh_akses() (aturan yang sama).
+    Subquery, bukan daftar fkp_ids yang dimuat ke memori.
+    """
+    return (
+        FkpComplaint.id.in_(
+            select(FkpResolution.fkp_id).where(
+                FkpResolution.tipe_resolusi == TipeResolusi.POTONG_TAGIHAN
+            )
+        ),
+        FkpComplaint.status.in_(list(FkpStatus.FINANCE_VISIBLE)),
+    )
+
+async def _finance_punya_resolusi_potong_tagihan(fkp_id, db) -> bool:
+    r = await db.execute(
+        select(FkpResolution.id).where(
+            FkpResolution.fkp_id == fkp_id,
+            FkpResolution.tipe_resolusi == TipeResolusi.POTONG_TAGIHAN,
+        )
+    )
+    return r.first() is not None
+
+
+async def _finance_boleh_akses(fkp, db) -> bool:
+    if fkp.status not in FkpStatus.FINANCE_VISIBLE:
+        return False
+    return await _finance_punya_resolusi_potong_tagihan(fkp.id, db)
+
+
+async def _assert_fkp_scope(fkp: "FkpComplaint", user: "User", kode_role: str, db: AsyncSession) -> None:
+    """
+    SATU-SATUNYA cek data-scope BACA untuk satu FKP (Lapis 2). Dipakai oleh
+    get_fkp_detail() dan validate_fkp_formulir_access(). Raise 403 bila FKP di
+    luar jangkauan role. Scope untuk query daftar (list_fkp, list_fkp_penerbitan)
+    tetap terpisah karena memfilter banyak baris, bukan satu FKP.
+    Scope TULIS: _check_ownership() dan _check_apsm_area_scope().
+    """
+    if kode_role in _ROLE_GLOBAL_ACCESS:
+        return
+
+    if kode_role == "outlet":
+        q = select(Outlet.id).where(Outlet.pic_user_id == user.id, Outlet.id == fkp.outlet_id)
+    elif kode_role == "distributor":
+        q = select(DistributorUser.distributor_id).where(
+            DistributorUser.user_id == user.id,
+            DistributorUser.distributor_id == fkp.distributor_id,
+        )
+    elif kode_role == "sc_spv":
+        q = select(ScSpvDistributor.distributor_id).where(
+            ScSpvDistributor.sc_spv_user_id == user.id,
+            ScSpvDistributor.distributor_id == fkp.distributor_id,
+        )
+    elif kode_role == "apsm":
+        from app.models.area import Area
+        # Single JOIN query — tidak ada N+1
+        q = (
+            select(Distributor.id)
+            .join(Area, Distributor.area_id == Area.id)
+            .where(Area.pic_user_id == user.id, Distributor.id == fkp.distributor_id)
+        )
+    elif kode_role == "finance":
+        if not await _finance_boleh_akses(fkp, db):
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Akses ditolak. Finance hanya bisa mengakses FKP dengan "
+                    "resolusi potong_tagihan pada status yang relevan."
+                ),
+            )
+        return
+    else:
+        raise HTTPException(status_code=403, detail="Akses ditolak.")
+
+    if (await db.execute(q)).first() is None:
+        raise HTTPException(status_code=403, detail="Akses ditolak.")
+
 
 async def validate_fkp_formulir_access(
     fkp_id: uuid.UUID,
@@ -552,7 +813,6 @@ async def validate_fkp_formulir_access(
     Return FkpComplaint jika lolos, raise HTTPException jika gagal.
     Menggunakan 1 query per lapisan — tidak ada N+1.
     """
-    from app.models.fkp import FkpStatus
 
     DOWNLOADABLE = {
         FkpStatus.SUBMITTED, FkpStatus.APSM_REVIEWED,
@@ -576,55 +836,7 @@ async def validate_fkp_formulir_access(
         )
 
     # ── Lapisan 2: cek scope role ─────────────────────────────────────────
-    if kode_role in _ROLE_GLOBAL_ACCESS:
-        return fkp  # akses penuh, tidak perlu cek lebih lanjut
-
-    if kode_role == "outlet":
-        r = await db.execute(
-            select(Outlet).where(
-                Outlet.pic_user_id == user.id,
-                Outlet.id == fkp.outlet_id,
-            )
-        )
-        if not r.scalar_one_or_none():
-            raise HTTPException(status_code=403, detail="Akses ditolak.")
-
-    elif kode_role == "distributor":
-        r = await db.execute(
-            select(DistributorUser).where(
-                DistributorUser.user_id == user.id,
-                DistributorUser.distributor_id == fkp.distributor_id,
-            )
-        )
-        if not r.scalar_one_or_none():
-            raise HTTPException(status_code=403, detail="Akses ditolak.")
-
-    elif kode_role == "sc_spv":
-        r = await db.execute(
-            select(ScSpvDistributor).where(
-                ScSpvDistributor.sc_spv_user_id == user.id,
-                ScSpvDistributor.distributor_id == fkp.distributor_id,
-            )
-        )
-        if not r.scalar_one_or_none():
-            raise HTTPException(status_code=403, detail="Akses ditolak.")
-
-    elif kode_role == "apsm":
-        from app.models.area import Area
-        # Single JOIN query — tidak ada N+1
-        r = await db.execute(
-            select(Distributor)
-            .join(Area, Distributor.area_id == Area.id)
-            .where(
-                Area.pic_user_id == user.id,
-                Distributor.id == fkp.distributor_id,
-            )
-        )
-        if not r.scalar_one_or_none():
-            raise HTTPException(status_code=403, detail="Akses ditolak.")
-
-    else:
-        raise HTTPException(status_code=403, detail="Akses ditolak.")
+    await _assert_fkp_scope(fkp, user, kode_role, db)
 
     return fkp
 
@@ -641,7 +853,6 @@ async def list_fkp_penerbitan(
     List FKP untuk halaman penerbitan dokumen.
     Hanya FKP yang sudah di-submit (bukan draft/need_revision).
     Difilter scope per role — satu query utama, tidak ada N+1.
-    JANGAN DIUBAH — data-scope/hierarchy logic (Lapis 2).
     """
 
     DOWNLOADABLE_STATUSES = [
@@ -706,7 +917,10 @@ async def list_fkp_penerbitan(
             if not dist_ids:
                 return []
             query = query.where(FkpComplaint.distributor_id.in_(dist_ids))
-        
+
+        elif kode_role == "finance":
+            query = query.where(*_finance_scope_conditions())
+
         else:
             return []
 
@@ -717,19 +931,30 @@ async def list_fkp_penerbitan(
                 status_code=400,
                 detail=f"Status '{status_filter}' tidak valid untuk halaman penerbitan."
             )
+        if kode_role == "finance" and status_filter not in FkpStatus.FINANCE_VISIBLE:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Finance hanya bisa memfilter status: {FkpStatus.FINANCE_VISIBLE}. "
+                    f"Status '{status_filter}' tidak relevan dengan role finance."
+                ),
+            )
         query = query.where(FkpComplaint.status == status_filter)
 
     if tanggal_dari:
         try:
             d = date.fromisoformat(tanggal_dari)
-            query = query.where(FkpComplaint.tanggal_pengajuan >= d)
+            query = query.where(FkpComplaint.tanggal_pengajuan >= datetime.combine(d, time.min, tzinfo=WIB))
         except ValueError:
             raise HTTPException(status_code=400, detail="Format tanggal_dari tidak valid (YYYY-MM-DD).")
 
     if tanggal_sampai:
         try:
             d = date.fromisoformat(tanggal_sampai)
-            query = query.where(FkpComplaint.tanggal_pengajuan <= d)
+            # sampai akhir hari tersebut (WIB): batas atas = awal hari berikutnya, eksklusif
+            query = query.where(
+                FkpComplaint.tanggal_pengajuan < datetime.combine(d + timedelta(days=1), time.min, tzinfo=WIB)
+            )
         except ValueError:
             raise HTTPException(status_code=400, detail="Format tanggal_sampai tidak valid (YYYY-MM-DD).")
 
@@ -739,11 +964,11 @@ async def list_fkp_penerbitan(
     return result.scalars().all()
 
 
-# [FIX GAP #6 — Sample Shipment] Role yang TIDAK BOLEH melihat dokumen
-# hasil pemeriksaan QC. Konsisten dengan sample_service._sanitize_for_external()
-# yang sudah menyaring field narasi `hasil_pemeriksaan` — helper di bawah ini
-# menutup celah yang sama untuk FILE-nya (FkpAttachment tipe hasil_pemeriksaan_qc),
-# yang sebelumnya ikut terbawa apa adanya lewat _load_fkp_detail().
+# Role yang TIDAK BOLEH melihat dokumen hasil pemeriksaan QC. Konsisten
+# dengan sample_service._sanitize_for_external() yang sudah menyaring field
+# narasi `hasil_pemeriksaan` — helper di bawah ini menutup celah yang sama
+# untuk FILE-nya (FkpAttachment tipe hasil_pemeriksaan_qc), yang kalau tidak
+# disaring ikut terbawa apa adanya lewat _load_fkp_detail().
 ROLE_HASIL_QC_HIDDEN = ("outlet", "distributor", "sc_spv")
 
 
@@ -751,70 +976,21 @@ def _filter_internal_documents(fkp: FkpComplaint, kode_role: str) -> FkpComplain
     """Buang attachment bertipe HASIL_PEMERIKSAAN_QC dari fkp.attachments
     sebelum diserialisasi ke response, khusus untuk role eksternal."""
     if kode_role in ROLE_HASIL_QC_HIDDEN:
-        fkp.attachments = [
-            a for a in fkp.attachments
-            if a.tipe_dokumen != TipeDokumen.HASIL_PEMERIKSAAN_QC
-        ]
+        set_committed_value(
+            fkp, "attachments",
+            [a for a in fkp.attachments
+             if a.tipe_dokumen != TipeDokumen.HASIL_PEMERIKSAAN_QC],
+        )
     return fkp
 
 
 async def get_fkp_detail(fkp_id, db, user, kode_role):
     fkp = await _get_or_404(fkp_id, db)
 
-    if kode_role in _ROLE_GLOBAL_ACCESS:
-        pass  # akses penuh
-
-    elif kode_role == "outlet":
-        r = await db.execute(
-            select(Outlet.id).where(Outlet.pic_user_id == user.id)
-        )
-        outlet_ids_milik_user = set(r.scalars().all())
-        if fkp.outlet_id not in outlet_ids_milik_user:
-            raise HTTPException(status_code=403, detail="Akses ditolak.")
-
-    elif kode_role == "distributor":
-        r = await db.execute(select(DistributorUser).where(
-            DistributorUser.user_id == user.id,
-            DistributorUser.distributor_id == fkp.distributor_id,
-        ))
-        if not r.scalar_one_or_none():
-            raise HTTPException(status_code=403, detail="Akses ditolak.")
-
-    elif kode_role == "sc_spv":
-        r = await db.execute(select(ScSpvDistributor).where(
-            ScSpvDistributor.sc_spv_user_id == user.id,
-            ScSpvDistributor.distributor_id == fkp.distributor_id,
-        ))
-        if not r.scalar_one_or_none():
-            raise HTTPException(status_code=403, detail="Akses ditolak.")
-
-    elif kode_role == "apsm":
-        from app.models.area import Area
-        r = await db.execute(
-            select(Distributor)
-            .join(Area, Distributor.area_id == Area.id)
-            .where(
-                Area.pic_user_id == user.id,
-                Distributor.id == fkp.distributor_id,
-            )
-        )
-        if not r.scalar_one_or_none():
-            raise HTTPException(status_code=403, detail="Akses ditolak.")
-
-    elif kode_role == "finance":
-        r = await db.execute(select(FkpResolution).where(
-            FkpResolution.fkp_id == fkp.id,
-            FkpResolution.tipe_resolusi == "potong_tagihan",
-        ))
-        if not r.scalar_one_or_none():
-            raise HTTPException(
-                status_code=403,
-                detail="Akses ditolak. Finance hanya bisa mengakses FKP dengan resolusi potong_tagihan.",
-            )
+    await _assert_fkp_scope(fkp, user, kode_role, db)
 
     fkp_detail = await _load_fkp_detail(fkp.id, db)
     return _filter_internal_documents(fkp_detail, kode_role)
-
 
 # ─── CRUD ─────────────────────────────────────────────────────────────────────
 
@@ -823,22 +999,14 @@ async def create_fkp(data: FkpCreate, user: User, kode_role: str, db) -> FkpComp
     await require_permission(kode_role, "fkp.create", db)
 
     if data.outlet_id:
-        r = await db.execute(select(Outlet).where(Outlet.id == data.outlet_id))
-        outlet = r.scalar_one_or_none()
-        if not outlet:
-            raise HTTPException(status_code=404, detail="Outlet tidak ditemukan.")
-        if getattr(outlet, "status", None) not in (None, "aktif"):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Outlet '{outlet.nama_toko}' tidak aktif (status: {outlet.status}). "
-                       "FKP hanya bisa dibuat untuk outlet dengan status aktif."
-            )
+        await _validasi_outlet_milik_distributor(data.outlet_id, data.distributor_id, db)
 
     if kode_role == "outlet":
         r = await db.execute(select(Outlet).where(
             Outlet.pic_user_id == user.id,
             Outlet.distributor_id == data.distributor_id,
         ))
+
         outlets_milik_user = r.scalars().all()
 
         if not outlets_milik_user:
@@ -847,14 +1015,13 @@ async def create_fkp(data: FkpCreate, user: User, kode_role: str, db) -> FkpComp
         outlet_ids_milik_user = {o.id for o in outlets_milik_user}
 
         if data.outlet_id:
-            # FE mengirim outlet_id eksplisit -> wajib salah satu milik user ini.
             if data.outlet_id not in outlet_ids_milik_user:
                 raise HTTPException(
                     status_code=403,
                     detail="Outlet yang dipilih bukan outlet Anda.",
                 )
         elif len(outlets_milik_user) == 1:
-            # Hanya 1 kandidat -> aman untuk auto-fill seperti behavior lama.
+            # Hanya 1 kandidat -> aman untuk auto-fill.
             data.outlet_id = outlets_milik_user[0].id
         else:
             # >1 kandidat & FE tidak mengirim outlet_id -> jangan menebak.
@@ -892,6 +1059,13 @@ async def create_fkp(data: FkpCreate, user: User, kode_role: str, db) -> FkpComp
         ))
         if not r2.scalar_one_or_none():
             raise HTTPException(status_code=403, detail="Distributor di luar area Anda.")
+        
+    # Validasi & tetapkan kemasan semua item SEBELUM FKP dibuat
+    items_dict = []
+    for item_data in data.items:
+        item_dict = item_data.model_dump(exclude_none=True)
+        await set_jenis_kemasan(item_dict, db)
+        items_dict.append(item_dict)
 
     nomor_fkp = await generate_nomor_fkp(db)
     fkp = FkpComplaint(
@@ -907,12 +1081,8 @@ async def create_fkp(data: FkpCreate, user: User, kode_role: str, db) -> FkpComp
     db.add(fkp)
     await db.flush()
 
-    for item_data in data.items:
-        item = FkpItem(
-            fkp_id=fkp.id,
-            **item_data.model_dump(exclude_none=True),
-        )
-        db.add(item)
+    for item_dict in items_dict:
+        db.add(FkpItem(fkp_id=fkp.id, **item_dict))
 
     await _log(db, fkp.id, None, FkpStatus.DRAFT, user.id, "FKP dibuat")
     await db.commit()
@@ -927,28 +1097,46 @@ async def update_fkp(fkp_id, data: FkpUpdate, user, kode_role, db):
     if fkp.status not in FkpStatus.EDITABLE:
         raise HTTPException(status_code=400, detail=f"FKP status '{fkp.status}' tidak bisa diedit.")
 
-    if kode_role == "outlet" and data.outlet_id is not None:
-        r = await db.execute(select(Outlet).where(
-            Outlet.id == data.outlet_id,
-            Outlet.pic_user_id == user.id,
-        ))
-        outlet_baru = r.scalar_one_or_none()
-        if not outlet_baru:
-            raise HTTPException(status_code=403, detail="Outlet yang dipilih bukan outlet Anda.")
-        # Pastikan outlet baru tetap di distributor yang sama dengan FKP
-        if outlet_baru.distributor_id != fkp.distributor_id:
-            raise HTTPException(
-                status_code=400,
-                detail="Outlet yang dipilih harus berada di distributor yang sama dengan FKP ini.",
-            )
+    if data.outlet_id is not None:
+        await _validasi_outlet_milik_distributor(data.outlet_id, fkp.distributor_id, db)
 
-    for k, v in data.model_dump(exclude_none=True).items():
+        if kode_role == "outlet":
+            r = await db.execute(select(Outlet.id).where(
+                Outlet.id == data.outlet_id,
+                Outlet.pic_user_id == user.id,
+            ))
+            if not r.scalar_one_or_none():
+                raise HTTPException(status_code=403, detail="Outlet yang dipilih bukan outlet Anda.")
+
+    NON_NULLABLE = {"outlet_id", "prioritas"}
+    perubahan = {
+        k: v for k, v in data.model_dump(exclude_unset=True).items()
+        if v is not None or k not in NON_NULLABLE
+    }
+    for k, v in perubahan.items():
         setattr(fkp, k, v)
     fkp.updated_at = datetime.now(timezone.utc)
     db.add(fkp)
     await db.commit()
     return await _load_fkp_detail(fkp_id, db)
 
+async def _validasi_outlet_milik_distributor(outlet_id, distributor_id, db) -> Outlet:
+    r = await db.execute(select(Outlet).where(Outlet.id == outlet_id))
+    outlet = r.scalar_one_or_none()
+    if not outlet:
+        raise HTTPException(status_code=404, detail="Outlet tidak ditemukan.")
+    if getattr(outlet, "status", None) not in (None, "aktif"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Outlet '{outlet.nama_toko}' tidak aktif (status: {outlet.status}). "
+                   "FKP hanya bisa dibuat untuk outlet dengan status aktif.",
+        )
+    if outlet.distributor_id != distributor_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Outlet yang dipilih tidak terdaftar pada distributor FKP ini.",
+        )
+    return outlet
 
 # ─── CRUD FKP ITEMS ───────────────────────────────────────────────────────────
 
@@ -957,9 +1145,11 @@ async def add_fkp_item(fkp_id, item_data: dict, user, kode_role, db) -> FkpItem:
 
     await require_permission(kode_role, "fkp.item.create", db)
     _check_ownership(fkp, user, kode_role)
-
     if fkp.status not in FkpStatus.EDITABLE:
         raise HTTPException(status_code=400, detail="Item hanya bisa ditambah saat status draft atau need_revision.")
+
+    item_data = dict(item_data)  # jangan mutasi dict milik pemanggil
+    await set_jenis_kemasan(item_data, db)
     item = FkpItem(fkp_id=fkp_id, **item_data)
     db.add(item)
     await db.commit()
@@ -986,8 +1176,28 @@ async def update_fkp_item(fkp_id, item_id, data: FkpItemUpdate, user, kode_role,
             detail="product_id tidak boleh dikosongkan — setiap item FKP wajib merujuk produk di katalog.",
         )
 
-    for k, v in data.model_dump(exclude_none=True).items():
-        setattr(item, k, v) 
+    # Kolom yang tidak boleh NULL: null dari klien diabaikan. Kolom lain bisa
+    # dikosongkan dengan mengirim null secara eksplisit.
+    NON_NULLABLE = {"product_id", "qty", "jenis_keluhan", "ada_sample_keluhan", "ada_foto_sample"}
+    perubahan = {
+        k: v for k, v in data.model_dump(exclude_unset=True).items()
+        if v is not None or k not in NON_NULLABLE
+    }
+    for k, v in perubahan.items():
+        setattr(item, k, v)
+
+    # Validasi ulang hanya bila produk/kemasan berubah, supaya edit qty biasa
+    # pada item lama tidak mendadak gagal.
+    if data.model_fields_set & {"product_id", "jenis_kemasan"}:
+        tmp = {"product_id": item.product_id, "jenis_kemasan": item.jenis_kemasan}
+        await set_jenis_kemasan(tmp, db)
+        item.jenis_kemasan = tmp["jenis_kemasan"]
+
+    # Cek silang hanya bila salah satu field terkait ikut dikirim, supaya item
+    # lama yang kondisi_sample-nya NULL tidak mendadak gagal di-update.
+    if data.model_fields_set & {"ada_sample_keluhan", "kondisi_sample", "kondisi_sample_lainnya"}:
+        _normalisasi_kondisi_sample(item)
+
     item.updated_at = datetime.now(timezone.utc)
     db.add(item)
     await db.commit()
@@ -1022,7 +1232,7 @@ async def delete_fkp_item(fkp_id, item_id, user, kode_role, db):
 
 async def submit_fkp(fkp_id, user, kode_role, db):
     """Draft / Need Revision → Submitted."""
-    fkp = await _get_or_404(fkp_id, db)
+    fkp = await _get_or_404(fkp_id, db, for_update=True)
 
     # Ownership check — selain permission fkp.submit (dicek di _validate_transition),
     # user lain dari distributor/sc_spv/apsm yang sama tidak bisa submit draft
@@ -1031,13 +1241,38 @@ async def submit_fkp(fkp_id, user, kode_role, db):
 
     await _validate_transition(fkp, FkpStatus.SUBMITTED, kode_role, db)
 
-    r = await db.execute(select(FkpAttachment).where(FkpAttachment.fkp_id == fkp_id))
-    if not r.scalars().first():
+    r = await db.execute(
+        select(FkpAttachment.id).where(
+            FkpAttachment.fkp_id == fkp_id,
+            FkpAttachment.tipe_dokumen.in_(TIPE_FOTO_BUKTI_PENGAJUAN),
+        )
+    )
+    if r.first() is None:
         raise HTTPException(status_code=400, detail="Minimal 1 foto bukti wajib diupload sebelum submit.")
 
     r2 = await db.execute(select(FkpItem).where(FkpItem.fkp_id == fkp_id))
-    if not r2.scalars().first():
+    items = r2.scalars().all()
+    if not items:
         raise HTTPException(status_code=400, detail="FKP harus memiliki minimal 1 item produk.")
+
+    r_nama = await db.execute(
+        select(ProductCatalog.id, ProductCatalog.nama_produk)
+        .where(ProductCatalog.id.in_({it.product_id for it in items}))
+    )
+    nama_produk = {pid: nama for pid, nama in r_nama.all()}
+
+    for it in items:
+        tmp = {"product_id": it.product_id, "jenis_kemasan": it.jenis_kemasan}
+        try:
+            await set_jenis_kemasan(tmp, db)
+        except HTTPException as e:
+            nama = nama_produk.get(it.product_id, str(it.product_id))
+            detail = str(e.detail)
+            if nama not in detail:
+                detail = f"Produk '{nama}': {detail}"
+            raise HTTPException(status_code=e.status_code, detail=detail)
+        it.jenis_kemasan = tmp["jenis_kemasan"]
+        db.add(it)
 
     lama = fkp.status
     fkp.status = FkpStatus.SUBMITTED
@@ -1055,8 +1290,8 @@ async def submit_fkp(fkp_id, user, kode_role, db):
 
 async def apsm_review(fkp_id, data: ApsmReviewRequest, user, kode_role, db):
     """Submitted → Apsm Reviewed."""
-    fkp = await _get_or_404(fkp_id, db)
-    await _validate_transition(fkp, FkpStatus.APSM_REVIEWED, kode_role, db)
+    fkp = await _get_or_404(fkp_id, db, for_update=True)
+    await _validate_transition(fkp, FkpStatus.APSM_REVIEWED, kode_role, db, expected_status=FkpStatus.SUBMITTED)
     await _check_apsm_area_scope(fkp, user, kode_role, db)
 
     if data.item_reviews:
@@ -1067,7 +1302,6 @@ async def apsm_review(fkp_id, data: ApsmReviewRequest, user, kode_role, db):
             ))
             item = r.scalar_one_or_none()
             if item:
-                # PERUBAHAN: gunakan field baru rekomendasi_penanganan_apsm & rekomendasi_kompensasi_apsm
                 if review.rekomendasi_penanganan_apsm is not None:
                     item.rekomendasi_penanganan_apsm = review.rekomendasi_penanganan_apsm
                 if review.rekomendasi_kompensasi_apsm is not None:
@@ -1089,42 +1323,44 @@ async def apsm_review(fkp_id, data: ApsmReviewRequest, user, kode_role, db):
     await db.commit()
     return await _load_fkp_detail(fkp.id, db)
 
+async def _hitung_qty_tidak_dihitung(fkp_id, db) -> int:
+    """HANYA untuk log/tampilan (qty pcs/renceng). Jangan dipakai menentukan jalur."""
+    kemasan_efektif = func.coalesce(FkpItem.jenis_kemasan, ProductCatalog.jenis_kemasan)
+    r = await db.execute(
+        select(func.coalesce(func.sum(FkpItem.qty), 0))
+        .select_from(FkpItem)
+        .join(ProductCatalog, ProductCatalog.id == FkpItem.product_id)
+        .where(FkpItem.fkp_id == fkp_id, kemasan_efektif.not_in(KEMASAN_DIHITUNG_JALUR))
+    )
+    return int(r.scalar() or 0)
 
 async def admin_ho_review(fkp_id, data: AdminHoReviewRequest, user, kode_role, db):
     """
-    Apsm Reviewed → Rsm Approval Investigasi (jalur biasa)
-                  → Rsm Approval Final       (jalur cepat, BARU)
+    Apsm Reviewed → Rsm Approval Investigasi (jalur reguler)
+                  → Rsm Approval Final       (jalur cepat)
 
-    PERUBAHAN: Admin HO tidak lagi mengisi rekomendasi per item (dulu:
-    rekomendasi_penanganan_admin_ho / rekomendasi_kompensasi_admin_ho /
-    catatan_admin_ho / persentase_disetujui_admin_ho). Fungsi ini sekarang
-    murni meneruskan FKP dari APSM ke RSM — hanya catatan_admin (level FKP,
-    bukan per item) yang dicatat. Rekomendasi yang dipakai untuk validasi
-    konsistensi resolusi (lihat _validasi_konsistensi_rekomendasi) diambil
-    dari rekomendasi APSM.
+    INILAH satu-satunya titik penentuan jalur approval. Ditentukan dari
+    total qty klaim saat pengajuan (_hitung_total_qty_jalur(): SUM
+    FkpItem.qty seluruh item, hanya kemasan zak/ball/karton):
+      - total qty ≤ BATAS_QTY_DIREKTUR → RSM_APPROVAL_FINAL (jalur cepat):
+        RSM langsung approval akhir, tanpa investigasi QC yang menahan
+        status dan tanpa Direktur. QC tetap bisa investigasi tapi PARALEL
+        (lihat qc_catatan_investigasi_paralel()).
+      - total qty > BATAS_QTY_DIREKTUR → RSM_APPROVAL_INVESTIGASI (jalur
+        reguler): investigasi QC → resolusi → RSM → Direktur (WAJIB untuk
+        semua tipe_resolusi) → accepted.
+    qty_disetujui dan tipe_resolusi tidak ikut menentukan jalur.
 
-    catatan_admin SEKARANG JUGA dipakai PDF FKP (section "Rekomendasi Sales
+    Admin HO tidak mengisi rekomendasi per item — fungsi ini murni
+    meneruskan FKP dari APSM ke RSM; hanya catatan_admin (level FKP) yang
+    dicatat. catatan_admin juga dipakai PDF FKP (section "Rekomendasi Sales
     & Marketing" — kolom Marketing) sampai field rekomendasi_marketing yang
     sesungguhnya dibuat terpisah (lihat fkp_pdf_service.py).
-
-    BARU — Percabangan Jalur Cepat vs Jalur Biasa:
-    Titik ini yang menentukan FKP lewat jalur mana, berdasarkan total qty
-    klaim (SEMUA item FKP, field FkpItem.qty — bukan qty_disetujui, karena
-    belum ada di titik ini):
-      - total qty ≤ BATAS_QTY_DIREKTUR → RSM_APPROVAL_FINAL (jalur cepat):
-        RSM langsung approval akhir, skip investigasi & resolusi belum ada.
-        QC tetap bisa investigasi tapi PARALEL, tidak menahan status FKP
-        (lihat qc_catatan_investigasi_paralel()).
-      - total qty > BATAS_QTY_DIREKTUR  → RSM_APPROVAL_INVESTIGASI (existing,
-        alur biasa: investigasi QC dulu, baru resolusi, RSM, lalu mungkin
-        Direktur — lihat butuh_approval_direktur()).
     """
-    fkp = await _get_or_404(fkp_id, db)
+    fkp = await _get_or_404(fkp_id, db, for_update=True)
 
-    r_qty = await db.execute(
-        select(func.coalesce(func.sum(FkpItem.qty), 0)).where(FkpItem.fkp_id == fkp_id)
-    )
-    total_qty = r_qty.scalar() or 0
+    total_qty = await _hitung_total_qty_jalur(fkp_id, db)
+    qty_lain = await _hitung_qty_tidak_dihitung(fkp_id, db)
 
     target_status = (
         FkpStatus.RSM_APPROVAL_FINAL
@@ -1140,10 +1376,13 @@ async def admin_ho_review(fkp_id, data: AdminHoReviewRequest, user, kode_role, d
     fkp.handled_by = user.id
     fkp.updated_at = datetime.now(timezone.utc)
     db.add(fkp)
-    await _log(
-        db, fkp.id, lama, target_status, user.id,
-        f"{data.catatan_admin or ''} (total qty klaim: {total_qty} zak)".strip()
-    )
+
+    catatan_log = (
+        f"{data.catatan_admin or ''} (total qty klaim: {total_qty} zak/ball/karton; "
+        f"{qty_lain} pcs/renceng tidak dihitung)"
+    ).strip()
+    await _log(db, fkp.id, lama, target_status, user.id, catatan_log)
+    
     await kirim_notifikasi_transisi(db, fkp, lama, target_status, user)
     await db.commit()
     return await _load_fkp_detail(fkp.id, db)
@@ -1151,44 +1390,53 @@ async def admin_ho_review(fkp_id, data: AdminHoReviewRequest, user, kode_role, d
 
 async def rsm_approve_final(fkp_id, data: RsmApproveRequest, user, kode_role, db):
     """
-    BARU — RSM approval AKHIR untuk jalur cepat (total qty klaim ≤
-    BATAS_QTY_DIREKTUR). Hanya berlaku kalau fkp.status sudah
-    RSM_APPROVAL_FINAL (di-set oleh admin_ho_review() berdasarkan qty).
+    RSM approval AKHIR untuk JALUR CEPAT (total qty klaim saat pengajuan ≤
+    BATAS_QTY_DIREKTUR). Hanya berlaku kalau fkp.status = RSM_APPROVAL_FINAL
+    (di-set oleh admin_ho_review()). Direktur TIDAK PERNAH dilibatkan di
+    jalur ini.
 
-    BEDA PENTING dari rsm_approve_resolusi(): di sini RESOLUSI BELUM ADA
-    SAMA SEKALI. RSM approve dulu → status accepted → baru Admin HO mengisi
-    resolusi (lihat perluasan buat_resolusi() untuk kasus status=accepted
-    tanpa resolusi existing) sekaligus bisa langsung lanjut ke Surat Jalan /
-    invoice / confirm-resolusi seperti alur normal setelah accepted.
-    Direktur TIDAK PERNAH dilibatkan di jalur ini.
+    Admin HO WAJIB sudah membuat resolusi (buat_resolusi() Fase 1, termasuk
+    qty_disetujui per item bila tukar_barang) selagi status masih
+    RSM_APPROVAL_FINAL — approve ditolak kalau resolusi belum ada. Ini
+    membuat jalur cepat konsisten dengan jalur reguler (resolusi selalu ada
+    sebelum approval akhir).
 
-    Permission "fkp.rsm_approve_final" dicek manual (bukan lewat
-    _validate_transition/STATUS_TO_PERMISSION) karena target ACCEPTED sudah
-    dipakai status lain (STATUS_TO_PERMISSION[ACCEPTED] = fkp.direktur_approve)
-    — pola yang sama dipakai di rsm_approve_resolusi() untuk kasus skip
-    Direktur.
+    Permission yang dicek: "fkp.rsm_approve_final" (lewat permission_code), dan FKP
+    wajib berstatus RSM_APPROVAL_FINAL (expected_status).
+    
+    # Fungsi berikut MENIMPA permission lewat argumen permission_code, karena status
+    # tujuannya dipakai bersama aksi lain:
+    #   - rsm_approve_final()       → "fkp.rsm_approve_final"       (ACCEPTED / REJECTED)
+    #   - rsm_approve_investigasi() → "fkp.rsm_approve_investigasi" (IN_INVESTIGATION / REJECTED)
+    #   - rsm_approve_resolusi()    → "fkp.rsm_approve_resolusi"    (DIREKTUR_APPROVAL / REJECTED)
+    #   - direktur_approve()        → "fkp.direktur_approve"        (ACCEPTED / REJECTED)
+    # Entri ACCEPTED di bawah hanya fallback; reject_fkp() tetap memakai "fkp.reject".
     """
-    fkp = await _get_or_404(fkp_id, db)
+    fkp = await _get_or_404(fkp_id, db, for_update=True)
     new_status = FkpStatus.ACCEPTED if data.disetujui else FkpStatus.REJECTED
 
-    allowed_next = VALID_TRANSITIONS.get(fkp.status, [])
-    if new_status not in allowed_next:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Transisi dari '{fkp.status}' ke '{new_status}' tidak diizinkan.",
-        )
-    await require_permission(kode_role, "fkp.rsm_approve_final", db)
+    await _validate_transition(fkp, new_status, kode_role, db,
+                            permission_code="fkp.rsm_approve_final",
+                            expected_status=FkpStatus.RSM_APPROVAL_FINAL)
+    _wajib_catatan_tolak(data.disetujui, data.catatan)
+
+    if data.disetujui:
+        r = await db.execute(select(FkpResolution).where(FkpResolution.fkp_id == fkp_id))
+        if not r.scalar_one_or_none():
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Resolusi belum dibuat oleh Admin HO. Buat resolusi "
+                    "terlebih dahulu sebelum RSM menyetujui FKP ini."
+                ),
+            )
 
     lama = fkp.status
     fkp.status = new_status
     fkp.catatan_rsm_resolusi = data.catatan
     if data.disetujui:
-        # BARU — dipakai PDF FKP (section D. Tanda Tangan) untuk menampilkan
-        # kolom TTD ke-4 sebagai "RSM (Manager Sales & Marketing)" karena
-        # Direktur tidak pernah dilibatkan di jalur cepat. Field ini SALING
-        # EKSKLUSIF dengan approved_by_direktur — lihat catatan di
-        # models/fkp.py pada FkpComplaint.approved_by_rsm_final.
         fkp.approved_by_rsm_final = user.id
+        await _tandai_item_diterima_setelah_approval_final(fkp_id, db)
     if not data.disetujui:
         fkp.tanggal_selesai = datetime.now(timezone.utc)
     fkp.updated_at = datetime.now(timezone.utc)
@@ -1200,10 +1448,11 @@ async def rsm_approve_final(fkp_id, data: RsmApproveRequest, user, kode_role, db
 
 
 async def rsm_approve_investigasi(fkp_id, data: RsmApproveRequest, user, kode_role, db):
-    """RSM approve → In Investigation / tolak → Rejected."""
-    fkp = await _get_or_404(fkp_id, db)
+    """JALUR REGULER: RSM approve → In Investigation / tolak → Rejected."""
+    fkp = await _get_or_404(fkp_id, db, for_update=True)
     new_status = FkpStatus.IN_INVESTIGATION if data.disetujui else FkpStatus.REJECTED
-    await _validate_transition(fkp, new_status, kode_role, db)
+    await _validate_transition(fkp, new_status, kode_role, db, permission_code="fkp.rsm_approve_investigasi", expected_status=FkpStatus.RSM_APPROVAL_INVESTIGASI)
+    _wajib_catatan_tolak(data.disetujui, data.catatan)
     lama = fkp.status
     fkp.status = new_status
     fkp.catatan_rsm_investigasi = data.catatan
@@ -1218,13 +1467,13 @@ async def rsm_approve_investigasi(fkp_id, data: RsmApproveRequest, user, kode_ro
 
 
 async def qc_investigasi(fkp_id, data: InvestigasiQcRequest, user, kode_role, db):
-    """QC selesai investigasi → Investigated."""
-    fkp = await _get_or_404(fkp_id, db)
+    """JALUR REGULER: QC selesai investigasi → Investigated."""
+    fkp = await _get_or_404(fkp_id, db, for_update=True)
     await _validate_transition(fkp, FkpStatus.INVESTIGATED, kode_role, db)
 
-    # [BARU — Modul Sample Shipment, Phase 4] Gate: tolak transisi ke
-    # INVESTIGATED kalau masih ada sample yang belum selesai diperiksa
-    # (status di luar SampleStatus.TERMINAL — examined/cancelled).
+    # [Modul Sample Shipment, Phase 4] Gate: tolak transisi ke INVESTIGATED
+    # kalau masih ada sample yang belum selesai diperiksa (status di luar
+    # SampleStatus.TERMINAL — examined/cancelled).
     # Import lokal (bukan di top-level file) untuk menghindari circular
     # import: sample_service.py sendiri meng-import beberapa helper dari
     # fkp_service.py (_get_or_404, _check_ownership, get_fkp_detail).
@@ -1239,6 +1488,10 @@ async def qc_investigasi(fkp_id, data: InvestigasiQcRequest, user, kode_role, db
             ),
         )
 
+    # QC tidak mengubah status_item di sini — hanya mengisi
+    # persentase_disetujui_qc sebagai rekomendasi. status_item baru berubah
+    # jadi 'diterima' otomatis saat approval final disetujui, lihat
+    # _tandai_item_diterima_setelah_approval_final().
     if data.item_results:
         for result in data.item_results:
             r = await db.execute(select(FkpItem).where(
@@ -1247,7 +1500,8 @@ async def qc_investigasi(fkp_id, data: InvestigasiQcRequest, user, kode_role, db
             ))
             item = r.scalar_one_or_none()
             if item:
-                item.status_item = result.status_item
+                if result.persentase_disetujui_qc is not None:
+                    item.persentase_disetujui_qc = result.persentase_disetujui_qc
                 if result.catatan_qc is not None:
                     item.catatan_qc = result.catatan_qc
                 if result.alasan_penolakan is not None:
@@ -1269,52 +1523,50 @@ async def qc_investigasi(fkp_id, data: InvestigasiQcRequest, user, kode_role, db
 
 async def qc_catatan_investigasi_paralel(fkp_id, data: InvestigasiQcRequest, user, kode_role, db):
     """
-    BARU — Investigasi QC untuk JALUR CEPAT (total qty klaim ≤
-    BATAS_QTY_DIREKTUR). BEDA FUNDAMENTAL dari qc_investigasi():
+    Investigasi QC untuk JALUR CEPAT (total qty klaim ≤ BATAS_QTY_DIREKTUR).
+    BEDA FUNDAMENTAL dari qc_investigasi():
 
       - TIDAK PERNAH mengubah fkp.status. QC boleh mengisi ini kapan saja
         setelah FKP masuk jalur cepat, berjalan PARALEL dengan proses
         RSM approval / pembuatan resolusi / surat jalan — tidak menahan
         satu pun dari proses-proses itu.
-      - Hasilnya murni dokumentasi/insight (poin 7 & 8 rencana jalur cepat):
-        "tidak peduli hasil investigasi QC diterima atau tidak, keputusan
-        akhir tetap di marketing & approval RSM". BA hasil pemeriksaan
-        (attachment tipe BA_PEMERIKSAAN) diupload terpisah lewat endpoint
-        upload attachment generic yang sudah ada — fungsi ini hanya
-        menyimpan catatan & status per-item.
-      - Reuse skema InvestigasiQcRequest yang sama dengan qc_investigasi()
+      - Hasilnya murni dokumentasi/insight: "tidak peduli hasil investigasi
+        QC diterima atau tidak, keputusan akhir tetap di marketing &
+        approval RSM". BA hasil pemeriksaan (attachment tipe BA_PEMERIKSAAN)
+        diupload terpisah lewat endpoint upload attachment generic — fungsi
+        ini hanya menyimpan catatan & persentase_disetujui_qc per-item
+        (BUKAN status_item — lihat ItemQcResult di schemas/fkp.py).
+      - Memakai skema InvestigasiQcRequest yang sama dengan qc_investigasi()
         supaya FE tidak perlu form terpisah — cukup endpoint beda.
 
-    Guard: hanya valid untuk FKP yang memang ada di jalur cepat (total qty
-    klaim ≤ BATAS_QTY_DIREKTUR, dihitung ulang dari FkpItem.qty — sama
-    seperti admin_ho_review()). FKP jalur biasa harus tetap pakai
-    qc_investigasi() yang menahan status seperti biasa. Ini perlu dihitung
-    ulang (bukan baca flag) karena fkp.status di jalur cepat & jalur biasa
-    SAMA-SAMA konvergen ke 'accepted' — tidak ada cara lain membedakan
-    "FKP ini jalur mana" tanpa menyimpan flag permanen (lihat catatan Open
-    Question soal ini di bawah).
+    Guard: hanya valid untuk FKP jalur cepat. Jalur dihitung ulang lewat
+    _hitung_total_qty_jalur() — helper yang SAMA dengan admin_ho_review(),
+    jadi hasilnya konsisten selama FkpItem.qty/jenis_kemasan tidak berubah
+    (keduanya hanya bisa diedit saat draft/need_revision, sebelum jalur
+    ditentukan). FKP jalur reguler harus tetap pakai qc_investigasi() yang
+    menahan status seperti biasa.
     """
     await require_permission(kode_role, "fkp.qc_investigasi", db)
 
     fkp = await _get_or_404(fkp_id, db)
 
-    r_qty = await db.execute(
-        select(func.coalesce(func.sum(FkpItem.qty), 0)).where(FkpItem.fkp_id == fkp_id)
-    )
-    total_qty = r_qty.scalar() or 0
+    if fkp.status not in STATUS_QC_PARALEL:
+        raise HTTPException(
+            status_code=400,
+            detail=(f"Catatan investigasi paralel hanya bisa diisi saat FKP berstatus "
+                    f"{', '.join(STATUS_QC_PARALEL)}. Status saat ini: '{fkp.status}'."),
+        )
+
+    total_qty = await _hitung_total_qty_jalur(fkp_id, db)
+
     if total_qty > BATAS_QTY_DIREKTUR:
         raise HTTPException(
             status_code=400,
             detail=(
-                f"FKP ini total qty klaim {total_qty} zak (> {BATAS_QTY_DIREKTUR}) — "
-                "bukan jalur cepat. Gunakan alur investigasi QC biasa."
+                f"FKP ini total qty klaim {total_qty} zak/ball/karton "
+                f"(> {BATAS_QTY_DIREKTUR}) — bukan jalur cepat. "
+                "Gunakan alur investigasi QC biasa."
             ),
-        )
-
-    if fkp.status in (FkpStatus.DRAFT, FkpStatus.SUBMITTED, FkpStatus.REJECTED, FkpStatus.CLOSED):
-        raise HTTPException(
-            status_code=400,
-            detail=f"FKP berstatus '{fkp.status}' — investigasi QC belum/tidak relevan pada tahap ini.",
         )
 
     if data.item_results:
@@ -1325,7 +1577,8 @@ async def qc_catatan_investigasi_paralel(fkp_id, data: InvestigasiQcRequest, use
             ))
             item = r.scalar_one_or_none()
             if item:
-                item.status_item = result.status_item
+                if result.persentase_disetujui_qc is not None:
+                    item.persentase_disetujui_qc = result.persentase_disetujui_qc
                 if result.catatan_qc is not None:
                     item.catatan_qc = result.catatan_qc
                 if result.alasan_penolakan is not None:
@@ -1333,7 +1586,7 @@ async def qc_catatan_investigasi_paralel(fkp_id, data: InvestigasiQcRequest, use
                 item.updated_at = datetime.now(timezone.utc)
                 db.add(item)
 
-    # TIDAK ada perubahan fkp.status — murni catatan.
+    # TIDAK ada perubahan fkp.status maupun status_item — murni catatan.
     fkp.catatan_qc = data.catatan_qc
     fkp.updated_at = datetime.now(timezone.utc)
     db.add(fkp)
@@ -1350,8 +1603,8 @@ async def qc_catatan_investigasi_paralel(fkp_id, data: InvestigasiQcRequest, use
 
 
 async def admin_ho_request_resolusi_approval(fkp_id, catatan, user, kode_role, db):
-    """Investigated → Rsm Approval Resolusi."""
-    fkp = await _get_or_404(fkp_id, db)
+    """JALUR REGULER: Investigated → Rsm Approval Resolusi."""
+    fkp = await _get_or_404(fkp_id, db, for_update=True)
     await _validate_transition(fkp, FkpStatus.RSM_APPROVAL_RESOLUSI, kode_role, db)
     lama = fkp.status
     fkp.status = FkpStatus.RSM_APPROVAL_RESOLUSI
@@ -1365,63 +1618,41 @@ async def admin_ho_request_resolusi_approval(fkp_id, catatan, user, kode_role, d
 
 async def rsm_approve_resolusi(fkp_id, data: RsmApproveRequest, user, kode_role, db):
     """
-    RSM approve/tolak resolusi.
+    JALUR REGULER (total qty klaim saat pengajuan > BATAS_QTY_DIREKTUR,
+    ditentukan di admin_ho_review()): RSM approve/tolak resolusi.
 
-    Tolak → Rejected.
-    Approve → bercabang berdasarkan tipe_resolusi & total qty klaim:
-      - tipe_resolusi in (tukar_barang, potong_tagihan) DAN
-        total qty (FkpItem.qty, semua item FKP) > BATAS_QTY_DIREKTUR
-            → Direktur Approval (butuh TTD Direktur)
-      - selain itu (qty ≤ batas, atau pemusnahan/tidak_ada_kompensasi)
-            → langsung Accepted, skip Direktur
+      - Approve → DIREKTUR_APPROVAL. SELALU, untuk semua tipe_resolusi
+        (tukar_barang, potong_tagihan).
+        Tidak ada pengecekan qty maupun tipe_resolusi di sini — FKP yang
+        sampai di status RSM_APPROVAL_RESOLUSI sudah pasti jalur reguler.
+      - Tolak   → REJECTED.
 
-    Permission tetap "fkp.rsm_approve_resolusi" di kedua cabang — ini
-    aksi RSM, bukan aksi Direktur, walau hasil akhirnya bisa langsung
-    ACCEPTED. Makanya validasi transisi dilakukan manual di sini,
-    BUKAN lewat _validate_transition() generik (yang akan salah
-    men-lookup permission "fkp.direktur_approve" dari STATUS_TO_PERMISSION
-    kalau target-nya ACCEPTED).
+    RSM BUKAN approval terakhir di jalur ini, jadi fungsi ini TIDAK mengisi
+    approved_by_rsm_final dan TIDAK memanggil
+    _tandai_item_diterima_setelah_approval_final() — keduanya urusan
+    direktur_approve().
+
+    Permission yang dicek: "fkp.rsm_approve_resolusi"; 
+    FKP wajib berstatus RSM_APPROVAL_RESOLUSI.
     """
-    fkp = await _get_or_404(fkp_id, db)
+    fkp = await _get_or_404(fkp_id, db, for_update=True)
 
-    if not data.disetujui:
-        new_status = FkpStatus.REJECTED
-    else:
+    new_status = FkpStatus.DIREKTUR_APPROVAL if data.disetujui else FkpStatus.REJECTED
+
+    await _validate_transition(fkp, new_status, kode_role, db, permission_code="fkp.rsm_approve_resolusi", expected_status=FkpStatus.RSM_APPROVAL_RESOLUSI)
+    _wajib_catatan_tolak(data.disetujui, data.catatan)
+
+    if data.disetujui:
         r = await db.execute(select(FkpResolution).where(FkpResolution.fkp_id == fkp_id))
-        resolusi = r.scalar_one_or_none()
-        if not resolusi:
+        if not r.scalar_one_or_none():
             raise HTTPException(
                 status_code=400,
-                detail="Resolusi belum dibuat. Tidak bisa memproses persetujuan RSM."
+                detail="Resolusi belum dibuat. Tidak bisa memproses persetujuan RSM.",
             )
-
-        r_qty = await db.execute(
-            select(func.coalesce(func.sum(FkpItem.qty), 0)).where(FkpItem.fkp_id == fkp_id)
-        )
-        total_qty = r_qty.scalar() or 0
-
-        if butuh_approval_direktur(resolusi.tipe_resolusi, total_qty):
-            new_status = FkpStatus.DIREKTUR_APPROVAL
-        else:
-            new_status = FkpStatus.ACCEPTED
-
-    allowed_next = VALID_TRANSITIONS.get(fkp.status, [])
-    if new_status not in allowed_next:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Transisi dari '{fkp.status}' ke '{new_status}' tidak diizinkan.",
-        )
-    await require_permission(kode_role, "fkp.rsm_approve_resolusi", db)
 
     lama = fkp.status
     fkp.status = new_status
     fkp.catatan_rsm_resolusi = data.catatan
-    if new_status == FkpStatus.ACCEPTED:
-        # BARU — jalur biasa TAPI Direktur di-skip (pemusnahan/tidak_ada_
-        # kompensasi, atau qty ≤ batas). Sama seperti rsm_approve_final():
-        # dipakai PDF untuk menampilkan kolom TTD ke-4 sebagai RSM, bukan
-        # Direktur, karena Direktur memang tidak pernah dilibatkan di sini.
-        fkp.approved_by_rsm_final = user.id
     if not data.disetujui:
         fkp.tanggal_selesai = datetime.now(timezone.utc)
     fkp.updated_at = datetime.now(timezone.utc)
@@ -1433,20 +1664,31 @@ async def rsm_approve_resolusi(fkp_id, data: RsmApproveRequest, user, kode_role,
 
 
 async def direktur_approve(fkp_id, data: DirekturApproveRequest, user, kode_role, db):
-    """Direktur Approval → Accepted / Rejected."""
-    fkp = await _get_or_404(fkp_id, db)
+    """
+    JALUR REGULER: Direktur Approval → Accepted / Rejected.
+
+    Direktur adalah approval TERAKHIR di jalur reguler dan WAJIB untuk semua
+    FKP di jalur ini (total qty klaim saat pengajuan > BATAS_QTY_DIREKTUR),
+    apa pun tipe_resolusi-nya. Approve di sini juga:
+      - mengisi approved_by_direktur (penanda sah "Direktur benar-benar
+        approve"; dipakai PDF FKP untuk nama penandatangan Direktur — lihat
+        fkp_pdf_service.py / build_fkp_context). Saling eksklusif dengan
+        approved_by_rsm_final (jalur cepat).
+      - men-trigger status_item semua item FKP jadi 'diterima' (lihat
+        _tandai_item_diterima_setelah_approval_final()).
+    """
+    fkp = await _get_or_404(fkp_id, db, for_update=True)
     new_status = FkpStatus.ACCEPTED if data.disetujui else FkpStatus.REJECTED
-    await _validate_transition(fkp, new_status, kode_role, db)
+
+    await _validate_transition(fkp, new_status, kode_role, db, permission_code="fkp.direktur_approve", expected_status=FkpStatus.DIREKTUR_APPROVAL)
+    _wajib_catatan_tolak(data.disetujui, data.catatan)
+
     lama = fkp.status
     fkp.status = new_status
     fkp.catatan_direktur = data.catatan
     if data.disetujui:
-        # FIX (sebelumnya tidak pernah di-set): approved_by_direktur dipakai
-        # PDF FKP untuk nama penandatangan Direktur (lihat fkp_pdf_service.py
-        # / build_fkp_context). Sekarang makin relevan karena tidak semua FKP
-        # accepted melewati jalur Direktur — field ini jadi penanda sah
-        # "Direktur benar-benar approve" vs "di-skip karena qty ≤ batas".
         fkp.approved_by_direktur = user.id
+        await _tandai_item_diterima_setelah_approval_final(fkp_id, db)
     if not data.disetujui:
         fkp.tanggal_selesai = datetime.now(timezone.utc)
     fkp.updated_at = datetime.now(timezone.utc)
@@ -1473,12 +1715,12 @@ async def update_pengiriman(fkp_id, data, user, kode_role, db):
 
 
 async def request_revision(fkp_id, data: RevisionRequest, user, kode_role, db):
-    """Minta revisi — tujuan mundur ditentukan otomatis dari REVISION_TARGETS."""
     await require_permission(kode_role, "fkp.request_revision", db)
 
     if not data.catatan:
         raise HTTPException(status_code=400, detail="Catatan alasan revisi wajib diisi.")
-    fkp = await _get_or_404(fkp_id, db)
+    fkp = await _get_or_404(fkp_id, db, for_update=True)
+    await _check_apsm_area_scope(fkp, user, kode_role, db)
 
     target_status = REVISION_TARGETS.get((fkp.status, kode_role))
     if not target_status:
@@ -1503,7 +1745,9 @@ async def reject_fkp(fkp_id, data: RejectRequest, user, kode_role, db):
     """Tolak FKP dari status mana pun yang diizinkan."""
     if not data.catatan:
         raise HTTPException(status_code=400, detail="Alasan penolakan wajib diisi.")
-    fkp = await _get_or_404(fkp_id, db)
+    fkp = await _get_or_404(fkp_id, db, for_update=True)
+
+    await _check_apsm_area_scope(fkp, user, kode_role, db) 
     await _validate_transition(fkp, FkpStatus.REJECTED, kode_role, db)
     lama = fkp.status
     fkp.status = FkpStatus.REJECTED
@@ -1521,9 +1765,8 @@ async def reject_fkp(fkp_id, data: RejectRequest, user, kode_role, db):
 async def input_surat_jalan(fkp_id, nomor_surat_jalan, user, kode_role, db):
     """
     Admin HO input/update nomor surat jalan kapan pun.
-    Sebelumnya GAP KEAMANAN — tidak ada cek role sama sekali. Sekarang
-    ditambal dengan fkp.surat_jalan.input. Endpoint pemanggil fungsi ini
-    juga perlu diupdate untuk meneruskan kode_role.
+    Dijaga permission fkp.surat_jalan.input. Endpoint pemanggil fungsi ini
+    harus meneruskan kode_role.
     """
     await require_permission(kode_role, "fkp.surat_jalan.input", db)
 
@@ -1537,7 +1780,7 @@ async def input_surat_jalan(fkp_id, nomor_surat_jalan, user, kode_role, db):
 
 async def close_fkp(fkp_id, catatan, user, kode_role, db):
     """In Process → Closed."""
-    fkp = await _get_or_404(fkp_id, db)
+    fkp = await _get_or_404(fkp_id, db, for_update=True)
 
     if fkp.status != FkpStatus.IN_PROCESS:
         raise HTTPException(
@@ -1555,21 +1798,41 @@ async def close_fkp(fkp_id, catatan, user, kode_role, db):
     # FKP benar-benar ditutup.
     r_resolusi = await db.execute(select(FkpResolution).where(FkpResolution.fkp_id == fkp_id))
     resolusi = r_resolusi.scalar_one_or_none()
-    if resolusi and resolusi.metode_penanganan_fisik == MetodePenangananFisik.DIMUSNAHKAN:
+
+    if not resolusi:
+        raise HTTPException(400, "Resolusi belum dibuat untuk FKP ini.")
+
+    if resolusi.tipe_resolusi == TipeResolusi.POTONG_TAGIHAN and not resolusi.diproses_finance:
+        raise HTTPException(
+            400,
+            "FKP tidak bisa ditutup — pembayaran cashback belum dikonfirmasi Finance (proses_finance).",
+        )
+
+    if resolusi.tipe_resolusi == TipeResolusi.TUKAR_BARANG:
+        from app.services.warehouse_service import surat_jalan_sudah_delivered
+        if not await surat_jalan_sudah_delivered(fkp_id, db):
+            raise HTTPException(400, "FKP tidak bisa ditutup — surat jalan belum berstatus delivered.")
+          
+    if resolusi.metode_penanganan_fisik == MetodePenangananFisik.DIMUSNAHKAN:
+        tipe_ba = (
+            TipeDokumen.BERITA_ACARA_PEMUSNAHAN_TUKAR_BARANG
+            if resolusi.tipe_resolusi == TipeResolusi.TUKAR_BARANG
+            else TipeDokumen.BERITA_ACARA_PEMUSNAHAN
+        )
+
         r_bukti = await db.execute(
-            select(FkpAttachment).where(
+            select(FkpAttachment.id).where(
                 FkpAttachment.fkp_id == fkp_id,
-                FkpAttachment.tipe_dokumen == TipeDokumen.BERITA_ACARA_PEMUSNAHAN_TUKAR_BARANG,
+                FkpAttachment.tipe_dokumen == tipe_ba,
             )
         )
-        if not r_bukti.scalar_one_or_none():
+
+        if r_bukti.first() is None:
             raise HTTPException(
                 status_code=400,
                 detail=(
-                    "FKP tidak bisa ditutup — dokumen Berita Acara Pemusnahan "
-                    "& Tukar Barang yang sudah ditandatangani belum diupload. "
-                    "Generate draft BA, minta tanda tangan pihak terkait, lalu "
-                    "upload hasilnya sebelum menutup FKP."
+                    f"FKP tidak bisa ditutup — dokumen BA bertipe "
+                    f"'{tipe_ba}' yang sudah ditandatangani belum diupload."
                 ),
             )
 
@@ -1589,33 +1852,43 @@ async def close_fkp(fkp_id, catatan, user, kode_role, db):
 
 async def buat_resolusi(fkp_id, data, user, kode_role, db):
     """
-    Satu fungsi, dua fase — dikontrol oleh status FKP.
+    Satu fungsi, dua fase — dikontrol oleh status FKP. Fungsi ini HANYA
+    menyimpan data resolusi dan TIDAK PERNAH mengubah fkp.status (termasuk
+    di Fase 2). Transisi accepted → in_process ada di endpoint terpisah
+    sesuai tipe_resolusi:
+      - tukar_barang                      → create_surat_jalan() (modul Warehouse)
+      - potong_tagihan                    → terbitkan_invoice()
 
-    [DIUBAH — Modul Sample Shipment, Phase 2] Fungsi ini SEKARANG HANYA
-    menyimpan data resolusi, TIDAK PERNAH mengubah fkp.status lagi — bahkan
-    di Fase 2 (status 'accepted'). Transisi accepted → in_process sudah
-    dipindah ke 3 endpoint terpisah sesuai tipe_resolusi:
-      - tukar_barang                    → create_surat_jalan() (Phase 6)
-      - potong_tagihan                  → terbitkan_invoice() (Phase 7)
-      - pemusnahan / tidak_ada_kompensasi → confirm_resolusi() (Phase 5)
+    Resolusi (tipe_resolusi, qty_disetujui, dst.) TIDAK mempengaruhi jalur
+    approval maupun keterlibatan Direktur — itu ditentukan hanya oleh total
+    qty klaim saat pengajuan (lihat _hitung_total_qty_jalur()).
 
-    FASE 1 — status 'investigated' ATAU 'accepted' TANPA resolusi existing (BARU,
-    jalur cepat — lihat rsm_approve_final()):
+    FASE 1 — status 'investigated' & 'rsm_approval_resolusi' (jalur reguler)
+    ATAU 'rsm_approval_final' (jalur cepat), yaitu SEBELUM approval final:
       Wajib: tipe_resolusi + metode_penanganan_fisik
-      Boleh: lokasi_pemusnahan (wajib jika dimusnahkan), tanggal_pemusnahan, keterangan
+      Boleh: lokasi_pemusnahan (wajib jika dimusnahkan), tanggal_pemusnahan,
+             detail_penanganan, persentase_kompensasi_disetujui (wajib untuk
+             potong_tagihan), keterangan
+      Boleh juga: item_qty_disetujui (khusus tukar_barang) — supaya qty acc
+        sudah terlihat oleh RSM/Direktur saat approval. Tidak disyaratkan
+        status_item == 'diterima' (lihat _validasi_dan_simpan_qty_disetujui()).
       TIDAK boleh: field eksekusi (nomor_do, rekening, dll)
+      Di jalur cepat, rsm_approve_final() menolak approve kalau resolusi
+      belum dibuat di fase ini.
 
     FASE 2 — status 'accepted' DENGAN resolusi sudah ada:
       Wajib: detail eksekusi sesuai tipe_resolusi
       TIDAK boleh ubah: tipe_resolusi, metode_penanganan_fisik
-      Simpan data saja — TIDAK men-trigger status apa pun (lihat catatan di atas).
+      item_qty_disetujui masih boleh dikoreksi di sini (tukar_barang) selama
+      belum diteruskan ke Warehouse (lihat guard di bawah).
 
-    EDIT TIPE — status 'rsm_approval_resolusi':
-      Sama seperti Fase 1, hanya boleh ubah tipe/metode
+    Status 'accepted' TANPA resolusi tidak valid (rsm_approve_final() dan
+    rsm_approve_resolusi() mewajibkan resolusi sudah ada sebelum approve) —
+    ditolak dengan 400, tidak ada jalur perbaikan di sini.
     """
     await require_permission(kode_role, "fkp.resolution.manage", db)
 
-    fkp = await _get_or_404(fkp_id, db)
+    fkp = await _get_or_404(fkp_id, db, for_update=True)
 
     # Ambil resolusi yang sudah ada
     r = await db.execute(select(FkpResolution).where(FkpResolution.fkp_id == fkp_id))
@@ -1628,44 +1901,51 @@ async def buat_resolusi(fkp_id, data, user, kode_role, db):
         "lokasi_pemusnahan", "tanggal_pemusnahan", "keterangan",
         "persentase_kompensasi_disetujui",
     }
-    FASE_2_TUKAR_BARANG = {
-        "nomor_do", "ekspedisi", "resi_pengiriman",
-        "nomor_surat_jalan", "tanggal_pengiriman", "keterangan",
-    }
-    FASE_2_POTONG_TAGIHAN = {
-        "nilai_cashback", "nama_bank", "nomor_rekening",
-        "atas_nama", "nomor_nota_retur", "keterangan",
-    }
-    FASE_2_TIDAK_ADA = {"keterangan"}
 
-    # ── BARU: flag "fase 1 di status accepted" — jalur cepat ───────────────
-    # True hanya kalau status accepted TAPI resolusi belum ada sama sekali
-    # (RSM sudah approve duluan lewat rsm_approve_final(), resolusi menyusul).
-    fase1_saat_accepted = fkp.status == FkpStatus.ACCEPTED and not resolusi_existing
+    FASE_2_PEMUSNAHAN = {"tanggal_pemusnahan", "lokasi_pemusnahan"}
+    FASE_2_TUKAR_BARANG   = {"nomor_do", "ekspedisi", "resi_pengiriman",
+                             "nomor_surat_jalan", "tanggal_pengiriman", "keterangan"} | FASE_2_PEMUSNAHAN
+    FASE_2_POTONG_TAGIHAN = {"nama_bank", "nomor_rekening", "atas_nama",
+                             "nomor_nota_retur", "keterangan"} | FASE_2_PEMUSNAHAN
+
+    # Status di mana Fase 1 (buat/edit tipe_resolusi + qty_disetujui) valid:
+    # jalur reguler (INVESTIGATED, RSM_APPROVAL_RESOLUSI) dan jalur cepat
+    # (RSM_APPROVAL_FINAL).
+    STATUS_FASE_1 = [
+        FkpStatus.INVESTIGATED,
+        FkpStatus.RSM_APPROVAL_RESOLUSI,
+        FkpStatus.RSM_APPROVAL_FINAL,
+    ]
 
     # ── Tentukan field_diizinkan berdasarkan status ───────────────────────
-    if fkp.status in [FkpStatus.INVESTIGATED, FkpStatus.RSM_APPROVAL_RESOLUSI] or fase1_saat_accepted:
+    if fkp.status in STATUS_FASE_1:
         field_diizinkan = FASE_1_FIELDS
 
     elif fkp.status == FkpStatus.ACCEPTED:
-        # resolusi_existing pasti ada di sini (fase1_saat_accepted sudah
-        # menangani kasus belum ada di atas)
+        if not resolusi_existing:
+            raise HTTPException(
+                status_code=400,
+                detail="FKP berstatus 'accepted' tetapi resolusinya belum ada. Hubungi admin.",
+            )
         tipe = resolusi_existing.tipe_resolusi
         if tipe == TipeResolusi.TUKAR_BARANG:
             field_diizinkan = FASE_2_TUKAR_BARANG
         elif tipe == TipeResolusi.POTONG_TAGIHAN:
             field_diizinkan = FASE_2_POTONG_TAGIHAN
         else:
-            field_diizinkan = FASE_2_TIDAK_ADA
+            raise HTTPException(
+                status_code=400,
+                detail=f"tipe_resolusi '{tipe}' tidak didukung. Hubungi admin untuk migrasi data.",
+            )
 
     else:
         raise HTTPException(
             status_code=400,
             detail=(
                 f"Resolusi tidak bisa diubah pada status '{fkp.status}'. "
-                f"Gunakan status 'investigated' atau 'accepted' (jalur cepat, "
-                f"resolusi belum ada) untuk membuat resolusi, atau 'accepted' "
-                f"(resolusi sudah ada) untuk mengisi detail eksekusi."
+                f"Gunakan status 'investigated', 'rsm_approval_resolusi', atau "
+                f"'rsm_approval_final' (jalur cepat) untuk membuat resolusi, "
+                f"atau 'accepted' untuk mengisi detail eksekusi."
             )
         )
 
@@ -1681,10 +1961,7 @@ async def buat_resolusi(fkp_id, data, user, kode_role, db):
         )
 
     # ── Validasi Fase 1 ───────────────────────────────────────────────────
-    # BARU: sekarang juga berlaku saat status accepted TAPI resolusi belum
-    # ada (fase1_saat_accepted, jalur cepat) — persis logic yang sama dengan
-    # investigated/rsm_approval_resolusi, cuma beda titik status.
-    if fkp.status in [FkpStatus.INVESTIGATED, FkpStatus.RSM_APPROVAL_RESOLUSI] or fase1_saat_accepted:
+    if fkp.status in STATUS_FASE_1:
 
         # Wajib tipe + metode saat buat baru
         if not is_edit:
@@ -1722,11 +1999,16 @@ async def buat_resolusi(fkp_id, data, user, kode_role, db):
         # Validasi konsistensi rekomendasi item
         await _validasi_konsistensi_rekomendasi(fkp_id, tipe_efektif, db)
 
+        # qty_disetujui diisi DI SINI (Fase 1), sebelum approval final.
+        # Hanya relevan untuk tukar_barang (potong_tagihan tidak punya qty per item).
+        if tipe_efektif == TipeResolusi.TUKAR_BARANG and data.item_qty_disetujui:
+            await _validasi_dan_simpan_qty_disetujui(
+                fkp_id, data.item_qty_disetujui, db,
+                sudah_approval_final=(fkp.status == FkpStatus.ACCEPTED)
+            )
+
     # ── Validasi Fase 2 ───────────────────────────────────────────────────
-    # BARU: guard fase1_saat_accepted — kalau resolusi baru pertama kali
-    # dibuat di status accepted (jalur cepat), ini BUKAN fase 2, jadi blok
-    # ini (yang butuh resolusi eksekusi sudah ada) dilewati sama sekali.
-    if fkp.status == FkpStatus.ACCEPTED and not fase1_saat_accepted:
+    if fkp.status == FkpStatus.ACCEPTED:
         tipe = resolusi_existing.tipe_resolusi
 
         if tipe == TipeResolusi.POTONG_TAGIHAN:
@@ -1743,7 +2025,7 @@ async def buat_resolusi(fkp_id, data, user, kode_role, db):
                 )
 
         if tipe == TipeResolusi.TUKAR_BARANG:
-            # ── BARU — gate kunci setelah diteruskan ke Warehouse ────────
+            # Gate kunci setelah diteruskan ke Warehouse
             if resolusi_existing.diteruskan_ke_warehouse and data.item_qty_disetujui:
                 raise HTTPException(
                     status_code=400,
@@ -1753,7 +2035,8 @@ async def buat_resolusi(fkp_id, data, user, kode_role, db):
                     ),
                 )
             await _validasi_dan_simpan_qty_disetujui(
-                fkp_id, data.item_qty_disetujui, db
+                fkp_id, data.item_qty_disetujui, db,
+                sudah_approval_final=(fkp.status == FkpStatus.ACCEPTED)
             )
 
     # ── Simpan resolusi ke DB ─────────────────────────────────────────────
@@ -1764,7 +2047,6 @@ async def buat_resolusi(fkp_id, data, user, kode_role, db):
         if k not in FIELDS_FKP_COMPLAINT
     }
  
-    # ── Simpan resolusi ke DB ─────────────────────────────────────────────
     if is_edit:
         for k, v in data_untuk_resolusi.items():
             setattr(resolusi_existing, k, v)
@@ -1776,24 +2058,6 @@ async def buat_resolusi(fkp_id, data, user, kode_role, db):
             **data_untuk_resolusi,
         ))
  
-    # ── [FIX Phase 2 — Modul Sample Shipment] ───────────────────────────────
-    # SEBELUM: mengisi field eksekusi Fase 2 (selagi status ACCEPTED) otomatis
-    # men-trigger transisi ke IN_PROCESS, untuk SEMUA tipe_resolusi sekaligus.
-    #
-    # SESUDAH: buat_resolusi() HANYA menyimpan data resolusi. Transisi
-    # accepted → in_process sekarang jadi tanggung jawab 3 endpoint terpisah,
-    # sesuai tipe_resolusi:
-    #   - tukar_barang                    → POST /warehouse/surat-jalan
-    #                                        (create_surat_jalan, Phase 6)
-    #   - potong_tagihan                  → POST /fkp/{id}/finance/invoice
-    #                                        (terbitkan_invoice, Phase 7)
-    #   - pemusnahan / tidak_ada_kompensasi → POST /fkp/{id}/confirm-resolusi
-    #                                        (confirm_resolusi, Phase 5)
-    #
-    # nomor_surat_jalan di fkp_complaints dipertahankan diisi (kalau dikirim)
-    # untuk backward-compat FE lama — field otoritatif baru ada di
-    # WarehouseSuratJalan.nomor_surat_jalan (Phase 6). Rencana deprecation
-    # kolom ini mengikuti §8–§9 dokumen rencana modul.
     if "nomor_surat_jalan" in data_tersaring:
         fkp.nomor_surat_jalan = data_tersaring["nomor_surat_jalan"]
 
@@ -1805,10 +2069,9 @@ async def buat_resolusi(fkp_id, data, user, kode_role, db):
 
 async def teruskan_ke_warehouse(fkp_id, data: "TeruskanWarehouseRequest", user, kode_role, db):
     """
-    BARU — Handoff eksplisit Admin HO -> Warehouse untuk resolusi
-    tukar_barang. Sejak perubahan ini, permission
-    "warehouse.surat_jalan.create" DICABUT dari admin_ho (lihat seed
-    permission) — admin_ho hanya bisa sampai di sini, tidak bisa lagi
+    Handoff eksplisit Admin HO -> Warehouse untuk resolusi tukar_barang.
+    Permission "warehouse.surat_jalan.create" DICABUT dari admin_ho (lihat
+    seed permission) — admin_ho hanya bisa sampai di sini, tidak bisa
     create_surat_jalan() sendiri.
 
     Tidak mengubah fkp.status — murni menyalakan flag di FkpResolution.
@@ -1818,7 +2081,7 @@ async def teruskan_ke_warehouse(fkp_id, data: "TeruskanWarehouseRequest", user, 
     """
     await require_permission(kode_role, "fkp.teruskan_ke_warehouse", db)
 
-    fkp = await _get_or_404(fkp_id, db)
+    fkp = await _get_or_404(fkp_id, db, for_update=True)
     if fkp.status not in (FkpStatus.ACCEPTED, FkpStatus.IN_PROCESS):
         raise HTTPException(
             status_code=400,
@@ -1837,10 +2100,23 @@ async def teruskan_ke_warehouse(fkp_id, data: "TeruskanWarehouseRequest", user, 
     if resolusi.diteruskan_ke_warehouse:
         raise HTTPException(status_code=400, detail="FKP ini sudah diteruskan ke Warehouse sebelumnya.")
 
-    # Reuse validasi yang sama dengan buat_resolusi() Fase 2 — pastikan
-    # SEMUA item 'diterima' sudah punya qty_disetujui. Dipanggil dengan
-    # None supaya masuk cabang validasi-saja (tidak menyimpan apa pun).
+    # Reuse validasi yang sama dengan buat_resolusi() — pastikan SEMUA item
+    # 'diterima' sudah punya qty_disetujui. Dipanggil dengan None supaya
+    # masuk cabang validasi-saja (tidak menyimpan apa pun). Ini satu-satunya
+    # titik yang MEWAJIBKAN qty_disetujui terisi (di Fase 1 masih opsional).
     await _validasi_dan_simpan_qty_disetujui(fkp_id, None, db)
+
+    r_items = await db.execute(select(FkpItem).where(FkpItem.fkp_id == fkp_id))
+    ada_item_layak = any(
+        i.status_item == StatusItem.DITERIMA and (i.qty_disetujui or 0) > 0
+        for i in r_items.scalars().all()
+    )
+    if not ada_item_layak:
+        raise HTTPException(
+            status_code=400,
+            detail=("Tidak ada item yang disetujui untuk dikirim (semua item ditolak "
+                    "atau qty_disetujui = 0). Tidak ada yang perlu diteruskan ke Warehouse."),
+        )
 
     resolusi.diteruskan_ke_warehouse = True
     resolusi.tanggal_diteruskan_ke_warehouse = datetime.now(timezone.utc)
@@ -1864,42 +2140,20 @@ async def teruskan_ke_warehouse(fkp_id, data: "TeruskanWarehouseRequest", user, 
     await db.commit()
     return await _load_fkp_detail(fkp.id, db)
 
-def _resolusi_terkunci(fkp_status: str) -> bool:
-    """
-    Kembalikan True jika resolusi sudah melewati tahap RSM approval
-    dan tidak boleh diubah lagi.
-    """
-    STATUS_TERKUNCI = {
-        FkpStatus.DIREKTUR_APPROVAL,
-        FkpStatus.ACCEPTED,
-        FkpStatus.IN_PROCESS,
-        FkpStatus.CLOSED,
-        FkpStatus.REJECTED,
-    }
-    return fkp_status in STATUS_TERKUNCI
-
 async def proses_finance(fkp_id, catatan_finance, user, kode_role, db):
     """
     Finance konfirmasi pembayaran cashback potong_tagihan SUDAH ditransfer.
 
-    [FIX BUG KRITIS #2 — audit modul Sample Shipment] Parameter
-    `nilai_nota_penjualan` DIHAPUS dari signature fungsi ini. Endpoint
-    (api/endpoints/fkp.py) sudah lebih dulu diubah untuk TIDAK mengirim
-    argumen ini lagi (lihat komentar "[FIX] nilai_nota_penjualan TIDAK LAGI
-    diterima di sini" di endpoint), tapi signature fungsi ini sebelumnya
-    belum ikut disesuaikan — akibatnya jumlah/urutan argumen saat dipanggil
-    dari endpoint tidak cocok lagi dengan signature lama dan selalu
-    menyebabkan TypeError setiap kali endpoint /finance/proses dipanggil.
-
-    nilai_nota_penjualan & nilai_cashback sekarang HANYA dihitung sekali,
-    di terbitkan_invoice() saat invoice pertama kali diterbitkan.
-    proses_finance() murni konfirmasi pembayaran sudah ditransfer, sesuai
-    keputusan user (#1: langkah konfirmasi transfer terpisah dari
-    penerbitan invoice).
+    Parameter `nilai_nota_penjualan` TIDAK diterima di sini. nilai_nota_penjualan
+    & nilai_cashback HANYA dihitung sekali, di terbitkan_invoice() saat
+    invoice pertama kali diterbitkan. proses_finance() murni konfirmasi
+    pembayaran sudah ditransfer (langkah terpisah dari penerbitan invoice).
+    Signature ini harus tetap cocok dengan pemanggilnya di
+    api/endpoints/fkp.py (endpoint /finance/proses).
     """
     await require_permission(kode_role, "fkp.finance.process", db)
 
-    fkp = await _get_or_404(fkp_id, db)
+    fkp = await _get_or_404(fkp_id, db, for_update=True)
 
     if fkp.status != FkpStatus.IN_PROCESS:
         raise HTTPException(
@@ -1916,16 +2170,22 @@ async def proses_finance(fkp_id, catatan_finance, user, kode_role, db):
     if not resolusi:
         raise HTTPException(status_code=404, detail="Resolusi belum dibuat untuk FKP ini.")
 
-    if resolusi.tipe_resolusi != "potong_tagihan":
+    if resolusi.tipe_resolusi != TipeResolusi.POTONG_TAGIHAN:
         raise HTTPException(
             status_code=400,
             detail="Proses finance hanya berlaku untuk resolusi tipe 'potong_tagihan'.",
         )
 
-    # [FIX BUG KRITIS #2] nilai_nota_penjualan & nilai_cashback seharusnya
-    # sudah diisi oleh terbitkan_invoice() sebelum FKP bisa mencapai status
-    # in_process untuk resolusi potong_tagihan. Guard ini jaga-jaga kalau
-    # ada data lama/tidak konsisten, bukan jalur normal.
+    if resolusi.diproses_finance:
+        raise HTTPException(
+            status_code=400,
+            detail="Pembayaran cashback FKP ini sudah dikonfirmasi Finance sebelumnya.",
+        )
+
+    # nilai_nota_penjualan & nilai_cashback seharusnya sudah diisi oleh
+    # terbitkan_invoice() sebelum FKP bisa mencapai status in_process untuk
+    # resolusi potong_tagihan. Guard ini jaga-jaga kalau ada data
+    # lama/tidak konsisten, bukan jalur normal.
     if resolusi.nilai_cashback is None:
         raise HTTPException(
             status_code=400,
@@ -1943,96 +2203,33 @@ async def proses_finance(fkp_id, catatan_finance, user, kode_role, db):
     db.add(resolusi)
     fkp.updated_at = datetime.now(timezone.utc)
     db.add(fkp)
+    # Bukan transisi status, tapi dicatat di timeline supaya jejak
+    # "siapa & kapan Finance mengonfirmasi" terlihat (sama seperti teruskan_ke_warehouse).
+    await _log(db, fkp.id, fkp.status, fkp.status, user.id,
+               catatan_finance or "Pembayaran cashback dikonfirmasi Finance.")
     await db.commit()
     return await _load_fkp_detail(fkp.id, db)
-
-
-# ═════════════════════════════════════════════════════════════════════════════
-# MODUL SAMPLE SHIPMENT — Phase 5
-# ═════════════════════════════════════════════════════════════════════════════
-
-async def confirm_resolusi(fkp_id, catatan, user, kode_role, db):
-    """
-    Trigger accepted → in_process untuk resolusi SELAIN tukar_barang dan
-    potong_tagihan — yaitu pemusnahan (tidak_ada_kompensasi + metode
-    dimusnahkan) dan tidak_ada_kompensasi murni tanpa pemusnahan.
-    """
-    await require_permission(kode_role, "fkp.confirm_resolusi", db)
-
-    fkp = await _get_or_404(fkp_id, db)
-    if fkp.status != FkpStatus.ACCEPTED:
-        raise HTTPException(
-            status_code=400,
-            detail=f"FKP harus berstatus 'accepted', bukan '{fkp.status}'.",
-        )
-
-    r = await db.execute(select(FkpResolution).where(FkpResolution.fkp_id == fkp_id))
-    resolusi = r.scalar_one_or_none()
-    if not resolusi:
-        raise HTTPException(status_code=400, detail="Resolusi belum dibuat untuk FKP ini.")
-
-    # tukar_barang & potong_tagihan TIDAK lewat endpoint ini — masing-masing
-    # sudah punya jalur trigger sendiri (Phase 6 & 7).
-    if resolusi.tipe_resolusi == TipeResolusi.TUKAR_BARANG:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Resolusi tukar_barang diproses lewat pembuatan Surat Jalan "
-                "(POST /fkp/{fkp_id}/warehouse/surat-jalan), bukan endpoint ini."
-            ),
-        )
-    if resolusi.tipe_resolusi == TipeResolusi.POTONG_TAGIHAN:
-        raise HTTPException(
-            status_code=400,
-            detail="Resolusi potong_tagihan diproses lewat POST /fkp/{fkp_id}/finance/invoice.",
-        )
-
-    # ── Gate composite #2: tipe_resolusi == TIDAK_ADA_KOMPENSASI ───────────
-    if resolusi.tipe_resolusi == TipeResolusi.TIDAK_ADA_KOMPENSASI:
-        if not catatan or not catatan.strip():
-            raise HTTPException(
-                status_code=400,
-                detail="Catatan wajib diisi untuk resolusi tidak_ada_kompensasi.",
-            )
-
-    lama = fkp.status
-    fkp.status = FkpStatus.IN_PROCESS
-    fkp.updated_at = datetime.now(timezone.utc)
-    db.add(fkp)
-    await _log(db, fkp.id, lama, FkpStatus.IN_PROCESS, user.id,
-               catatan or "Resolusi dikonfirmasi, proses dimulai.")
-    await kirim_notifikasi_transisi(db, fkp, lama, FkpStatus.IN_PROCESS, user)
-    await db.commit()
-    return await _load_fkp_detail(fkp.id, db)
-
 
 async def terbitkan_invoice(fkp_id, nomor_invoice, nilai_nota_penjualan, catatan, user, kode_role, db):
     """
-    [BARU — Modul Sample Shipment, Phase 7] Trigger accepted → in_process
-    khusus resolusi potong_tagihan. Generate PDF invoice via WeasyPrint,
-    simpan sebagai FkpDocument (bukan FkpAttachment — dokumen formal).
+    Trigger accepted → in_process khusus resolusi potong_tagihan. Generate
+    PDF invoice via WeasyPrint, simpan sebagai FkpDocument (bukan
+    FkpAttachment — dokumen formal).
 
-    nomor_invoice input MANUAL (sesuai keputusan user — sama seperti
-    nomor_surat_jalan/nomor_tanda_terima, tidak ada auto-generate).
+    nomor_invoice input MANUAL (sama seperti nomor_surat_jalan/
+    nomor_tanda_terima, tidak ada auto-generate).
 
-    [FIX BUG KRITIS #1 — audit modul Sample Shipment] Parameter
-    `nilai_nota_penjualan` sebelumnya TIDAK ADA di signature fungsi ini
-    sama sekali, padahal endpoint & docstring ini sendiri sudah
-    mengasumsikan nilai itu diisi di sini ("nilai_nota_penjualan WAJIB
-    diisi di sini") dan notifikasi di bawah sudah membaca
-    `resolusi.nilai_cashback` seolah-olah sudah dihitung. Sekarang
-    nilai_nota_penjualan diterima, nilai_cashback dihitung & disimpan ke
-    resolusi SEBELUM PDF digenerate (supaya PDF & notifikasi menampilkan
-    angka yang benar), dengan rumus yang sama seperti proses_finance()
-    versi lama: nilai_nota_penjualan × (persentase_kompensasi_disetujui / 100).
+    nilai_nota_penjualan WAJIB diisi di sini. nilai_cashback dihitung &
+    disimpan ke resolusi SEBELUM PDF digenerate (supaya PDF & notifikasi
+    menampilkan angka yang benar), dengan rumus:
+    nilai_nota_penjualan × (persentase_kompensasi_disetujui / 100).
 
-    Langkah berikutnya SETELAH ini tetap proses_finance() untuk konfirmasi
-    pembayaran benar-benar sudah ditransfer (keputusan user #1) — lihat
-    guard proses_finance() yang diperketat jadi in_process-only di bawah.
+    Langkah berikutnya SETELAH ini adalah proses_finance() untuk konfirmasi
+    pembayaran benar-benar sudah ditransfer (hanya valid saat in_process).
     """
     await require_permission(kode_role, "fkp.finance.invoice", db)
 
-    fkp = await _get_or_404(fkp_id, db)
+    fkp = await _get_or_404(fkp_id, db, for_update=True)
     if fkp.status != FkpStatus.ACCEPTED:
         raise HTTPException(
             status_code=400,
@@ -2049,15 +2246,24 @@ async def terbitkan_invoice(fkp_id, nomor_invoice, nilai_nota_penjualan, catatan
             status_code=400,
             detail="Endpoint ini hanya untuk resolusi bertipe 'potong_tagihan'.",
         )
+
     if not resolusi.persentase_kompensasi_disetujui:
         raise HTTPException(
             status_code=400,
             detail="persentase_kompensasi_disetujui belum diisi pada resolusi.",
         )
+    
+    kurang = [f for f in ("nama_bank", "nomor_rekening", "atas_nama")
+              if not getattr(resolusi, f, None)]
+    if kurang:
+        raise HTTPException(
+            400,
+            f"Data rekening belum lengkap: {', '.join(kurang)}. Lengkapi lewat resolusi (status accepted) sebelum menerbitkan invoice.",
+        )
 
-    # [FIX BUG KRITIS #1] nilai_nota_penjualan wajib > 0 (sudah divalidasi
-    # juga di schema InvoiceCreateRequest, dicek ulang di sini karena fungsi
-    # service bisa dipanggil dari jalur lain di luar endpoint HTTP).
+    # nilai_nota_penjualan wajib > 0 (sudah divalidasi juga di schema
+    # InvoiceCreateRequest, dicek ulang di sini karena fungsi service bisa
+    # dipanggil dari jalur lain di luar endpoint HTTP).
     if nilai_nota_penjualan is None or nilai_nota_penjualan <= 0:
         raise HTTPException(status_code=400, detail="nilai_nota_penjualan harus lebih dari 0.")
 
@@ -2073,14 +2279,15 @@ async def terbitkan_invoice(fkp_id, nomor_invoice, nilai_nota_penjualan, catatan
     if r_dup.scalar_one_or_none():
         raise HTTPException(status_code=400, detail=f"Nomor invoice '{nomor_invoice}' sudah digunakan.")
 
-    # [FIX BUG KRITIS #1] Hitung & simpan nilai_nota_penjualan/nilai_cashback
-    # SEBELUM PDF digenerate — template invoice (invoice_pdf_service.py)
-    # membaca kedua field ini langsung dari objek `resolusi`.
+    # Hitung & simpan nilai_nota_penjualan/nilai_cashback SEBELUM PDF
+    # digenerate — template invoice (invoice_pdf_service.py) membaca kedua
+    # field ini langsung dari objek `resolusi`.
     resolusi.nilai_nota_penjualan = nilai_nota_penjualan
     resolusi.nilai_cashback = (
         Decimal(str(nilai_nota_penjualan)) *
         resolusi.persentase_kompensasi_disetujui / 100
     ).quantize(Decimal("0.01"))
+    
     db.add(resolusi)
     await db.flush()
 
@@ -2108,7 +2315,7 @@ async def terbitkan_invoice(fkp_id, nomor_invoice, nilai_nota_penjualan, catatan
                catatan or f"Invoice {nomor_invoice} diterbitkan, menunggu konfirmasi pembayaran.")
     await kirim_notifikasi_transisi(db, fkp, lama, FkpStatus.IN_PROCESS, user)
 
-    # [Phase 8 — Notifikasi §12.1] Invoice diterbitkan: admin_ho, rsm
+    # Notifikasi invoice diterbitkan: admin_ho, rsm
     from app.services.notification_service import notify_roles, TipeNotifikasi
     await notify_roles(
         db, fkp.id, ["admin_ho", "rsm"],
@@ -2120,11 +2327,11 @@ async def terbitkan_invoice(fkp_id, nomor_invoice, nilai_nota_penjualan, catatan
     await db.commit()
     await db.refresh(invoice_doc)
 
-    # [FIX BUG KRITIS #1] Kembalikan dict eksplisit (bukan menempelkan
-    # atribut baru ke instance FkpDocument) supaya FE langsung dapat
-    # nilai_cashback tanpa request tambahan — lihat InvoiceResponse di
-    # schemas/finance.py. Dict biasa lebih aman divalidasi Pydantic
-    # dibanding menambah atribut ad-hoc ke object model SQLAlchemy/SQLModel.
+    # Kembalikan dict eksplisit (bukan menempelkan atribut baru ke instance
+    # FkpDocument) supaya FE langsung dapat nilai_cashback tanpa request
+    # tambahan — lihat InvoiceResponse di schemas/finance.py. Dict biasa
+    # lebih aman divalidasi Pydantic dibanding menambah atribut ad-hoc ke
+    # object model SQLAlchemy/SQLModel.
     return {
         "id": invoice_doc.id,
         "fkp_id": invoice_doc.fkp_id,

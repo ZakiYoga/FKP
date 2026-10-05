@@ -16,13 +16,13 @@ export const registerOutletSchema = z
             'reseller',
             'online_shop',
             'lainnya',
-        ], { required_error: 'Pilih tipe toko' }), no_hp: z.string().min(1, 'No. HP wajib diisi')
+        ], { required_error: 'Pilih tipe toko' }),
+        no_hp: z.string().min(1, 'No. HP wajib diisi')
             .pipe(
-                z.string()
-                    .regex(
-                        /^628[1-9][0-9]{6,10}$/,
-                        'Masukkan nomor HP/WhatsApp yang valid (contoh: 628123456789).'
-                    )
+                z.string().regex(
+                    /^628[1-9][0-9]{6,11}$/,
+                    'Masukkan nomor HP/WhatsApp yang valid, tanpa angka 0 di depan (contoh: 81234567890).'
+                )
             ),
         distributor_id: z.string().uuid('Pilih distributor terlebih dahulu'),
         alamat_lengkap: z.string().optional(),

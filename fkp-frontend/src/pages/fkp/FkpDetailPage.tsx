@@ -6,6 +6,7 @@ import {
   QrCode, Download, Copy, Check, ExternalLink,
   Paperclip, Truck, Banknote, FileDown,
   Upload,
+  Building2, // ← [PERUBAHAN 1/3] icon untuk card "Asal Pengajuan"
 } from 'lucide-react'
 import { useState, useRef, useCallback } from 'react'
 import { QRCodeCanvas } from 'qrcode.react'
@@ -21,7 +22,7 @@ import { Input } from '@/components/ui/Input'
 import { FkpItemFormModal, type FileWithMeta } from '@/components/fkp/FkpItemFormModal'
 import { FkpItemReviewForm, type ApsmReviewState, APSM_REVIEW_BLANK } from '@/components/fkp/FkpItemReviewForm'
 import { formatDateTime, formatRupiah } from '@/lib/utils'
-import { butuhApprovalDirektur, BATAS_QTY_DIREKTUR } from '@/lib/fkpUtils'
+import { butuhApprovalDirektur, hitungTotalQtyJalur, BATAS_QTY_DIREKTUR } from '@/lib/fkpUtils'
 import { useAuthStore, useKodeRole } from '@/store/authStore'
 import { FKP_STATUS_LABEL, METODE_PENANGANAN_LABEL, TIPE_RESOLUSI_LABEL, SURAT_JALAN_STATUS_LABEL, SAMPLE_STATUS_LABEL, SAMPLE_STATUS_TERMINAL } from '@/types'
 import type {
@@ -758,6 +759,14 @@ export function FkpDetailPage() {
   )
 
   const canEdit = canWrite && (fkp.status === 'draft' || fkp.status === 'need_revision')
+
+  // [PERUBAHAN 2/3] Teks provinsi untuk card "Asal Pengajuan".
+  // `?? []` menjaga agar tidak crash kalau area_info/provinsi tidak ada
+  // di response backend (undefined/null).
+  const provinsiText = (fkp.area_info?.provinsi ?? [])
+    .map((p) => p.nama_provinsi)
+    .join(', ')
+
   const hasResolusi = !!fkp.resolution
   // BARU — jalur cepat: resolusi juga bisa dibuat pertama kali di status
   // 'accepted' kalau belum ada resolusi sama sekali (RSM sudah approve final
@@ -778,7 +787,9 @@ export function FkpDetailPage() {
   // total qty klaim (BUKAN qty_disetujui — itu baru terisi setelah accepted).
   // Dipakai untuk label tombol & badge info sebelum RSM approve, supaya
   // user tahu next-step-nya "langsung accepted" atau "ke Direktur dulu".
-  const totalQtyKlaim = fkp.items.reduce((sum, item) => sum + (item.qty ?? 0), 0)
+  // Hanya kemasan zak/ball/karton yang dihitung (renceng & pcs tidak) — cermin
+  // _hitung_total_qty_jalur() di backend.
+  const totalQtyKlaim = hitungTotalQtyJalur(fkp.items, products)
   const akanKeDirektur = butuhApprovalDirektur(tipeResolusiAktif, totalQtyKlaim)
   // BARU — jalur cepat: total qty klaim ≤ BATAS_QTY_DIREKTUR. Dipakai untuk
   // menampilkan section "Catatan Investigasi QC (Paralel)" — cermin logic
@@ -871,19 +882,20 @@ export function FkpDetailPage() {
     <div className="mx-auto space-y-6 animate-fade-in">
 
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
+      <div className="flex items-start md:items-end justify-between gap-4">
+        <div className="flex md:w-full items-start md:items-center gap-3">
           <button onClick={() => navigate('/fkp')} className="btn-ghost btn-sm p-2">
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <div>
+          <div className="flex flex-1 flex-col gap-y-2">
+            <StatusBadge classname="flex w-fit flex-wrap sm:hidden rounded-md" status={fkp.status} />
             <p className="text-xs font-mono text-gray-400">{fkp.nomor_fkp}</p>
             <h1 className="text-xl font-bold text-gray-900 mt-0.5">Detail FKP</h1>
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <PrioritasBadge prioritas={fkp.prioritas} />
-          <StatusBadge status={fkp.status} />
+        <div className="hidden sm:flex h-full flex-col items-end md:flex-row md:items-center gap-2 shrink-0">
+          <StatusBadge classname="hidden sm:flex w-fit flex-wrap rounded-md" status={fkp.status} />
+          {/* <PrioritasBadge prioritas={fkp.prioritas} /> */}
         </div>
       </div>
 
@@ -902,6 +914,38 @@ export function FkpDetailPage() {
 
         {/* ── Kiri ──────────────────────────────────────────────────────── */}
         <div className="lg:col-span-3 space-y-5 order-2 lg:order-1">
+          <div className="card">
+            <div className="card-header">
+              <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-brand-500" /> Asal Pengajuan
+              </h2>
+            </div>
+            <div className="card-body">
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                {fkp.outlet_info && (
+                  <>
+                    <InfoRow label="Kode Outlet" value={fkp.outlet_info.kode_outlet ?? '-'} mono />
+                    <InfoRow label="Outlet" value={fkp.outlet_info.nama_toko} />
+                  </>
+                )}
+
+                {fkp.distributor_info && (
+                  <>
+                    <InfoRow label="Kode Distributor" value={fkp.distributor_info.kode_distributor ?? '-'} mono />
+                    <InfoRow label="Distributor" value={fkp.distributor_info.nama_perusahaan} />
+                  </>
+                )}
+
+                {fkp.area_info && (
+                  <>
+                    <InfoRow label="Kode Area" value={fkp.area_info.kode_area} mono />
+                    {provinsiText && <InfoRow label="Provinsi" value={provinsiText} />}
+                    <InfoRow label="Area" value={fkp.area_info.nama_area} />
+                  </>
+                )}
+              </dl>
+            </div>
+          </div>
 
           {/* Info FKP */}
           <div className="card">
@@ -910,20 +954,18 @@ export function FkpDetailPage() {
                 <FileText className="w-4 h-4 text-brand-500" /> Info FKP
               </h2>
             </div>
-            <div className="card-body">
+            <div className="card-body space-y-4">
               <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
                 <InfoRow label="Nomor FKP" value={fkp.nomor_fkp} mono />
-                <InfoRow label="Prioritas" value={fkp.prioritas.replace('_', ' ')} className="capitalize" />
+                {/* <InfoRow label="Prioritas" value={fkp.prioritas.replace('_', ' ')} className="capitalize" /> */}
                 {fkp.tanggal_pengajuan && <InfoRow label="Tgl Pengajuan" value={formatDateTime(fkp.tanggal_pengajuan)} />}
                 {fkp.tanggal_selesai && <InfoRow label="Tgl Selesai" value={formatDateTime(fkp.tanggal_selesai)} />}
-                {/* [FIX] fkp.nomor_surat_jalan (fkp_complaints.nomor_surat_jalan)
-                    DIHAPUS dari sini — field deprecated per §9 dokumen rencana
-                    modul, sekarang selalu kosong untuk FKP baru. Nomor surat
-                    jalan yang benar ada di kartu "Surat Jalan (Barang
-                    Pengganti)" di bawah, sumbernya WarehouseSuratJalan. */}
+                {fkp.masa_penyelesaian_label && (
+                  <InfoRow label="Masa Penyelesaian" value={fkp.masa_penyelesaian_label} />
+                )}
               </dl>
               {fkp.catatan_distributor && (
-                <div className="mt-4 pt-4 border-t border-gray-50">
+                <div className="border-t border-gray-50">
                   <p className="text-xs font-medium text-gray-500 mb-1">Catatan Outlet/Distributor/SC/SPV</p>
                   <p className="text-sm text-gray-800 whitespace-pre-wrap">{fkp.catatan_distributor}</p>
                 </div>
@@ -1233,7 +1275,7 @@ export function FkpDetailPage() {
                 {fkp.status === 'rsm_approval_final' && kodeRole === 'rsm' && (
                   <>
                     <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-700">
-                      Total klaim {totalQtyKlaim} zak (≤ {BATAS_QTY_DIREKTUR} zak). Silakan approve untuk persetujuan penggantian barang FKP.
+                      Total klaim {totalQtyKlaim} zak/ball/karton (≤ {BATAS_QTY_DIREKTUR}). Silakan approve untuk persetujuan penggantian barang FKP.
                       {/* tanpa investigasi QC gating maupun Direktur.
                       Admin HO akan mengisi resolusi & bisa langsung buat Surat Jalan setelahnya. */}
                     </div>
@@ -1313,8 +1355,8 @@ export function FkpDetailPage() {
                       : 'bg-blue-50 border-blue-200 text-blue-700'
                       }`}>
                       {akanKeDirektur
-                        ? `⚠️ Total klaim ${totalQtyKlaim} zak (> ${BATAS_QTY_DIREKTUR} zak, resolusi ${TIPE_RESOLUSI_LABEL[tipeResolusiAktif as TipeResolusi] ?? tipeResolusiAktif}) — butuh persetujuan Direktur setelah ini.`
-                        : `ℹ️ Total klaim ${totalQtyKlaim} zak — tidak memerlukan persetujuan Direktur, langsung diterima setelah disetujui.`}
+                        ? `⚠️ Total klaim ${totalQtyKlaim} zak/ball/karton (> ${BATAS_QTY_DIREKTUR}, resolusi ${TIPE_RESOLUSI_LABEL[tipeResolusiAktif as TipeResolusi] ?? tipeResolusiAktif}) — butuh persetujuan Direktur setelah ini.`
+                        : `ℹ️ Total klaim ${totalQtyKlaim} zak/ball/karton — tidak memerlukan persetujuan Direktur, langsung diterima setelah disetujui.`}
                     </div>
                     <button className="btn-primary w-full" onClick={() => setModal('rsm_resolusi_ok')}>
 
@@ -1863,8 +1905,6 @@ export function FkpDetailPage() {
                 <option value="dimusnahkan">Dimusnahkan</option>
                 <option value="dijual_pakan_ternak">Dijual sebagai pakan ternak</option>
                 <option value="dikirim_ke_ho">Dikirim kembali ke Head Office</option>
-                <option value="disimpan_distributor">Disimpan sementara oleh distributor</option>
-                <option value="di_repack_oleh_pihak_internal">Di Repack oleh pihak internal</option>
               </Select>
               {resolusiForm.metode_penanganan_fisik === 'dimusnahkan' && (
                 <>
@@ -2061,20 +2101,6 @@ export function FkpDetailPage() {
             onChange={(e) => setCatatan(e.target.value)} />
           <ModalFooter onCancel={closeModal} onConfirm={handleConfirm}
             isLoading={isConfirming} confirmLabel="Konfirmasi Sudah Ditransfer" />
-        </div>
-      </Modal>
-
-      {/* ── tidak_ada_kompensasi (± dimusnahkan): trigger accepted → in_process ── */}
-      <Modal isOpen={modal === 'confirm_resolusi'} onClose={closeModal} title="Konfirmasi Resolusi" size="md">
-        <div className="space-y-4">
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
-            🚫 Resolusi tanpa kompensasi finansial. Mengonfirmasi akan memindahkan FKP ke status "Diproses".
-          </div>
-          <Textarea label="Catatan / Alasan" required rows={3} value={catatan}
-            onChange={(e) => setCatatan(e.target.value)}
-            placeholder="Wajib diisi — alasan tidak ada kompensasi" />
-          <ModalFooter onCancel={closeModal} onConfirm={handleConfirm}
-            isLoading={isConfirming} confirmLabel="Konfirmasi Resolusi" />
         </div>
       </Modal>
 

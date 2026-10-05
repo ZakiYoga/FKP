@@ -1,22 +1,37 @@
 import { useState } from 'react'
-import { Plus, Store, Pencil, PowerOff, Search, MapPin } from 'lucide-react'
+import { Plus, Store, Pencil, PowerOff, Search, MapPin, CheckCircle2, XCircle, Power } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
-  useOutlets, useCreateOutlet,
-  useUpdateOutlet, useDeactivateOutlet, useDistributors,
+  useOutlets, useCreateOutlet, useUpdateOutlet,
+  useApproveOutlet, useRejectOutlet, useDeactivateOutlet, useActivateOutlet, useDistributors,
 } from '@/hooks/useMasterData'
 import { Modal } from '@/components/ui/Modal'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { PageLoader } from '@/components/ui/Spinner'
-import { StatusToggleBadge } from '@/components/ui/StatusToggle'
 import { useKodeRole } from '@/store/authStore'
-import type { Outlet } from '@/types'
+import {
+  getTipeTokoLabel, STATUS_OUTLET_OPTIONS, TIPE_TOKO_OPTIONS, type Outlet,
+} from '@/types/outlet'
+import { Button } from '@mantine/core'
 
-const TIPE_TOKO = ['retail', 'grosir', 'horeka', 'modern trade', 'lainnya']
+// Koordinat diisi sebagai string (input type="number" menghasilkan string),
+// dikonversi ke number | null saat submit. String kosong = tidak diisi.
+const coordField = (min: number, max: number, label: string) =>
+  z
+    .string()
+    .optional()
+    .refine(
+      (v) => {
+        if (v == null || v.trim() === '') return true
+        const n = Number(v)
+        return !Number.isNaN(n) && n >= min && n <= max
+      },
+      `${label} harus berupa angka antara ${min} dan ${max}`,
+    )
 
 const schema = z.object({
   distributor_id: z.string().min(1, 'Distributor wajib dipilih'),
@@ -27,22 +42,90 @@ const schema = z.object({
   no_hp: z.string().optional(),
   email: z.string().email('Format email tidak valid').optional().or(z.literal('')),
   alamat_lengkap: z.string().optional(),
-  latitude: z.coerce.number().optional().or(z.literal('')),
-  longitude: z.coerce.number().optional().or(z.literal('')),
+  latitude: coordField(-90, 90, 'Latitude'),
+  longitude: coordField(-180, 180, 'Longitude'),
 })
 type FormData = z.infer<typeof schema>
 
+const toCoord = (v?: string): number | null =>
+  v == null || v.trim() === '' ? null : Number(v)
+
 const CAN_MANAGE = ['superadmin', 'admin_ho', 'apsm', 'sc_spv', 'distributor']
+// Sama dengan permission `outlet_registration.approve` (+ superadmin via bypass)
+const CAN_APPROVE = ['superadmin', 'admin_ho', 'apsm', 'sc_spv', 'distributor']
+
+// ── Konfirmasi aksi outlet — SATU dialog untuk approve/reject/deactivate/activate ──
+// Menambah aksi baru di masa depan (mis. "hapus permanen") cukup tambah satu
+// entri di sini + satu entri di ACTION_MUTATORS, tanpa JSX ConfirmDialog baru.
+type OutletActionType = 'approve' | 'reject' | 'deactivate' | 'activate'
+
+type PendingOutletAction = {
+  type: OutletActionType
+  outlet: Outlet
+}
+
+const ACTION_CONFIG: Record<
+  OutletActionType,
+  {
+    variant: 'success' | 'danger'
+    title: string
+    message: (namaToko: string) => string
+    confirmLabel: string
+  }
+> = {
+  approve: {
+    variant: 'success',
+    title: 'Setujui Pendaftaran Outlet',
+    message: (nama) =>
+      `Setujui pendaftaran toko "${nama}"? Outlet akan aktif dan pemilik dapat login ke aplikasi.`,
+    confirmLabel: 'Ya, Setujui',
+  },
+  reject: {
+    variant: 'danger',
+    title: 'Tolak Pendaftaran Outlet',
+    message: (nama) => `Tolak pendaftaran toko "${nama}"? Pemilik tidak akan bisa login dengan outlet ini.`,
+    confirmLabel: 'Ya, Tolak',
+  },
+  deactivate: {
+    variant: 'danger',
+    title: 'Nonaktifkan Outlet',
+    message: (nama) => `Yakin ingin menonaktifkan toko "${nama}"?`,
+    confirmLabel: 'Ya, Nonaktifkan',
+  },
+  activate: {
+    variant: 'success',
+    title: 'Aktifkan Outlet',
+    message: (nama) => `Aktifkan kembali toko "${nama}"?`,
+    confirmLabel: 'Ya, Aktifkan',
+  },
+}
+
+function OutletStatusBadge({ status }: { status: string }) {
+  const opt = STATUS_OUTLET_OPTIONS.find((s) => s.value === status)
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${opt?.className ?? 'bg-gray-100 text-gray-600 ring-gray-200'
+        }`}
+    >
+      {opt?.label ?? status}
+    </span>
+  )
+}
 
 export function OutletPage() {
   const kodeRole = useKodeRole()
+  const isAdmin = kodeRole === 'admin_ho' || kodeRole === 'superadmin'
   const canManage = CAN_MANAGE.includes(kodeRole)
+  const canApprove = CAN_APPROVE.includes(kodeRole)
 
   const [search, setSearch] = useState('')
   const [distFilter, setDistFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Outlet | null>(null)
-  const [deactivating, setDeactivating] = useState<Outlet | null>(null)
+
+  // Satu state menggantikan approving/rejecting/deactivating/activating.
+  const [pendingAction, setPendingAction] = useState<PendingOutletAction | null>(null)
 
   const { data: outlets = [], isLoading } = useOutlets(
     distFilter ? { distributor_id: distFilter } : undefined,
@@ -50,13 +133,37 @@ export function OutletPage() {
   const { data: distributors = [] } = useDistributors()
   const { mutate: create, isPending: isCreating } = useCreateOutlet()
   const { mutate: update, isPending: isUpdating } = useUpdateOutlet(editing?.id ?? '')
+  const { mutate: approve, isPending: isApproving } = useApproveOutlet()
+  const { mutate: reject, isPending: isRejecting } = useRejectOutlet()
   const { mutate: deactivate, isPending: isDeactivating } = useDeactivateOutlet()
+  const { mutate: activate, isPending: isActivating } = useActivateOutlet()
+
+  // Mutator per tipe aksi — semuanya bertanda tangan (id, { onSuccess }),
+  // jadi bisa dipanggil generik dari satu handler onConfirm di bawah.
+  const ACTION_MUTATORS: Record<OutletActionType, typeof approve> = {
+    approve,
+    reject,
+    deactivate,
+    activate,
+  }
+
+  const ACTION_IS_PENDING: Record<OutletActionType, boolean> = {
+    approve: isApproving,
+    reject: isRejecting,
+    deactivate: isDeactivating,
+    activate: isActivating,
+  }
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   })
 
+  // Jumlah outlet pending (sesuai filter distributor aktif), dipakai untuk shortcut di header
+  const pendingCount = outlets.filter((o) => o.status === 'pending').length
+
+  // Filter status dilakukan di sisi klien agar tidak memicu refetch / flash PageLoader
   const filtered = outlets.filter((o) => {
+    if (statusFilter && o.status !== statusFilter) return false
     if (!search) return true
     const q = search.toLowerCase()
     return (
@@ -83,48 +190,75 @@ export function OutletPage() {
       no_hp: o.no_hp ?? '',
       email: o.email ?? '',
       alamat_lengkap: o.alamat_lengkap ?? '',
-      latitude: o.latitude ?? '',
-      longitude: o.longitude ?? '',
+      latitude: o.latitude != null ? String(o.latitude) : '',
+      longitude: o.longitude != null ? String(o.longitude) : '',
     })
     setModalOpen(true)
   }
 
+  const closeModal = () => {
+    setModalOpen(false)
+    reset()
+  }
+
   const onSubmit = (data: FormData) => {
-    const payload = {
-      ...data,
-      no_hp: data.no_hp || '',
-      email: data.email || '',
-      alamat_lengkap: data.alamat_lengkap || '',
-      latitude: data.latitude === '' || data.latitude === 0 ? 0 : Number(data.latitude),
-      longitude: data.longitude === '' || data.longitude === 0 ? 0 : Number(data.longitude),
+    // distributor_id & kode_outlet hanya dikirim saat create (tidak ada di OutletUpdate)
+    const { distributor_id, kode_outlet, ...rest } = data
+    const common = {
+      ...rest,
+      no_hp: rest.no_hp || '',
+      email: rest.email || '',
+      alamat_lengkap: rest.alamat_lengkap || '',
+      // kosong -> null (bukan 0, karena 0,0 adalah koordinat valid di laut)
+      latitude: toCoord(rest.latitude),
+      longitude: toCoord(rest.longitude),
     }
+
     if (editing) {
-      update(payload, { onSuccess: () => { setModalOpen(false); reset() } })
+      update(common, { onSuccess: closeModal })
     } else {
-      create(payload, { onSuccess: () => { setModalOpen(false); reset() } })
+      create({ distributor_id, kode_outlet, ...common }, { onSuccess: closeModal })
     }
   }
-  
+
+  // Handler tunggal untuk tombol Konfirmasi di dialog — mengambil mutator
+  // yang benar berdasarkan pendingAction.type, lalu menutup dialog saat sukses.
+  const handleConfirmAction = () => {
+    if (!pendingAction) return
+    const mutate = ACTION_MUTATORS[pendingAction.type]
+    mutate(pendingAction.outlet.id, { onSuccess: () => setPendingAction(null) })
+  }
 
   if (isLoading) return <PageLoader />
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start md:items-center flex-col md:flex-row justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Manajemen Outlet</h1>
-          <p className="text-gray-500 text-sm mt-0.5">{filtered.length} outlet</p>
+          <p className="text-gray-500 text-sm mt-0.5">
+            {filtered.length} outlet
+            {canApprove && pendingCount > 0 && statusFilter !== 'pending' && (
+              <button
+                type="button"
+                onClick={() => setStatusFilter('pending')}
+                className="ml-2 font-medium hover:underline"
+              >
+                · {pendingCount} menunggu persetujuan
+              </button>
+            )}
+          </p>
         </div>
         {canManage && (
-          <button onClick={openCreate} className="btn-primary">
+          <Button onClick={openCreate} className="p-2 btn-primary">
             <Plus className="w-4 h-4" /> Tambah Outlet
-          </button>
+          </Button>
         )}
       </div>
 
       {/* Filter */}
       <div className="flex gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
+        <div className="relative flex-1 min-w-50 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
@@ -145,6 +279,17 @@ export function OutletPage() {
             <option key={d.id} value={d.id}>[{d.kode_distributor}] {d.nama_perusahaan}</option>
           ))}
         </select>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="text-sm border border-gray-200 rounded-lg pr-8 px-3 py-2 bg-white
+                     focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400"
+        >
+          <option value="">Semua Status</option>
+          {STATUS_OUTLET_OPTIONS.map((s) => (
+            <option key={s.value} value={s.value}>{s.label}</option>
+          ))}
+        </select>
       </div>
 
       {/* Card grid outlet */}
@@ -158,24 +303,22 @@ export function OutletPage() {
           {filtered.map((o) => {
             const dist = distributors.find((d) => d.id === o.distributor_id)
             return (
-              <div key={o.id} className="card p-5">
-                {/* Header */}
-                <div className="flex items-start justify-between mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
-                    <Store className="w-5 h-5 text-emerald-600" />
-                  </div>
-                  <StatusToggleBadge status={o.status} />
-                </div>
-
+              <div
+                key={o.id}
+                className={`card p-5 ${isAdmin && o.status === 'aktif' ? 'opacity-60 grayscale-50' : ''}`}
+              >
                 {/* Info */}
-                <p className="text-xs font-mono text-gray-400">{o.kode_outlet}</p>
+                <div className="w-full flex justify-between">
+                  <p className="text-xs font-mono text-gray-400">{o.kode_outlet}</p>
+                  <OutletStatusBadge status={o.status} />
+                </div>
                 <h3 className="font-semibold text-gray-900 mt-0.5 truncate">{o.nama_toko}</h3>
                 <p className="text-sm text-gray-500 mt-0.5">{o.pemilik_toko}</p>
 
                 <div className="mt-3 space-y-1">
                   <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                    <span className="bg-gray-100 text-gray-600 rounded-sm px-1.5 py-0.5 capitalize">
-                      {o.tipe_toko}
+                    <span className="bg-gray-100 text-gray-600 rounded-sm px-1.5 py-0.5">
+                      {getTipeTokoLabel(o.tipe_toko)}
                     </span>
                   </div>
                   {o.alamat_lengkap && (
@@ -186,29 +329,54 @@ export function OutletPage() {
                   )}
                   {dist && (
                     <p className="text-xs text-gray-400 truncate">
-                      📦 {dist.nama_perusahaan}
+                      {dist.nama_perusahaan}
                     </p>
                   )}
                 </div>
 
                 {/* Actions */}
                 {canManage && (
-                  <div className="flex gap-2 mt-4 pt-3 border-t border-gray-50">
-                    <button
-                      onClick={() => openEdit(o)}
-                      className="btn-secondary btn-sm flex-1"
-                    >
-                      <Pencil className="w-3.5 h-3.5" /> Edit
-                    </button>
-                    {o.status === 'aktif' && (
-                      <button
-                        onClick={() => setDeactivating(o)}
-                        className="btn-ghost btn-sm p-2 text-red-400 hover:text-red-600 hover:bg-red-50"
-                        title="Nonaktifkan"
-                      >
-                        <PowerOff className="w-3.5 h-3.5" />
-                      </button>
+                  <div className="mt-4 pt-3 border-t border-gray-50 space-y-2">
+                    {o.status === 'pending' && canApprove && (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setPendingAction({ type: 'approve', outlet: o })}
+                          className="btn btn-sm flex-1 bg-emerald-600 text-white hover:bg-emerald-700"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Setujui
+                        </button>
+                        <button
+                          onClick={() => setPendingAction({ type: 'reject', outlet: o })}
+                          className="btn-secondary btn-sm flex-1 text-red-600 hover:bg-red-50"
+                        >
+                          <XCircle className="w-3.5 h-3.5" /> Tolak
+                        </button>
+                      </div>
                     )}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => openEdit(o)}
+                        className="btn-secondary btn-sm flex-1"
+                      >
+                        <Pencil className="w-3.5 h-3.5" /> Edit
+                      </button>
+                      {isAdmin && o.status === 'aktif' && (
+                        <button
+                          onClick={() => setPendingAction({ type: 'deactivate', outlet: o })}
+                          className="btn-danger btn-sm"
+                        >
+                          <Power className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {isAdmin && o.status === 'nonaktif' && (
+                        <button
+                          onClick={() => setPendingAction({ type: 'activate', outlet: o })}
+                          className="btn-secondary bg-green-500 btn-sm"
+                        >
+                          <PowerOff className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -220,7 +388,7 @@ export function OutletPage() {
       {/* Modal Form */}
       <Modal
         isOpen={modalOpen}
-        onClose={() => { setModalOpen(false); reset() }}
+        onClose={closeModal}
         title={editing ? 'Edit Outlet' : 'Tambah Outlet Baru'}
         size="xl"
       >
@@ -253,18 +421,32 @@ export function OutletPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <Select label="Tipe Toko" required error={errors.tipe_toko?.message} placeholder="— Pilih tipe —" {...register('tipe_toko')}>
-              {TIPE_TOKO.map((t) => <option key={t} value={t} className="capitalize">{t}</option>)}
+              {TIPE_TOKO_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </Select>
             <Input label="No. HP" placeholder="08xxx" {...register('no_hp')} />
           </div>
           <Input label="Email" type="email" error={errors.email?.message} {...register('email')} />
           <Input label="Alamat Lengkap" placeholder="Jl. ..." {...register('alamat_lengkap')} />
           <div className="grid grid-cols-2 gap-4">
-            <Input label="Latitude" type="number" step="any" placeholder="-7.250445" {...register('latitude')} />
-            <Input label="Longitude" type="number" step="any" placeholder="112.768845" {...register('longitude')} />
+            <Input
+              label="Latitude"
+              type="number"
+              step="any"
+              placeholder="-7.250445"
+              error={errors.latitude?.message}
+              {...register('latitude')}
+            />
+            <Input
+              label="Longitude"
+              type="number"
+              step="any"
+              placeholder="112.768845"
+              error={errors.longitude?.message}
+              {...register('longitude')}
+            />
           </div>
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => { setModalOpen(false); reset() }} className="btn-secondary">Batal</button>
+            <button type="button" onClick={closeModal} className="btn-secondary">Batal</button>
             <button type="submit" disabled={isCreating || isUpdating} className="btn-primary">
               {isCreating || isUpdating ? 'Menyimpan...' : editing ? 'Simpan' : 'Tambah'}
             </button>
@@ -273,15 +455,14 @@ export function OutletPage() {
       </Modal>
 
       <ConfirmDialog
-        isOpen={!!deactivating}
-        onClose={() => setDeactivating(null)}
-        onConfirm={() => {
-          if (deactivating) deactivate(deactivating.id, { onSuccess: () => setDeactivating(null) })
-        }}
-        isPending={isDeactivating}
-        title="Nonaktifkan Outlet"
-        message={`Yakin ingin menonaktifkan toko "${deactivating?.nama_toko}"?`}
-        confirmLabel="Ya, Nonaktifkan"
+        isOpen={!!pendingAction}
+        onClose={() => setPendingAction(null)}
+        onConfirm={handleConfirmAction}
+        isPending={pendingAction ? ACTION_IS_PENDING[pendingAction.type] : false}
+        variant={pendingAction ? ACTION_CONFIG[pendingAction.type].variant : 'success'}
+        title={pendingAction ? ACTION_CONFIG[pendingAction.type].title : ''}
+        message={pendingAction ? ACTION_CONFIG[pendingAction.type].message(pendingAction.outlet.nama_toko) : ''}
+        confirmLabel={pendingAction ? ACTION_CONFIG[pendingAction.type].confirmLabel : ''}
       />
     </div>
   )

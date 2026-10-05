@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { Plus, Building2, Pencil, PowerOff, Search, Filter } from 'lucide-react'
+import { Plus, Building2, Pencil, PowerOff, Search, Filter, Power } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
   useDistributors, useCreateDistributor,
-  useUpdateDistributor, useDeactivateDistributor, useAreas,
+  useUpdateDistributor, useDeactivateDistributor, useActivateDistributor, useAreas,
 } from '@/hooks/useMasterData'
 import { Modal } from '@/components/ui/Modal'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
@@ -39,6 +39,7 @@ export function DistributorPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Distributor | null>(null)
   const [deactivating, setDeactivating] = useState<Distributor | null>(null)
+  const [activating, setActivating] = useState<Distributor | null>(null)
 
   const { data: distributors = [], isLoading } = useDistributors(
     areaFilter ? { area_id: areaFilter } : undefined,
@@ -47,6 +48,7 @@ export function DistributorPage() {
   const { mutate: create, isPending: isCreating } = useCreateDistributor()
   const { mutate: update, isPending: isUpdating } = useUpdateDistributor(editing?.id ?? '')
   const { mutate: deactivate, isPending: isDeactivating } = useDeactivateDistributor()
+  const { mutate: activate, isPending: isActivating } = useActivateDistributor()
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateForm>({
     resolver: zodResolver(createSchema),
@@ -83,17 +85,26 @@ export function DistributorPage() {
   }
 
   const onSubmit = (data: CreateForm) => {
-    const payload = {
+    const createPayload = {
       ...data,
       no_telepon: data.no_telepon || null,
       email_perusahaan: data.email_perusahaan || null,
       alamat_lengkap: data.alamat_lengkap || null,
       kode_pos: data.kode_pos || null,
     }
+
+    const updatePayload = {
+      ...data,
+      no_telepon: data.no_telepon || undefined,
+      email_perusahaan: data.email_perusahaan || undefined,
+      alamat_lengkap: data.alamat_lengkap || undefined,
+      kode_pos: data.kode_pos || undefined,
+    }
+
     if (editing) {
-      update(payload, { onSuccess: () => { setModalOpen(false); reset() } })
+      update(updatePayload, { onSuccess: () => { setModalOpen(false); reset() } })
     } else {
-      create(payload, { onSuccess: () => { setModalOpen(false); reset() } })
+      create(createPayload, { onSuccess: () => { setModalOpen(false); reset() } })
     }
   }
 
@@ -116,7 +127,7 @@ export function DistributorPage() {
 
       {/* Filter bar */}
       <div className="flex gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
+        <div className="relative flex-1 min-w-50 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
@@ -204,13 +215,21 @@ export function DistributorPage() {
                             >
                               <Pencil className="w-4 h-4" />
                             </button>
-                            {d.status === 'aktif' && (
+                            {d.status === 'aktif' ? (
                               <button
                                 onClick={() => setDeactivating(d)}
                                 className="btn-ghost btn-sm p-2 text-red-400 hover:text-red-600 hover:bg-red-50"
                                 title="Nonaktifkan"
                               >
                                 <PowerOff className="w-4 h-4" />
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => setActivating(d)}
+                                className="btn-ghost btn-sm p-2 text-green-500 hover:text-green-700 hover:bg-green-50"
+                                title="Aktifkan"
+                              >
+                                <Power className="w-4 h-4" />
                               </button>
                             )}
                           </div>
@@ -243,7 +262,7 @@ export function DistributorPage() {
               {...register('area_id')}
             >
               {areas.map((a) => (
-                <option key={a.id} value={a.id}>{a.nama_area}</option>
+                <option key={a.id} value={a.id}>{a.kode_area}</option>
               ))}
             </Select>
             <Input
@@ -297,6 +316,20 @@ export function DistributorPage() {
         title="Nonaktifkan Distributor"
         message={`Yakin ingin menonaktifkan "${deactivating?.nama_perusahaan}"? Distributor tidak bisa menerima FKP baru.`}
         confirmLabel="Ya, Nonaktifkan"
+      />
+
+      <ConfirmDialog
+        isOpen={!!activating}
+        onClose={() => setActivating(null)}
+        onConfirm={() => {
+          if (activating) {
+            activate(activating.id, { onSuccess: () => setActivating(null) })
+          }
+        }}
+        isPending={isActivating}
+        title="Aktifkan Distributor"
+        message={`Yakin ingin mengaktifkan kembali "${activating?.nama_perusahaan}"? Distributor akan bisa menerima FKP baru lagi.`}
+        confirmLabel="Ya, Aktifkan"
       />
     </div>
   )

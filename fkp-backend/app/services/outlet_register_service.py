@@ -356,7 +356,7 @@ async def reject_registration(
     await session.refresh(outlet)
  
     return OutletRejectResponse(
-        message=f"Registrasi outlet '{outlet.nama_toko}' ditolak. Alasan: {payload.alasan}",
+        message=f"Registrasi outlet '{outlet.nama_toko}' ditolak.",
         outlet_id=outlet.id,
         status=outlet.status,
     )

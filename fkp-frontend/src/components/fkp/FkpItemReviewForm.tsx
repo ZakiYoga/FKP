@@ -150,8 +150,6 @@ export function FkpItemReviewForm(props: Props) {
                         <option value="musnahkan">Dimusnahkan</option>
                         <option value="jual_pakan_ternak">Dijual sebagai pakan ternak</option>
                         <option value="kirim_ke_ho">Dikirim kembali ke HO</option>
-                        <option value="disimpan_distributor">Disimpan sementara di distributor</option>
-                        <option value="di_repack_oleh_pihak_internal">Di Repack oleh pihak internal</option>
                     </Select>
 
                     {/* ── [2] Rekomendasi Kompensasi Finansial ─────────────── */}

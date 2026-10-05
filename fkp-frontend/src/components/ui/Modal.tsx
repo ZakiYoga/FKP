@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 interface ModalProps {
   isOpen: boolean
   onClose: () => void
-  title: string | undefined
+  title?: string | undefined
   children: React.ReactNode
   size?: 'sm' | 'md' | 'lg' | 'xl'
 }
@@ -50,15 +50,32 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-100">
-          <h3 className="text-base font-semibold text-gray-900">{title}</h3>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+        <div
+          className={`flex items-center px-4 sm:px-6 py-4 border-gray-100 ${title ? 'border-b justify-between' : 'justify-end'
+            }`}
+        >
+          {title ? (
+            <div className="w-full flex items-center justify-between border-gray-100">
+              <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={onClose}
+              className="absolute top-3 right-3 z-10 p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
+
         {/* Content */}
         <div className="sm:px-6 px-4 py-5">{children}</div>
       </div>

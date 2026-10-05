@@ -54,8 +54,6 @@ export type MetodePenangananFisik =
   | 'dimusnahkan'
   | 'dijual_pakan_ternak'
   | 'dikirim_ke_ho'
-  | 'disimpan_distributor'
-  | 'di_repack_oleh_pihak_internal'
 export type StatusItem = 'pending' | 'diterima' | 'ditolak'
 
 // ─── Sample Keluhan — dropdown bertingkat (BARU) ─────────────────────────────
@@ -79,7 +77,6 @@ export type RekomendasiPenanganan =
   | 'musnahkan'
   | 'jual_pakan_ternak'
   | 'kirim_ke_ho'
-  | 'disimpan_distributor'
 
 export type RekomendasiKompensasi =
   | 'ganti_barang'
@@ -128,8 +125,6 @@ export const METODE_PENANGANAN_LABEL: Record<MetodePenangananFisik, string> = {
   dimusnahkan: 'Dimusnahkan',
   dijual_pakan_ternak: 'Dijual sebagai pakan ternak',
   dikirim_ke_ho: 'Dikirim kembali ke Head Office',
-  disimpan_distributor: 'Disimpan sementara oleh distributor',
-  di_repack_oleh_pihak_internal: 'Direpack oleh pihak internal',
 }
 
 export const TIPE_RESOLUSI_LABEL: Record<TipeResolusi, string> = {
@@ -142,7 +137,6 @@ export const REKOMENDASI_PENANGANAN_LABEL: Record<RekomendasiPenanganan, string>
   musnahkan: 'Dimusnahkan',
   jual_pakan_ternak: 'Dijual pakan ternak',
   kirim_ke_ho: 'Dikirim ke HO',
-  disimpan_distributor: 'Disimpan distributor',
 }
 
 export const REKOMENDASI_KOMPENSASI_LABEL: Record<RekomendasiKompensasi, string> = {
@@ -181,50 +175,6 @@ export interface Distributor {
   email_perusahaan: string | null
   alamat_lengkap: string | null
   status: string
-}
-
-export interface Outlet {
-  id: string
-  distributor_id: string
-  kode_outlet: string
-  nama_toko: string
-  pemilik_toko: string
-  tipe_toko: string
-  no_hp: string | null
-  email: string | null
-  alamat_lengkap: string | null
-  latitude: number | null
-  longitude: number | null
-  foto_url: string | null
-  pic_user_id: string | null
-  status: string
-}
-
-export interface OutletCreate {
-  distributor_id: string
-  kode_outlet: string
-  nama_toko: string
-  pemilik_toko: string
-  tipe_toko: string
-  no_hp?: string | null
-  email?: string | null
-  alamat_lengkap?: string | null
-  latitude?: number | null
-  longitude?: number | null
-  pic_user_id?: string | null
-}
-
-export interface OutletUpdate {
-  nama_toko?: string
-  pemilik_toko?: string
-  tipe_toko?: string
-  no_hp?: string | null
-  email?: string | null
-  alamat_lengkap?: string | null
-  latitude?: number | null
-  longitude?: number | null
-  pic_user_id?: string | null
-  status?: string
 }
 
 // ─── PRODUCT ──────────────────────────────────────────────────────────────────
@@ -275,6 +225,7 @@ export interface FkpItem {
   status_item: StatusItem
   catatan_qc: string | null
   alasan_penolakan: string | null
+  persentase_disetujui_qc: number | null
 
   qty_disetujui: number | null
 
@@ -365,21 +316,16 @@ export interface FkpDocument {
   dibuat_oleh: string
   created_at: string
 }
+export type FkpAreaInfo = Pick<Area, 'id' | 'kode_area' | 'nama_area' | 'provinsi'>
 
 export interface FkpDetail {
   id: string
   nomor_fkp: string
-  outlet_id: string
+  outlet_id: string | null
   distributor_id: string
-  outlet_info: {
-    id: string
-    kode_outlet: string
-    nama_toko: string
-  }
-  distributor_info: {
-    id: string
-    nama_perusahaan: string
-  }
+  outlet_info: FkpOutletInfo | null
+  distributor_info: FkpDistributorInfo | null
+  area_info: FkpAreaInfo | null
   submitted_by: string
   handled_by: string | null
   prioritas: FkpPrioritas
@@ -393,16 +339,13 @@ export interface FkpDetail {
   catatan_rsm_investigasi: string | null
   catatan_rsm_resolusi: string | null
   catatan_direktur: string | null
-  // BARU — null = accepted tanpa Direktur (skip, qty ≤ batas) atau belum
-  // accepted sama sekali. Terisi = benar-benar disetujui Direktur.
   approved_by_direktur: string | null
-  // BARU — null = belum/skip. Terisi = disetujui RSM langsung (jalur cepat,
-  // atau jalur biasa dengan Direktur di-skip). Saling eksklusif dengan
-  // approved_by_direktur — lihat catatan backend models/fkp.py.
   approved_by_rsm_final: string | null
   nomor_surat_jalan: string | null
   tanggal_pengajuan: string | null
   tanggal_selesai: string | null
+  masa_penyelesaian_detik?: number | null
+  masa_penyelesaian_label?: string | null
   created_at: string
   updated_at: string
   items: FkpItem[]
@@ -491,7 +434,7 @@ export interface QcInvestigasiPayload {
   catatan_qc?: string | null
   item_results?: Array<{
     item_id: string
-    status_item: string
+    persentase_disetujui_qc?: number | null
     catatan_qc?: string | null
     alasan_penolakan?: string | null
   }>

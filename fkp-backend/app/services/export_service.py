@@ -35,7 +35,6 @@ _WIB = timezone(timedelta(hours=7))
 _TIPE_RESOLUSI_LABELS = {
     TipeResolusi.TUKAR_BARANG: "Tukar Barang",
     TipeResolusi.POTONG_TAGIHAN: "Potong Tagihan",
-    TipeResolusi.TIDAK_ADA_KOMPENSASI: "Tidak Ada Kompensasi",
 }
 
 # Mapping status SJ mentah → kategori tampilan (§6 dokumen rencana).

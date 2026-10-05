@@ -101,9 +101,9 @@ async def login(request: LoginRequest, db: AsyncSession) -> LoginResponse:
             statuses = {o.status for o in outlets}
 
             if "pending" in statuses:
-                detail = "Outlet Anda masih menunggu verifikasi dari admin."
+                detail = "Outlet Anda masih menunggu verifikasi dari admin/distributor."
             elif statuses == {"ditolak"}:
-                detail = "Registrasi outlet Anda ditolak. Hubungi administrator."
+                detail = "Registrasi outlet Anda ditolak. Hubungi admin/distributor"
             else:
                 detail = "Outlet Anda tidak aktif. Hubungi administrator."
 

@@ -1,5 +1,7 @@
-import { AlertTriangle, Loader2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Info, Loader2 } from 'lucide-react'
 import { Modal } from './Modal'
+
+type Variant = 'danger' | 'warning' | 'success' | 'info'
 
 interface ConfirmDialogProps {
   isOpen: boolean
@@ -9,7 +11,39 @@ interface ConfirmDialogProps {
   title?: string
   message: string
   confirmLabel?: string
-  variant?: 'danger' | 'warning'
+  variant?: Variant
+}
+
+const VARIANTS: Record<Variant, {
+  icon: typeof AlertTriangle
+  iconBg: string
+  iconColor: string
+  button: string
+}> = {
+  danger: {
+    icon: AlertTriangle,
+    iconBg: 'bg-red-100',
+    iconColor: 'text-red-600',
+    button: 'btn-danger',
+  },
+  warning: {
+    icon: AlertTriangle,
+    iconBg: 'bg-amber-100',
+    iconColor: 'text-amber-600',
+    button: 'btn btn-md bg-amber-500 text-white hover:bg-amber-600',
+  },
+  success: {
+    icon: CheckCircle2,
+    iconBg: 'bg-emerald-100',
+    iconColor: 'text-emerald-600',
+    button: 'btn-primary',
+  },
+  info: {
+    icon: Info,
+    iconBg: 'bg-blue-100',
+    iconColor: 'text-blue-600',
+    button: 'btn-primary',
+  },
 }
 
 export function ConfirmDialog({
@@ -17,31 +51,28 @@ export function ConfirmDialog({
   onClose,
   onConfirm,
   isPending,
-  title = 'Konfirmasi',
+  title,
   message,
   confirmLabel = 'Ya, Lanjutkan',
   variant = 'danger',
 }: ConfirmDialogProps) {
+  const v = VARIANTS[variant]
+  const Icon = v.icon
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm">
+    <Modal isOpen={isOpen} onClose={onClose} size="sm">
       <div className="space-y-4">
-        <div className="flex gap-3">
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0
-            ${variant === 'danger' ? 'bg-red-100' : 'bg-amber-100'}`}>
-            <AlertTriangle className={`w-5 h-5
-              ${variant === 'danger' ? 'text-red-600' : 'text-amber-600'}`} />
+        <div className="flex flex-col items-center justify-center gap-3">
+          <div className={`w-16 h-16 rounded-full flex items-center justify-center shrink-0 ${v.iconBg}`}>
+            <Icon className={`w-8 h-8 ${v.iconColor}`} />
           </div>
-          <p className="text-sm text-gray-700 leading-relaxed pt-2">{message}</p>
+          <p className="text-sm text-center text-gray-700 leading-relaxed pt-2">{message}</p>
         </div>
-        <div className="flex gap-2 justify-end pt-2">
-          <button onClick={onClose} disabled={isPending} className="btn-secondary">
+        <div className="flex gap-2 items-center justify-center pt-2">
+          <button type="button" onClick={onClose} disabled={isPending} className="btn-secondary">
             Batal
           </button>
-          <button
-            onClick={onConfirm}
-            disabled={isPending}
-            className={variant === 'danger' ? 'btn-danger' : 'btn btn-lg bg-amber-500 text-white hover:bg-amber-600'}
-          >
+          <button type="button" onClick={onConfirm} disabled={isPending} className={v.button}>
             {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : confirmLabel}
           </button>
         </div>

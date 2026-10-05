@@ -99,17 +99,28 @@ async def update_outlet(
         outlet_id=outlet_id, data=data, user=user, kode_role=kode_role, db=db,
     )
 
-
 @router.delete("/{outlet_id}")
 async def deactivate_outlet(
     outlet_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    auth=Depends(get_current_user_with_role),
     _=Depends(require_permission_dep("outlet.deactivate")),
 ):
-    outlet = await outlet_service.get_outlet_or_404(outlet_id, db)
-    from datetime import datetime, timezone
-    outlet.status = "nonaktif"
-    outlet.updated_at = datetime.now(timezone.utc)
-    db.add(outlet)
-    await db.commit()
+    user, kode_role = auth
+    outlet = await outlet_service.deactivate_outlet(
+        outlet_id=outlet_id, user=user, kode_role=kode_role, db=db,
+    )
     return {"message": f"Outlet '{outlet.nama_toko}' dinonaktifkan."}
+
+@router.post("/{outlet_id}/activate")
+async def activate_outlet(
+    outlet_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    auth=Depends(get_current_user_with_role),
+    _=Depends(require_permission_dep("outlet.activate")),
+):
+    user, kode_role = auth
+    outlet = await outlet_service.activate_outlet(
+        outlet_id=outlet_id, user=user, kode_role=kode_role, db=db,
+    )
+    return {"message": f"Outlet '{outlet.nama_toko}' diaktifkan kembali."}

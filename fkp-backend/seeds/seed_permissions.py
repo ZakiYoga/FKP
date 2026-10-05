@@ -269,6 +269,13 @@ PERMISSION_CATALOG: List[Dict] = [
         "roles": ["admin_ho"],
     },
     {
+        "code": "outlet.activate",
+        "module": "outlet", "action": "activate",
+        "label": "Aktifkan Outlet",
+        "deskripsi": "Mengaktifkan kembali outlet yang sebelumnya dinonaktifkan.",
+        "roles": ["admin_ho"],
+    },
+    {
         "code": "outlet.deactivate",
         "module": "outlet", "action": "deactivate",
         "label": "Nonaktifkan Outlet",
@@ -290,7 +297,14 @@ PERMISSION_CATALOG: List[Dict] = [
         "module": "distributor", "action": "deactivate",
         "label": "Nonaktifkan Distributor",
         "deskripsi": "Menonaktifkan distributor. Tuple lama: (\"superadmin\",).",
-        "roles": [],
+        "roles": ["admin_ho"],
+    },
+    {
+        "code": "distributor.activate",
+        "module": "distributor", "action": "activate",
+        "label": "Aktifkan Distributor",
+        "deskripsi": "Mengaktifkan kembali distributor yang sebelumnya dinonaktifkan.",
+        "roles": ["admin_ho"],
     },
     {
         "code": "distributor.user.read",

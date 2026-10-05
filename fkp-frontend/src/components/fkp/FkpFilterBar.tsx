@@ -149,7 +149,7 @@ export function FkpFilterBar({
         <select
           value={advFilters.distributor_id}
           onChange={(e) => onAdvChange({ distributor_id: e.target.value })}
-          className={selectClass}
+          className={`${selectClass} pr-14`}
         >
           <option value="">Semua Distributor</option>
           {distributors.map((distributor) => (

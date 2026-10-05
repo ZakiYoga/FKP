@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import HTTPException
+from sqlalchemy import Case
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -64,7 +65,13 @@ async def list_distributors_by_role(
         query = query.where(Distributor.area_id == area_id)
     if status:
         query = query.where(Distributor.status == status)
-    result = await db.execute(query.order_by(Distributor.nama_perusahaan))
+
+        query.order_by(
+            Case((Distributor.status == "aktif", 0), else_=1),
+            Distributor.nama_perusahaan,
+        )
+
+    result = await db.execute(query)
     return result.scalars().all()
 
 
@@ -81,7 +88,12 @@ async def list_distributors(
         query = query.where(Distributor.area_id == area_id)
     if status:
         query = query.where(Distributor.status == status)
-    query = query.order_by(Distributor.nama_perusahaan)
+
+    query = query.order_by(
+        Case((Distributor.status == "aktif", 0), else_=1),
+        Distributor.nama_perusahaan,
+    )
+    
     result = await db.execute(query)
     return result.scalars().all()
 
@@ -154,6 +166,17 @@ async def deactivate_distributor(distributor_id: uuid.UUID, db: AsyncSession) ->
     await db.commit()
     return {"message": f"Distributor '{distributor.nama_perusahaan}' dinonaktifkan."}
 
+# ─── ACTIVATE ─────────────────────────────────────────────────────────────────
+
+async def activate_distributor(distributor_id: uuid.UUID, db: AsyncSession) -> dict:
+    distributor = await get_distributor(distributor_id, db)
+    if distributor.status == "aktif":
+        raise HTTPException(status_code=400, detail="Distributor sudah dalam status aktif.")
+    distributor.status = "aktif"
+    distributor.updated_at = datetime.now(timezone.utc)
+    db.add(distributor)
+    await db.commit()
+    return {"message": f"Distributor '{distributor.nama_perusahaan}' diaktifkan kembali."}
 
 # ─── DISTRIBUTOR USER (mapping) ───────────────────────────────────────────────
 

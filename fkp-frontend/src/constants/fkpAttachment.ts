@@ -8,9 +8,6 @@ export const TIPE_DOKUMEN_OPTIONS = [
     { value: "nota_retur", label: "Nota Retur" },
     { value: "foto_pemusnahan", label: "Foto Pemusnahan" },
     { value: "berita_acara_pemusnahan", label: "Berita Acara Pemusnahan" },
-    // [BARU — Modul Sample Shipment] Wajib diupload sebelum confirm-resolusi
-    // untuk resolusi dengan metode_penanganan_fisik = dimusnahkan (gate BE,
-    // lihat fkp_service.confirm_resolusi() & terbitkan_invoice()).
     { value: "berita_acara_pemusnahan_tukar_barang", label: "Berita Acara Pemusnahan & Tukar Barang" },
     { value: "ba_pemeriksaan", label: "Berita Acara Pemeriksaan" },
     { value: "surat_pernyataan", label: "Surat Pernyataan" },

@@ -1,5 +1,6 @@
 import api from '@/lib/axios'
-import type { Distributor, Outlet, Product, Area, Provinsi } from '@/types'
+import type { Distributor, Product, Area, Provinsi } from '@/types'
+import type { Outlet, OutletCreate, OutletUpdate } from '@/types/outlet'
 
 // ─── AREA ─────────────────────────────────────────────────────────────────────
 export const areaApi = {
@@ -88,42 +89,28 @@ export const outletApi = {
     const res = await api.get<Outlet>(`/outlets/${id}`)
     return res.data
   },
-  create: async (data: {
-    distributor_id: string
-    kode_outlet: string
-    nama_toko: string
-    pemilik_toko: string
-    tipe_toko: string
-    no_hp?: string | null
-    email?: string | null
-    kelurahan_id?: number | null
-    alamat_lengkap?: string | null
-    latitude?: number | null
-    longitude?: number | null
-    pic_user_id?: string | null
-  }): Promise<Outlet> => {
-    const res = await api.post<Outlet>('/outlets/', data)
-    return res.data
-  },
-  update: async (id: string, data: Partial<{
-    nama_toko: string
-    pemilik_toko: string
-    tipe_toko: string
-    no_hp: string
-    email: string
-    alamat_lengkap: string
-    latitude: number
-    longitude: number
-    pic_user_id: string
-    status: string
-  }>): Promise<Outlet> => {
-    const res = await api.put<Outlet>(`/outlets/${id}`, data)
-    return res.data
-  },
+
+  create: (data: OutletCreate) =>
+    api.post<Outlet>('/outlets', data).then((r) => r.data),
+
+  update: (id: string, data: OutletUpdate) =>
+    api.put<Outlet>(`/outlets/${id}`, data).then((r) => r.data),
+
   deactivate: async (id: string): Promise<{ message: string }> => {
     const res = await api.delete<{ message: string }>(`/outlets/${id}`)
     return res.data
   },
+
+  activate: async (id: string): Promise<{ message: string }> => {
+    const res = await api.post<{ message: string }>(`/outlets/${id}/activate`)
+    return res.data
+  },
+
+  approve: (id: string) =>
+    api.post(`/outlet-registrations/${id}/approve`, {}).then((r) => r.data),
+
+  reject: (id: string) =>
+    api.post(`/outlet-registrations/${id}/reject`, {}).then((r) => r.data),
 }
 
 // ─── PRODUCT ──────────────────────────────────────────────────────────────────

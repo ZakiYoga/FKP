@@ -379,7 +379,7 @@ async def seed_distributors(session):
                 nama_perusahaan=nama_perusahaan,
                 pemilik="-",
                 no_telepon="-",
-                email_perusahaan=f"{kode_dist.lower()}@pending.saktipangan.co.id",
+                email_perusahaan=f"{kode_dist.lower()}@saktipangan.co.id",
                 alamat_lengkap="-",
                 status="aktif",
             )

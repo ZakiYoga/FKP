@@ -11,9 +11,12 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
+from app.core.uploads import FOTO_PRODUK_DIR
+
 
 
 @asynccontextmanager
@@ -54,6 +57,12 @@ app.add_middleware(
 # tanpa token, hanya bermodal tahu URL-nya. Sekarang file disajikan lewat
 # GET /api/fkp/{fkp_id}/attachments/{attachment_id}/file yang melalui
 # scope check yang sama dengan get_fkp_detail() — lihat fkp.py.
+
+# Foto katalog produk bersifat publik (dipakai tag <img> di FE yang tidak bisa
+# mengirim token). Hanya subfolder ini yang di-mount; lampiran FKP tetap lewat
+# endpoint ber-scope-check.
+FOTO_PRODUK_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads/products", StaticFiles(directory=FOTO_PRODUK_DIR), name="foto_produk")
 
 # ─── Routers ──────────────────────────────────────────────────────────────────
 from app.api.endpoints import (

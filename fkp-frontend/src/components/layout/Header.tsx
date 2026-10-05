@@ -15,7 +15,7 @@ export function Header({ mobileOpened, onToggleMobile, pageTitle }: HeaderProps)
   return (
     <Group h="100%" px="md" justify="space-between" style={{ gap: 0 }}>
       {/* Kiri: Burger (mobile/tablet) + Page title */}
-      <Group gap="sm">
+      <Group gap="sm flex">
         {/* Burger hanya muncul di bawah lg */}
         <Burger
           opened={mobileOpened}
@@ -40,7 +40,7 @@ export function Header({ mobileOpened, onToggleMobile, pageTitle }: HeaderProps)
       </Group>
 
       {/* Kanan: Notification + User */}
-      <div className="flex items-center justify-center gap-2">
+      <div className="hidden sm:flex items-center justify-center gap-2">
         <ThemeToggle />
         <NotificationDropdown />
         <UserProfileDropdown />

@@ -1,3 +1,4 @@
+{% from "_macros.html" import cb, foto_cell -%}
 <!doctype html>
 <html lang="id">
   <head>
@@ -11,7 +12,8 @@
       }
 
       body {
-        font-family: Arial, Helvetica, sans-serif;
+        /* Liberation Sans = pengganti metrik Arial di Linux (fonts-liberation di Dockerfile) */
+        font-family: "Liberation Sans", Arial, Helvetica, sans-serif;
         font-size: 8.5pt;
         color: #000;
         line-height: 1.3;
@@ -20,24 +22,24 @@
       /* ─── PAGE SETUP ─────────────────────────── */
       @page {
         size: A4;
-        margin: 14mm 14mm 22mm 14mm;
+        margin: 14mm 14mm 16mm 14mm;
 
         @bottom-left {
-          content: string(footer-left);
-          font-size: 6.5pt;
-          color: #555;
-          font-family: Arial, Helvetica, sans-serif;
-          border-top: 0.5pt solid #999;
-          padding-top: 3pt;
-          white-space: nowrap;
+          /* running element dipanggil dengan element(), bukan string() */
+          content: element(footer-left);
+          width: 100%;
+          vertical-align: bottom;
+          padding-bottom: 4mm;
         }
 
         @bottom-right {
           content: "Hal. " counter(page) " / " counter(pages);
+          width: 100%;
           font-size: 6.5pt;
+          vertical-align: bottom;
+          padding-bottom: 4mm;
           color: #555;
-          font-family: Arial, Helvetica, sans-serif;
-          border-top: 0.5pt solid #999;
+          font-family: "Liberation Sans", Arial, Helvetica, sans-serif;
           padding-top: 3pt;
           white-space: nowrap;
         }
@@ -47,6 +49,7 @@
         position: running(footer-left);
         font-size: 6.5pt;
         color: #555;
+        white-space: nowrap;
       }
 
       table {
@@ -61,7 +64,7 @@
       }
 
       .tbl-header tr {
-        height: 20pt; /* atau sesuaikan hasil render kamu */
+        height: 20pt;
       }
 
       .tbl-header td {
@@ -172,7 +175,6 @@
       /* ─── SECTION HEADER ─────────────────────── */
       .sec-header {
         border: 0.75pt solid #000;
-        border-bottom: none;
         background: #ececec;
         font-weight: bold;
         font-size: 8pt;
@@ -181,6 +183,11 @@
         letter-spacing: 0.3pt;
         page-break-after: avoid;
         margin-bottom: 0;
+        border-bottom: none;
+      }
+
+      .bb {
+        border-bottom: 0.75pt solid #000;
       }
 
       /* ─── INFO TABLE ─────────────────────────── */
@@ -225,6 +232,7 @@
         font-size: 8pt;
         padding: 2.5pt 6pt;
         border: 0.75pt solid #000;
+        border-top: none;
         border-bottom: none;
       }
 
@@ -251,28 +259,23 @@
         width: 70%;
       }
 
-      .hlbl {
-        font-weight: bold;
-        width: 20%;
-        white-space: nowrap;
-      }
-
-      .hval {
-        width: 30%;
-      }
-
-      /* ─── CHECKBOX ───────────────────────────── */
+      /* ─── CHECKBOX ───────────────────────────────
+         Centang digambar sebagai SVG (background-image), BUKAN glyph teks ✓,
+         jadi hasilnya identik di macOS dan Docker tanpa bergantung font. */
       .cb {
         display: inline-block;
         width: 9pt;
         height: 9pt;
         border: 0.75pt solid #000;
-        text-align: center;
-        font-size: 13pt;
-        line-height: 3pt;
-        text-indent: -2pt;
         margin-right: 5pt;
         vertical-align: middle;
+      }
+
+      .cb.on {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M1.5 5.5 4 8 8.5 2' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+        background-position: center;
+        background-size: 85% 85%;
+        background-repeat: no-repeat;
       }
 
       .cb-label {
@@ -481,8 +484,11 @@
     </table>
 
     <!-- ═══════════════════════════════════════════════ -->
-    <!-- A. INFORMASI OUTLET / PELANGGAN                 -->
+    <!-- A. INFORMASI PELANGGAN (OUTLET / DISTRIBUTOR)   -->
     <!-- ═══════════════════════════════════════════════ -->
+    {# `pelanggan` dibangun di fkp_pdf_service._build_pelanggan_context(): - FKP
+    punya outlet → tipe 'outlet', data outlet + distributor_nama - FKP tanpa
+    outlet → tipe 'distributor', data distributor #}
     <div class="section-block">
       <div class="sec-header">A. &nbsp;Informasi Outlet / Pelanggan</div>
       <table class="tbl-info">
@@ -506,26 +512,33 @@
         <tr>
           <td class="lbl">Nama Pelanggan</td>
           <td class="val" colspan="3">
-            {{ outlet.nama_toko if outlet and outlet.nama_toko else '-' }}
+            {{ pelanggan.nama if pelanggan and pelanggan.nama else '-' }} {% if
+            pelanggan and pelanggan.tipe == 'distributor' %}<span class="muted"
+              >(Distributor)</span
+            >{% endif %}
           </td>
         </tr>
+        {% if pelanggan and pelanggan.tipe == 'outlet' %}
+        <tr>
+          <td class="lbl">Distributor</td>
+          <td class="val" colspan="3">
+            {{ pelanggan.distributor_nama if pelanggan.distributor_nama else '-'
+            }}
+          </td>
+        </tr>
+        {% endif %}
         <tr>
           <td class="lbl">Alamat Lengkap</td>
           <td class="val" colspan="3">
-            {{ outlet.alamat_lengkap if outlet and outlet.alamat_lengkap else
+            {{ pelanggan.alamat if pelanggan and pelanggan.alamat else '-' }}
+          </td>
+        </tr>
+        <tr>
+          <td class="lbl">No. Telepon / Email</td>
+          <td class="val" colspan="3">
+            {{ pelanggan.no_telepon if pelanggan and pelanggan.no_telepon else
+            '-' }} / {{ pelanggan.email if pelanggan and pelanggan.email else
             '-' }}
-          </td>
-        </tr>
-        <tr>
-          <td class="lbl">No. Telepon</td>
-          <td class="val" colspan="3">
-            {{ outlet.no_hp if outlet and outlet.no_hp else '-' }}
-          </td>
-        </tr>
-        <tr>
-          <td class="lbl">Email</td>
-          <td class="val" colspan="3">
-            {{ outlet.email if outlet and outlet.email else '-' }}
           </td>
         </tr>
       </table>
@@ -535,9 +548,11 @@
     <!-- B. PRODUK YANG DIKELUHKAN                       -->
     <!-- ═══════════════════════════════════════════════ -->
     <div class="section-block-produk">
-      <div class="sec-header">B. &nbsp;Informasi Produk yang Dikeluhkan</div>
+      <div class="sec-header bb">B. &nbsp;Informasi Produk yang Dikeluhkan</div>
 
-      {% for item in items %}
+      {% for item in items %} {# Alias singkat untuk checkbox di bawah #} {% set
+      sv = item.ada_sample_keluhan %} {% set kd = item.kondisi_sample %} {% set
+      ft = item.foto_types %}
       <div class="produk-wrap">
         <div class="produk-head">Produk {{ loop.index }}</div>
         <table class="tbl-produk">
@@ -552,7 +567,7 @@
             <td class="pval">{{ item.nama_produk }}</td>
             <td class="plbl">Jumlah Produk</td>
             <td class="pval">
-              {{ item.qty }} {% if item.jenis_kemasan %} ({{ item.jenis_kemasan
+              {{ item.qty }}{% if item.jenis_kemasan %} ({{ item.jenis_kemasan
               }}){% endif %}
             </td>
           </tr>
@@ -583,49 +598,51 @@
               {{ item.deskripsi_keluhan or '' }}
             </td>
           </tr>
+
+          {# ── Sample Keluhan & Kondisi Sample ── #}
           <tr>
             <td class="plbl">Sample Keluhan</td>
             <td class="pval">
-              {% set sv = item.ada_sample_keluhan %}
-              <span class="cb">{% if sv == 'ada' %}&#10003;{% endif %}</span>
-              <span class="cb-label">Ada</span><br />
-              <span class="cb">{% if sv == 'foto' %}&#10003;{% endif %}</span>
-              <span class="cb-label">Foto</span>
+              {# nilai 'ada' / 'foto' = konstanta AdaSampleKeluhan di
+              models/fkp.py #} {{ cb(sv == 'ada') }}<span class="cb-label"
+                >Ada</span
+              ><br />
+              {{ cb(sv == 'foto') }}<span class="cb-label">Foto</span>
             </td>
             <td class="plbl">Kondisi Sample</td>
             <td class="pval">
-              <span class="cb">{% if kd == 'utuh' %}&#10003;{% endif %}</span>
-              <span class="cb-label">Kemasan Utuh (segel)</span><br />
-              <span class="cb"
-                >{% if kd == 'terbuka' %}&#10003;{% endif %}</span
-              >
-              <span class="cb-label">Kemasan Sudah Dibuka</span><br />
-              <span class="cb"
-                >{% if kd and kd not in ['utuh','terbuka'] %}&#10003;{% endif
-                %}</span
-              >
-              <span class="cb-label"
-                >Lainnya{% if kd and kd not in ['utuh','terbuka'] %}: {{ kd }}{%
-                endif %}</span
+              {{ cb(kd == 'utuh') }}<span class="cb-label"
+                >Kemasan Utuh (segel)</span
+              ><br />
+              {{ cb(kd == 'terbuka') }}<span class="cb-label"
+                >Kemasan Sudah Dibuka</span
+              ><br />
+              {{ cb(item.kondisi_lainnya_aktif) }}<span class="cb-label"
+                >Lainnya{% if item.kondisi_lainnya_teks %}: {{
+                item.kondisi_lainnya_teks }}{% endif %}</span
               >
             </td>
           </tr>
+
+          {# ── Foto Produk (isi ft dihitung di service dari tipe attachment) ──
+          #}
           <tr>
             <td class="plbl">
               Foto Produk<br /><span class="muted">(Lihat lampiran)</span>
             </td>
             <td class="pval" colspan="3">
-              {% set ft = item.foto_types | default([]) %}
-              <span class="cb">{% if 'expired' in ft %}&#10003;{% endif %}</span
-              ><span class="cb-label">Foto Expired</span><br />
-              <span class="cb"
-                >{% if 'kode_produksi' or 'expired' in ft %}&#10003;{% endif
-                %}</span
-              ><span class="cb-label">Kode Produksi</span><br />
-              <span class="cb">{% if 'keluhan' in ft %}&#10003;{% endif %}</span
-              ><span class="cb-label">Keluhan / Sample</span>
+              {{ cb('expired' in ft) }}<span class="cb-label">Foto Expired</span
+              ><br />
+              {{ cb('kode_produksi' in ft) }}<span class="cb-label"
+                >Kode Produksi</span
+              ><br />
+              {{ cb('keluhan' in ft) }}<span class="cb-label"
+                >Keluhan / Sample</span
+              >
             </td>
           </tr>
+
+          {# ── Rekomendasi ── #}
           <tr>
             <td class="plbl">Rekomendasi Fisik</td>
             <td class="pval">{{ item.rekomendasi_fisik }}</td>
@@ -633,13 +650,16 @@
             <td class="pval">{{ item.rekomendasi_penanganan }}</td>
           </tr>
           <tr>
-            <td class="plbl">Persentase Disetujui</td>
+            <td class="plbl">Disetujui APSM (%)</td>
             <td class="pval">
               {{ item.rekomendasi_persentase ~ '%' if
               item.rekomendasi_persentase is not none else '-' }}
             </td>
-            <td class="plbl">Catatan APSM</td>
-            <td class="pval">{{ item.catatan_apsm }}</td>
+            <td class="plbl">Disetuju QC (%)</td>
+            <td class="pval">
+              {{ item.persentase_qc ~ '%' if item.persentase_qc is not none else
+              '-' }}
+            </td>
           </tr>
         </table>
       </div>
@@ -707,7 +727,8 @@
             >
           </th>
           <th>
-            {% if fkp.approved_by_direktur %} Disetujui Oleh<br /><span
+            {# Kolom ke-4 mengikuti siapa yang benar-benar approve (saling
+            eksklusif) #} {% if fkp.approved_by_direktur %} Disetujui Oleh<br /><span
               style="font-weight: normal; font-size: 6.5pt"
               >(Direktur)</span
             >
@@ -767,85 +788,30 @@
         Produk #{{ loop.index }} &nbsp;—&nbsp; {{ item.nama_produk }}
       </div>
 
-      {% set list_expired = (item.attachments |
-      filter_attachments('foto_expired')) + (item.attachments |
-      filter_attachments('foto_kode_produksi')) %} {% set list_keluhan =
-      item.attachments | filter_attachments('foto_keluhan') %} {% set
-      list_sample = item.attachments | filter_attachments('foto_sample') %} {%
-      set max_rows = namespace(v=1) %} {% if list_expired | length > max_rows.v
-      %} {% set max_rows.v = list_expired | length %}{% endif %} {% if
-      list_keluhan | length > max_rows.v %} {% set max_rows.v = list_keluhan |
-      length %} {% endif %} {% if list_sample | length > max_rows.v %}{% set
-      max_rows.v = list_sample | length %}{% endif %}
+      {# Kolom 1 gabungan foto expired + foto kode produksi #} {% set
+      list_expired = (item.attachments | filter_attachments('foto_expired')) +
+      (item.attachments | filter_attachments('foto_kode_produksi')) %} {% set
+      list_keluhan = item.attachments | filter_attachments('foto_keluhan') %} {%
+      set list_sample = item.attachments | filter_attachments('foto_sample') %}
+      {# Jumlah baris = kolom terpanjang (minimal 1) #} {% set max_rows =
+      namespace(v=1) %} {% if list_expired | length > max_rows.v %}{% set
+      max_rows.v = list_expired | length %}{% endif %} {% if list_keluhan |
+      length > max_rows.v %}{% set max_rows.v = list_keluhan | length %}{% endif
+      %} {% if list_sample | length > max_rows.v %}{% set max_rows.v =
+      list_sample | length %}{% endif %}
+
       <table class="tbl-foto">
         <tr>
-          <th>Foto Expired & Kode Produksi</th>
+          <th>Foto Expired &amp; Kode Produksi</th>
           <th>Foto Keluhan Produk</th>
           <th>Foto Sample</th>
         </tr>
 
         {% for i in range(max_rows.v) %}
         <tr>
-          <td>
-            {% if i < list_expired | length %} {% set ae = list_expired[i] %}
-            <div class="foto-img-wrap">
-              <img
-                src="data:image/jpeg;base64,{{ ae.base64 }}"
-                alt="Expired {{ i + 1 }}"
-              />
-            </div>
-            <table class="tbl-fotometa">
-              {% if ae.keterangan %}
-              <tr>
-                <td class="fmlbl">Keterangan</td>
-                <td>{{ ae.keterangan }}</td>
-              </tr>
-              {% endif %}
-            </table>
-            {% else %}
-            <div class="foto-kosong">—</div>
-            {% endif %}
-          </td>
-          <td>
-            {% if i < list_keluhan | length %} {% set ak = list_keluhan[i] %}
-            <div class="foto-img-wrap">
-              <img
-                src="data:image/jpeg;base64,{{ ak.base64 }}"
-                alt="Keluhan {{ i + 1 }}"
-              />
-            </div>
-            <table class="tbl-fotometa">
-              {% if ak.keterangan %}
-              <tr>
-                <td class="fmlbl">Keterangan</td>
-                <td>{{ ak.keterangan }}</td>
-              </tr>
-              {% endif %}
-            </table>
-            {% else %}
-            <div class="foto-kosong">—</div>
-            {% endif %}
-          </td>
-          <td>
-            {% if i < list_sample | length %} {% set aks = list_sample[i] %}
-            <div class="foto-img-wrap">
-              <img
-                src="data:image/jpeg;base64,{{ aks.base64 }}"
-                alt="Foto Sample {{ i + 1 }}"
-              />
-            </div>
-            <table class="tbl-fotometa">
-              {% if aks.keterangan %}
-              <tr>
-                <td class="fmlbl">Keterangan</td>
-                <td>{{ aks.keterangan }}</td>
-              </tr>
-              {% endif %}
-            </table>
-            {% else %}
-            <div class="foto-kosong">—</div>
-            {% endif %}
-          </td>
+          <td>{{ foto_cell(list_expired, i, 'Expired') }}</td>
+          <td>{{ foto_cell(list_keluhan, i, 'Keluhan') }}</td>
+          <td>{{ foto_cell(list_sample, i, 'Foto Sample') }}</td>
         </tr>
         {% endfor %}
       </table>

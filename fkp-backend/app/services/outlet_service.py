@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import HTTPException
+from sqlalchemy import Case
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -118,7 +119,12 @@ async def list_outlets(
     if status:
         query = query.where(Outlet.status == status)
 
-    result = await db.execute(query.order_by(Outlet.nama_toko))
+    query = query.order_by(
+        Case((Outlet.status == "aktif", 0), else_=1),
+        Outlet.nama_toko,
+    )
+    
+    result = await db.execute(query)
     return result.scalars().all()
 
 
@@ -245,6 +251,77 @@ async def update_outlet(
     await db.refresh(outlet)
     return outlet
 
+async def activate_outlet(
+    outlet_id: uuid.UUID,
+    user: User,
+    kode_role: str,
+    db: AsyncSession,
+) -> Outlet:
+    """
+    Aktifkan kembali outlet berstatus nonaktif.
+    Cermin deactivate_outlet() — scope check sama, arah transisi terbalik.
+    """
+    outlet = await get_outlet_or_404(outlet_id, db)
+
+    if not await has_global_access(user, kode_role, db):
+        await assert_distributor_in_scope(
+            outlet.distributor_id,
+            user,
+            kode_role,
+            db,
+            forbidden_message="Anda tidak berhak mengaktifkan outlet ini.",
+        )
+
+    if outlet.status != "nonaktif":
+        raise HTTPException(
+            status_code=400,
+            detail="Hanya outlet berstatus nonaktif yang bisa diaktifkan kembali.",
+        )
+
+    outlet.status = "aktif"
+    outlet.updated_at = datetime.now(timezone.utc)
+    db.add(outlet)
+    await db.commit()
+    await db.refresh(outlet)
+    return outlet
+
+async def deactivate_outlet(
+    outlet_id: uuid.UUID,
+    user: User,
+    kode_role: str,
+    db: AsyncSession,
+) -> Outlet:
+    """
+    Nonaktifkan outlet.
+
+    Aturan:
+    - Role non-global wajib lolos assert_distributor_in_scope() terhadap
+      distributor outlet tersebut
+    - Hanya outlet berstatus aktif yang bisa dinonaktifkan
+    """
+    outlet = await get_outlet_or_404(outlet_id, db)
+
+    if not await has_global_access(user, kode_role, db):
+        await assert_distributor_in_scope(
+            outlet.distributor_id,
+            user,
+            kode_role,
+            db,
+            forbidden_message="Anda tidak berhak menonaktifkan outlet ini.",
+        )
+
+    if outlet.status != "aktif":
+        raise HTTPException(
+            status_code=400,
+            detail="Hanya outlet berstatus aktif yang bisa dinonaktifkan.",
+        )
+
+    outlet.status = "nonaktif"
+    outlet.updated_at = datetime.now(timezone.utc)
+    db.add(outlet)
+    await db.commit()
+    await db.refresh(outlet)
+    return outlet
 
 # ─── ASSIGNABLE USERS ─────────────────────────────────────────────────────────
 

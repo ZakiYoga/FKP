@@ -55,7 +55,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user, get_kode_role
 from app.core.config import settings
 from app.models.user import User
-from app.models.fkp import TipeDokumen, FkpStatus, FkpAttachment
+from app.models.fkp import FkpDocument, TipeDokumen, FkpStatus, FkpAttachment
 import traceback
 
 from app.schemas.fkp import (
@@ -235,34 +235,18 @@ async def list_tipe_dokumen():
 
 @router.get("", response_model=List[FkpListResponse])
 async def get_list_fkp(
-    status:             Optional[str] = Query(None, description="Filter berdasarkan status FKP"),
-    prioritas:          Optional[str] = Query(None, description="Filter berdasarkan prioritas"),
-    outlet_id:          Optional[uuid.UUID] = Query(None, description="Filter berdasarkan outlet"),
-    distributor_id:     Optional[uuid.UUID] = Query(None, description="Filter berdasarkan distributor"),
-    area_id:            Optional[uuid.UUID] = Query(None, description="Filter berdasarkan area"),
-    tanggal_dari:       Optional[date] = Query(None, description="Filter tanggal dibuat, dari (inklusif)"),
-    tanggal_sampai:     Optional[date] = Query(None, description="Filter tanggal dibuat, sampai (inklusif)"),
-    db:                 AsyncSession = Depends(get_db),
-    user:               User = Depends(get_current_user),
-    kode_role:          str  = Depends(get_kode_role),
+    status:    Optional[str] = Query(None, description="Filter berdasarkan status FKP"),
+    prioritas: Optional[str] = Query(None, description="Filter berdasarkan prioritas"),
+    db:        AsyncSession = Depends(get_db),
+    user:      User = Depends(get_current_user),
+    kode_role: str  = Depends(get_kode_role),
 ):
     """
     Ambil daftar FKP. Otomatis difilter berdasarkan role:
     - outlet/distributor/sc_spv/apsm → hanya FKP area mereka
     - rsm/admin_ho/qc/direktur/superadmin → semua FKP
- 
-    Filter tambahan (opsional): outlet_id, distributor_id, area_id, tanggal_dari, tanggal_sampai.
     """
-    return await list_fkp(
-        db, user, kode_role,
-        status_filter=status,
-        prioritas_filter=prioritas,
-        outlet_id=outlet_id,
-        distributor_id=distributor_id,
-        area_id=area_id,
-        tanggal_dari=tanggal_dari,
-        tanggal_sampai=tanggal_sampai,
-    )
+    return await list_fkp(db, user, kode_role, status, prioritas)
 
 
 @router.post("", response_model=FkpDetailResponse, status_code=201)
@@ -295,7 +279,7 @@ async def edit_fkp(
     user:      User = Depends(get_current_user),
     kode_role: str  = Depends(get_kode_role),
 ):
-    """Update header FKP (prioritas, catatan, outlet). Hanya saat status draft/need_revision."""
+    """Update header FKP (outlet, prioritas, catatan, lokasi pembelian). Hanya saat draft/need_revision."""
     return await update_fkp(fkp_id, data, user, kode_role, db)
 
 
@@ -923,27 +907,6 @@ async def buat_resolusi(
       - lainnya             → POST /{fkp_id}/confirm-resolusi
     """
     return await fkp_service.buat_resolusi(fkp_id, data, user, kode_role, db)
-
-
-@router.post("/{fkp_id}/confirm-resolusi", response_model=FkpDetailResponse)
-async def confirm_resolusi(
-    fkp_id:    uuid.UUID,
-    catatan:   Optional[str] = None,
-    db:        AsyncSession = Depends(get_db),
-    user:      User = Depends(get_current_user),
-    kode_role: str  = Depends(get_kode_role),
-):
-    """
-    [BARU — Modul Sample Shipment, Phase 5] Trigger accepted → in_process
-    untuk resolusi SELAIN tukar_barang & potong_tagihan (yaitu
-    tidak_ada_kompensasi, dengan atau tanpa metode_penanganan_fisik =
-    dimusnahkan). Hanya admin_ho/superadmin.
-
-    Gate: kalau tipe_resolusi = tidak_ada_kompensasi, `catatan` wajib diisi.
-    Gate BA pemusnahan TIDAK lagi di sini — dipindah ke close_fkp() supaya
-    BA boleh menyusul selama status in_process.
-    """
-    return await fkp_service.confirm_resolusi(fkp_id, catatan, user, kode_role, db)
 
 
 @router.patch("/{fkp_id}/surat-jalan", response_model=FkpDetailResponse)

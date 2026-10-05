@@ -17,8 +17,8 @@ class UserCreate(BaseModel):
             "example": {
                 "role_id": "uuid-role-disini",
                 "nama": "Budi Santoso",
-                "email": "budi@saktifood.com",
-                "password": "Password123!",
+                "email": "budi@saktipangan.co.id",
+                "password": "12345678",
                 "no_telepon": "08123456789"
             }
         }

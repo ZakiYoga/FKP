@@ -1,4 +1,4 @@
-import { useForm } from 'react-hook-form'
+import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import axios from 'axios'
 import { DistributorOption } from '@/types'
 import { RegisterOutletFormValues, registerOutletSchema } from '@/schemas/registerOutletSchema'
+import { TIPE_TOKO_OPTIONS } from '@/types/outlet'
 
 // ─── Password Strength ────────────────────────────────────────────────────────
 
@@ -105,6 +106,7 @@ export function RegisterOutletPage() {
   const {
     register: reg,
     handleSubmit,
+    control,
     trigger,
     setValue,
     watch,
@@ -134,6 +136,13 @@ export function RegisterOutletPage() {
       { ...data, alamat_lengkap: data.alamat_lengkap || "" },
       { onSuccess: (res) => setIsSuccess({ kode_outlet: res.kode_outlet, message: res.message }) },
     )
+  }
+
+  function normalizePhoneLocal(raw: string): string {
+    let digits = raw.replace(/\D/g, '')        // buang spasi, +, -, dll
+    if (digits.startsWith('62')) digits = digits.slice(2)
+    digits = digits.replace(/^0+/, '')         // buang 0 di depan
+    return digits.slice(0, 13)                 // 62 + 13 digit = maks 15
   }
 
   // ── Sukses ────────────────────────────────────────────────────────────────
@@ -226,19 +235,39 @@ export function RegisterOutletPage() {
             <Input label="Nama Toko" required placeholder="Toko Sumber Jaya" error={errors.nama_toko?.message} {...reg('nama_toko')} />
             <Input label="Nama Pemilik" required placeholder="Budi Santoso" error={errors.pemilik_toko?.message} {...reg('pemilik_toko')} />
             <Select label="Tipe Toko" required placeholder="-- Pilih tipe toko --" error={errors.tipe_toko?.message} {...reg('tipe_toko')}>
-              <option value="retail_tradisional">Retail Tradisional</option>
-              <option value="retail_modern">Retail Modern</option>
-              <option value="grosir">Grosir</option>
-              <option value="horeca">HoReCa (Hotel, Restoran, Cafe)</option>
-              <option value="umkm">UMKM</option>
-              <option value="tobaku">Tobaku</option>
-              <option value="bakery">Bakery</option>
-              <option value="catering">Catering</option>
-              <option value="reseller">Reseller</option>
-              <option value="online_shop">Online Shop</option>
-              <option value="lainnya">Lainnya</option>
+              {TIPE_TOKO_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </Select>
-            <Input label="No. HP / WhatsApp" required type="tel" placeholder="6281234567890" maxLength={15} error={errors.no_hp?.message} {...reg('no_hp')} />
+
+            <Controller
+              name="no_hp"
+              control={control}
+              render={({ field }) => (
+                <div>
+                  <label className="label label-required">No. HP / WhatsApp</label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 pr-2 text-sm font-medium text-gray-500 border-r border-gray-200 pointer-events-none select-none">
+                      +62
+                    </span>
+                    <input
+                      ref={field.ref}
+                      type="tel"
+                      inputMode="numeric"
+                      autoComplete="tel-national"
+                      placeholder="858xxxx8238"
+                      className={cn('input-base pl-14', errors.no_hp && 'input-error')}
+                      value={field.value?.slice(2) ?? ''}
+                      onChange={(e) => {
+                        const local = normalizePhoneLocal(e.target.value)
+                        field.onChange(local ? `62${local}` : '')
+                      }}
+                      onBlur={field.onBlur}
+                    />
+                  </div>
+                  {errors.no_hp && <p className="mt-1.5 text-xs text-red-600">{errors.no_hp.message}</p>}
+                  <p className="mt-1 text-xs text-gray-400">Nomor HP/WhatsApp aktif, tanpa angka 0 di depan. Contoh: 81234567890</p>
+                </div>
+              )}
+            />
 
             {/* Alamat OUTLET — form field, dikirim ke backend sebagai alamat_lengkap */}
             <div>

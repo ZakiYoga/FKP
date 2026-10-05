@@ -16,31 +16,31 @@ import api from '@/lib/axios'
 
 // Status yang valid untuk filter dropdown
 const PENERBITAN_STATUSES: { value: string; label: string }[] = [
-  { value: 'submitted',                label: 'Menunggu Review APSM' },
-  { value: 'apsm_reviewed',            label: 'Direview APSM' },
+  { value: 'submitted', label: 'Menunggu Review APSM' },
+  { value: 'apsm_reviewed', label: 'Direview APSM' },
   { value: 'rsm_approval_investigasi', label: 'Menunggu Persetujuan RSM' },
-  { value: 'in_investigation',         label: 'Sedang Diinvestigasi' },
-  { value: 'investigated',             label: 'Investigasi Selesai' },
-  { value: 'rsm_approval_resolusi',    label: 'Menunggu RSM (Resolusi)' },
-  { value: 'direktur_approval',        label: 'Menunggu Direktur' },
-  { value: 'accepted',                 label: 'Disetujui' },
-  { value: 'in_process',              label: 'Sedang Diproses' },
-  { value: 'closed',                   label: 'Selesai' },
-  { value: 'rejected',                 label: 'Ditolak' },
+  { value: 'in_investigation', label: 'Sedang Diinvestigasi' },
+  { value: 'investigated', label: 'Investigasi Selesai' },
+  { value: 'rsm_approval_resolusi', label: 'Menunggu RSM (Resolusi)' },
+  { value: 'direktur_approval', label: 'Menunggu Direktur' },
+  { value: 'accepted', label: 'Disetujui' },
+  { value: 'in_process', label: 'Sedang Diproses' },
+  { value: 'closed', label: 'Selesai' },
+  { value: 'rejected', label: 'Ditolak' },
 ]
 
 export function PenerbitanFkpPage() {
   const navigate = useNavigate()
 
-  const [filterStatus, setFilterStatus]     = useState('')
-  const [filterDari, setFilterDari]         = useState('')
-  const [filterSampai, setFilterSampai]     = useState('')
-  const [showFilter, setShowFilter]         = useState(false)
-  const [downloadingId, setDownloadingId]   = useState<string | null>(null)
+  const [filterStatus, setFilterStatus] = useState('')
+  const [filterDari, setFilterDari] = useState('')
+  const [filterSampai, setFilterSampai] = useState('')
+  const [showFilter, setShowFilter] = useState(false)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
   const activeFilters = {
-    status:        filterStatus || undefined,
-    tanggal_dari:  filterDari   || undefined,
+    status: filterStatus || undefined,
+    tanggal_dari: filterDari || undefined,
     tanggal_sampai: filterSampai || undefined,
   }
 
@@ -61,9 +61,9 @@ export function PenerbitanFkpPage() {
       const res = await api.get(`/fkp/${fkpId}/formulir-pdf`, {
         responseType: 'blob',
       })
-      const url  = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }))
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }))
       const link = document.createElement('a')
-      link.href     = url
+      link.href = url
       link.download = `Formulir-FKP-${nomorFkp.replace(/\//g, '-')}.pdf`
       document.body.appendChild(link)
       link.click()
@@ -187,9 +187,9 @@ export function PenerbitanFkpPage() {
                   <th className="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">
                     Distributor / Outlet
                   </th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">
+                  {/* <th className="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">
                     Prioritas
-                  </th>
+                  </th> */}
                   <th className="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">
                     Status
                   </th>
@@ -210,18 +210,18 @@ export function PenerbitanFkpPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <p className="font-medium text-gray-900 text-sm">
+                      <p className="text-gray-400 text-xs">
                         {fkp.distributor_info?.nama_perusahaan ?? '—'}
                       </p>
                       {fkp.outlet_info && (
-                        <p className="text-xs text-gray-400 mt-0.5">
+                        <p className="text-gray-950 mt-0.5">
                           {fkp.outlet_info.nama_toko}
                         </p>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    {/* <td className="px-4 py-3">
                       <PrioritasBadge prioritas={fkp.prioritas} />
-                    </td>
+                    </td> */}
                     <td className="px-4 py-3">
                       <StatusBadge status={fkp.status} />
                     </td>

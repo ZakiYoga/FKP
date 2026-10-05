@@ -11,7 +11,7 @@ import {
 import { isUuid, extractUuid, formatDate } from '@/lib/fkpUtils'
 import { PrioritasBadge } from '@/components/ui/PrioritasBadge'
 import { CameraScanner } from '@/components/track/CamScanner'
-import TimelineItem from '@/components/track/Timeline'
+import { PhaseTimeline } from '@/components/track/Timeline'
 import { useSetPublicPage } from '@/components/layout/PublicLayout'
 import type { TrackingData } from '@/types/trackFkp'
 
@@ -29,7 +29,7 @@ export function FkpTrackPage() {
 
     // ✅ Set meta header — cukup satu baris
     useSetPublicPage({
-        pageTitle: 'Tracking FKP',
+        pageTitle: 'Track FKP',
         pageSubtitle: 'Formulir Keluhan Pelanggan',
         pageIcon: '/icon/track.svg',
     })
@@ -217,26 +217,21 @@ export function FkpTrackPage() {
 
                 {trackingData && (
                     <div className="space-y-5 w-full animate-fade-in">
-                        <div className={`rounded-2xl p-5 border-2 ${
-                            trackingData.is_closed
-                                ? 'bg-emerald-50 border-emerald-200'
-                                : trackingData.is_rejected
-                                    ? 'bg-red-50 border-red-200'
-                                    : 'bg-brand-50 border-brand-200'
-                        }`}>
+                        <div className={`rounded-2xl p-5 border-2 ${trackingData.is_closed
+                            ? 'bg-emerald-50 border-emerald-200'
+                            : trackingData.is_rejected
+                                ? 'bg-red-50 border-red-200'
+                                : 'bg-brand-50 border-brand-200'
+                            }`}>
                             <div className="flex items-center justify-between gap-3">
                                 <div className="space-y-1 min-w-0">
                                     <p className="text-xs font-mono text-gray-400">{trackingData.nomor_fkp}</p>
-                                    <h2 className={`text-lg font-bold leading-tight ${
-                                        trackingData.is_closed ? 'text-emerald-800'
-                                            : trackingData.is_rejected ? 'text-red-800'
-                                                : 'text-brand-800'
-                                    }`}>
+                                    <h2 className={`text-lg font-bold leading-tight ${trackingData.is_closed ? 'text-emerald-800'
+                                        : trackingData.is_rejected ? 'text-red-800'
+                                            : 'text-brand-800'
+                                        }`}>
                                         {trackingData.status_label}
                                     </h2>
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <PrioritasBadge prioritas={trackingData.prioritas} />
-                                    </div>
                                 </div>
                                 <div className="shrink-0">
                                     {trackingData.is_closed ? (
@@ -279,23 +274,62 @@ export function FkpTrackPage() {
                                         <dd className="text-gray-900 text-right">{formatDate(trackingData.tanggal_selesai)}</dd>
                                     </div>
                                 )}
+                                {trackingData.area && (
+                                    <div className="flex justify-between gap-4">
+                                        <dt className="text-gray-500 shrink-0">Area</dt>
+                                        <dd className="text-gray-900 font-medium text-right">{trackingData.area}</dd>
+                                    </div>
+                                )}
                             </dl>
                         </div>
 
                         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-                            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-5">
-                                Riwayat Proses
-                            </h3>
-                            <div>
-                                {trackingData.timeline.map((stage, idx) => (
-                                    <TimelineItem
-                                        key={idx}
-                                        stage={stage}
-                                        isLast={idx === trackingData.timeline.length - 1}
-                                    />
-                                ))}
+                            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+                                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-5">
+                                    Riwayat Proses
+                                </h3>
+                                <PhaseTimeline phases={trackingData.phases} />
                             </div>
                         </div>
+
+                        {trackingData.items.length > 0 && (
+                            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+                                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                                    Produk yang Diajukan
+                                </h3>
+                                <ul className="divide-y divide-gray-100">
+                                    {trackingData.items.map((item, idx) => (
+                                        <li key={idx} className="py-3 first:pt-0 last:pb-0 space-y-1.5">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <p className="text-sm font-medium text-gray-900">{item.nama_produk}</p>
+                                                <span className="text-xs text-gray-500 shrink-0">
+                                                    {item.qty}{item.jenis_kemasan ? ` ${item.jenis_kemasan}` : ''}
+                                                </span>
+                                            </div>
+                                            <span className="inline-flex items-center text-xs">
+                                                Jenis keluhan : {item.jenis_keluhan_label}
+                                            </span>
+                                            {item.deskripsi_keluhan && (
+                                                <p className="text-xs text-gray-500 whitespace-pre-line">
+                                                    Deskripsi keluhan : {item.deskripsi_keluhan}
+                                                </p>
+                                            )}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+
+                        {trackingData.catatan_pembuat && (
+                            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+                                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                                    Catatan Pengaju
+                                </h3>
+                                <p className="text-sm text-gray-700 whitespace-pre-line">
+                                    {trackingData.catatan_pembuat}
+                                </p>
+                            </div>
+                        )}
 
                         <div className="flex gap-3">
                             <button

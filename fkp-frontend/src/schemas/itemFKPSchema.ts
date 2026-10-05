@@ -5,7 +5,6 @@ const todayJakarta = () =>
   format(toZonedTime(new Date(), 'Asia/Jakarta'), 'yyyy-MM-dd')
 
 export const JENIS_KEMASAN_OPTIONS = [
-  { value: 'pcs', label: 'pcs' },
   { value: 'karton', label: 'Karton (Dus)' },
   { value: 'ball', label: 'Ball' },
   { value: 'zak', label: 'Zak (10 kg)' },
