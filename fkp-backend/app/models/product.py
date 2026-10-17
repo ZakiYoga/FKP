@@ -11,24 +11,22 @@ class JenisKemasan:
     Daftar nilai jenis kemasan yang dikenal sistem. Sumber tunggal untuk model,
     schema, dan validator. Urutan di ALL = urutan tampil di dropdown.
 
-    KEMASAN_DIHITUNG_JALUR di models/fkp.py (zak/ball/karton) adalah SUBSET dari
-    ALL: hanya kemasan itu yang ikut dihitung ke penentuan jalur approval.
-    Tidak di-import ke sana karena circular import, jadi jaga sinkron lewat test.
+    KEMASAN_DIHITUNG_JALUR dan KEMASAN_PCS di models/fkp.py harus MEMBAGI ALL tanpa
+    irisan: zak/ball/karton dihitung ke jalur approval, pcs ditangani langsung APSM.
+    Jaga sinkron lewat test (juga dengan JenisKemasan di models/fkp.py).
     """
     ZAK     = "zak"
     BALL    = "ball"
     KARTON  = "karton"
-    RENCENG = "renceng"
     PCS     = "pcs"
 
-    ALL = [ZAK, BALL, KARTON, RENCENG, PCS]
+    ALL = [ZAK, BALL, KARTON, PCS]
 
     LABELS = {
         ZAK:     "Zak",
         BALL:    "Ball",
         KARTON:  "Karton",
-        RENCENG: "Renceng",
-        PCS:     "Pcs (ecer)",
+        PCS:     "Pcs",
     }
 
 

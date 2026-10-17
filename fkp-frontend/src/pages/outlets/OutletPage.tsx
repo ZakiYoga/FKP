@@ -305,7 +305,7 @@ export function OutletPage() {
             return (
               <div
                 key={o.id}
-                className={`card p-5 ${isAdmin && o.status === 'aktif' ? 'opacity-60 grayscale-50' : ''}`}
+                className={`card p-5 ${isAdmin && o.status === 'aktif' ? '' : 'opacity-60 grayscale-50'}`}
               >
                 {/* Info */}
                 <div className="w-full flex justify-between">
@@ -341,7 +341,7 @@ export function OutletPage() {
                       <div className="flex gap-2">
                         <button
                           onClick={() => setPendingAction({ type: 'approve', outlet: o })}
-                          className="btn btn-sm flex-1 bg-emerald-600 text-white hover:bg-emerald-700"
+                          className="btn btn-sm flex-1 text-white"
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" /> Setujui
                         </button>
@@ -363,7 +363,7 @@ export function OutletPage() {
                       {isAdmin && o.status === 'aktif' && (
                         <button
                           onClick={() => setPendingAction({ type: 'deactivate', outlet: o })}
-                          className="btn-danger btn-sm"
+                          className="border border-gray-300 btn-sm rounded-lg hover:bg-red-100 text-red-600"
                         >
                           <Power className="w-3.5 h-3.5" />
                         </button>
@@ -371,9 +371,9 @@ export function OutletPage() {
                       {isAdmin && o.status === 'nonaktif' && (
                         <button
                           onClick={() => setPendingAction({ type: 'activate', outlet: o })}
-                          className="btn-secondary bg-green-500 btn-sm"
+                          className="border border-gray-300 btn-sm rounded-lg hover:bg-green-100 text-green-600"
                         >
-                          <PowerOff className="w-3.5 h-3.5" />
+                          <PowerOff className="w-3.5 h-3.5 " />
                         </button>
                       )}
                     </div>
@@ -458,6 +458,7 @@ export function OutletPage() {
         isOpen={!!pendingAction}
         onClose={() => setPendingAction(null)}
         onConfirm={handleConfirmAction}
+        icon={false}
         isPending={pendingAction ? ACTION_IS_PENDING[pendingAction.type] : false}
         variant={pendingAction ? ACTION_CONFIG[pendingAction.type].variant : 'success'}
         title={pendingAction ? ACTION_CONFIG[pendingAction.type].title : ''}

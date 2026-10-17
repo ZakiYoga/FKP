@@ -17,7 +17,7 @@ import { format, toZonedTime } from 'date-fns-tz'
 import { TIPE_FOTO_OPTIONS, getDefaultTipe } from '@/constants/fkpAttachment'
 import { AuthenticatedImage } from '../AuthenticatedImage'
 import { addDays } from 'date-fns'
-
+import { kelompokFkp, kelompokKemasan, kemasanTersediaProduk } from '@/lib/kemasan'
 
 // ─── Tipe file dengan metadata ────────────────────────────────────────────────
 
@@ -47,6 +47,7 @@ interface Props {
         photosToDelete: string[],
     ) => Promise<void>
     isSaving?: boolean
+    existingItems?: { jenis_kemasan?: string | null }[]
 }
 // ─── Chip wajib ───────────────────────────────────────────────────────────────
 
@@ -73,6 +74,7 @@ export function FkpItemFormModal({
     isOpen, onClose, products, initialData, initialFiles,
     existingAttachments, onDeleteAttachment, variant = 'add',
     resetKey = 0, onSave, isSaving = false,
+    existingItems = []
 }: Props) {
     const [filesWithMeta, setFilesWithMeta] = useState<FileWithMeta[]>([])
     const [localExisting, setLocalExisting] = useState<FkpAttachment[]>([])
@@ -137,6 +139,29 @@ export function FkpItemFormModal({
     const watchJenisKeluhan = watch('jenis_keluhan')
     const watchAdaSampleKeluhan = watch('ada_sample_keluhan')
     const watchKondisiSample = watch('kondisi_sample')
+    const kelompokAda = isEdit ? null : kelompokFkp(existingItems)
+    const konflikKemasan =
+        !!kelompokAda && !!watchKemasan && kelompokKemasan(watchKemasan) !== kelompokAda
+
+
+    // ── Kemasan sesuai produk terpilih (sumber: kemasan_tersedia dari backend) ──
+    const produkTerpilih = products.find((p) => p.id === watchProduk)
+    const kemasanProduk = kemasanTersediaProduk(produkTerpilih) // null = belum pilih produk / tidak ada data
+    const opsiKemasan = JENIS_KEMASAN_OPTIONS.filter(
+        (o) => !kemasanProduk || kemasanProduk.includes(o.value),
+    )
+    // Item tersimpan (data lama) bisa memuat kemasan yang kini tidak dimiliki produknya.
+    const kemasanTidakTersedia =
+        !!kemasanProduk && !!watchKemasan && !kemasanProduk.includes(watchKemasan)
+
+    // Dipanggil HANYA saat user mengganti produk (bukan saat form dimuat), supaya
+    // kemasan item yang tersimpan tidak tertimpa. Satu pilihan -> otomatis terisi;
+    // lebih dari satu -> dikosongkan, user memilih sendiri (jangan menebak).
+    const handleProdukChange = (productId: string) => {
+        const list = kemasanTersediaProduk(products.find((p) => p.id === productId))
+        const nilai = list && list.length === 1 ? list[0] : ''
+        setValue('jenis_kemasan', nilai as unknown as ItemFormData['jenis_kemasan'])
+    }
 
     const produkKatalog = useMemo(
         () => products.filter((p) => p.is_active || p.id === watchProduk),
@@ -154,14 +179,6 @@ export function FkpItemFormModal({
     }
 
     const semuaFotoWajibAda = cekFotoWajib.exp && cekFotoWajib.keluhan
-
-
-    // Auto-fill jenis_kemasan dari katalog
-    useEffect(() => {
-        if (!watchProduk) return
-        const prod = products.find((p) => p.id === watchProduk)
-        if (prod) setValue('jenis_kemasan', prod.jenis_kemasan as ItemFormData['jenis_kemasan'])
-    }, [watchProduk, products, setValue])
 
     useEffect(() => {
         if (semuaFotoWajibAda) setFotoError(false)
@@ -206,9 +223,10 @@ export function FkpItemFormModal({
     // ── Submit ────────────────────────────────────────────────────────────────
 
     const onSubmit = async (data: ItemFormData) => {
+        if (konflikKemasan || kemasanTidakTersedia) return
         if (!semuaFotoWajibAda) {
             setFotoError(true)
-            return   // stop di sini, jangan panggil onSave
+            return
         }
         setFotoError(false)
 
@@ -254,7 +272,9 @@ export function FkpItemFormModal({
                         label="Produk dari Katalog"
                         placeholder="— Pilih produk —"
                         error={errors.product_id?.message}
-                        {...register('product_id')}
+                        {...register('product_id', {
+                            onChange: (e) => handleProdukChange(e.target.value),
+                        })}
                     >
                         {produkKatalog.map((p) => (
                             <option key={p.id} value={p.id}>
@@ -268,14 +288,23 @@ export function FkpItemFormModal({
                 <div className="grid sm:grid-cols-2 gap-3">
                     <Select
                         label="Jenis Kemasan"
-                        placeholder="— Pilih kemasan —"
+                        placeholder={watchProduk ? '— Pilih kemasan —' : '— Pilih produk dulu —'}
                         required
+                        disabled={!watchProduk}
                         error={errors.jenis_kemasan?.message}
                         {...register('jenis_kemasan')}
                     >
-                        {JENIS_KEMASAN_OPTIONS.map((opt) => (
-                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
+                        {kemasanTidakTersedia && (
+                            <option value={watchKemasan}>{watchKemasan} (tidak tersedia untuk produk ini)</option>
+                        )}
+                        {opsiKemasan.map((opt) => {
+                            const beda = !!kelompokAda && kelompokKemasan(opt.value) !== kelompokAda
+                            return (
+                                <option key={opt.value} value={opt.value} disabled={beda}>
+                                    {opt.label}{beda ? ' (tidak bisa dicampur dengan item lain)' : ''}
+                                </option>
+                            )
+                        })}
                     </Select>
                     <Input
                         label={qtyLabel}
@@ -286,6 +315,45 @@ export function FkpItemFormModal({
                         disabled={!watchKemasan}
                         {...register('qty')}
                     />
+                </div>
+
+                <div className="space-y-2">
+                    {kemasanProduk && opsiKemasan.length > 0 && (
+                        <p className="text-xs text-gray-500">
+                            Kemasan tersedia untuk produk ini:{' '}
+                            <span className="font-medium">{opsiKemasan.map((o) => o.label).join(', ')}</span>
+                        </p>
+                    )}
+                    {kelompokAda && (
+                        <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                            {kelompokAda === 'pcs' ? 'FKP kemasan pcs' : 'FKP kemasan zak/ball/karton'}
+                        </span>
+                    )}
+                    {/* <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg border bg-blue-50 border-blue-200">
+                        <Info className="w-3.5 h-3.5 text-blue-500 shrink-0 mt-0.5" />
+                        <p className="text-xs text-blue-700">
+                            Satu FKP hanya boleh berisi kemasan pcs saja atau zak/ball/karton saja.
+                            Jika ada keduanya, buat FKP terpisah.
+                        </p>
+                    </div> */}
+                    {kemasanTidakTersedia && (
+                        <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg border bg-red-50 border-red-200">
+                            <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" />
+                            <p className="text-xs text-red-700">
+                                Kemasan <b>{watchKemasan}</b> tidak dimiliki produk ini. Pilih salah satu kemasan yang tersedia.
+                            </p>
+                        </div>
+                    )}
+                    {konflikKemasan && (
+                        <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg border bg-red-50 border-red-200">
+                            <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" />
+                            <p className="text-xs text-red-700">
+                                Kemasan ini tidak bisa dicampur dengan item lain di FKP ini
+                                ({kelompokAda === 'pcs' ? 'pcs' : 'zak/ball/karton'}). Pilih kemasan yang
+                                sesuai, atau buat FKP terpisah.
+                            </p>
+                        </div>
+                    )}
                 </div>
 
                 <div className="grid sm:grid-cols-2 gap-3">
@@ -575,7 +643,16 @@ export function FkpItemFormModal({
                         type="submit"
                         className="btn-primary"
                         // disabled={isSaving || (!isEdit && !semuaFotoWajibAda)}
-                        title={!isEdit && !semuaFotoWajibAda ? 'Lengkapi foto wajib terlebih dahulu' : undefined}
+                        disabled={konflikKemasan || kemasanTidakTersedia}
+                        title={
+                            kemasanTidakTersedia
+                                ? 'Pilih kemasan yang dimiliki produk ini'
+                                : konflikKemasan
+                                    ? 'Kemasan tidak boleh dicampur dengan item lain di FKP ini'
+                                    : !isEdit && !semuaFotoWajibAda
+                                        ? 'Lengkapi foto wajib terlebih dahulu'
+                                        : undefined
+                        }
                     >
                         {isSaving
                             ? <span className="flex items-center gap-2">

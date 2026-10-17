@@ -46,10 +46,14 @@ export type FkpStatusKey =
   | 'need_revision'
   | 'rejected'
   | 'closed'
+  | 'pcs_ditangani_apsm'
 
+/** @deprecated Semua FKP kini 'reguler'. Dipertahankan agar data lama tetap terbaca. */
 export type FkpPrioritas = 'top_urgent' | 'urgent' | 'reguler' | 'low'
-export type JenisKemasan = 'karton' | 'renceng' | 'ball' | 'zak' | 'pcs'
-export type TipeResolusi = 'tukar_barang' | 'potong_tagihan' | 'tidak_ada_kompensasi'
+export type JalurFkp = 'pcs' | 'approval_rsm' | 'approval_direktur'
+export type TahapPcs = 'dalam_pengajuan' | 'dalam_proses' | 'selesai'
+export type JenisKemasan = 'karton' | 'ball' | 'zak' | 'pcs'
+export type TipeResolusi = 'tukar_barang' | 'potong_tagihan' 
 export type MetodePenangananFisik =
   | 'dimusnahkan'
   | 'dijual_pakan_ternak'
@@ -81,7 +85,6 @@ export type RekomendasiPenanganan =
 export type RekomendasiKompensasi =
   | 'ganti_barang'
   | 'potong_tagihan'
-  | 'tidak_ada_kompensasi'
 
 // ─── LABEL MAPS ───────────────────────────────────────────────────────────────
 
@@ -100,6 +103,7 @@ export const FKP_STATUS_LABEL: Record<FkpStatusKey, string> = {
   need_revision: 'Perlu Revisi',
   rejected: 'Ditolak',
   closed: 'Selesai / Ditutup',
+  pcs_ditangani_apsm: 'Ditangani APSM',
 }
 
 export const FKP_PRIORITAS_LABEL: Record<FkpPrioritas, string> = {
@@ -107,6 +111,29 @@ export const FKP_PRIORITAS_LABEL: Record<FkpPrioritas, string> = {
   urgent: 'Urgent',
   reguler: 'Reguler',
   low: 'Low',
+}
+
+export const TAHAP_PCS_ORDER: TahapPcs[] = ['dalam_pengajuan', 'dalam_proses', 'selesai']
+
+// Label untuk APSM (dropdown dan checkbox)
+export const TAHAP_PCS_LABEL_APSM: Record<TahapPcs, string> = {
+  dalam_pengajuan: 'Dalam proses pengajuan',
+  dalam_proses: 'Dalam proses',
+  selesai: 'Close',
+}
+
+// Label untuk pembuat FKP dan role lain
+export const TAHAP_PCS_LABEL_USER: Record<TahapPcs, string> = {
+  dalam_pengajuan: 'Dalam pengajuan',
+  dalam_proses: 'Dalam proses penggantian',
+  selesai: 'Selesai',
+}
+
+// Sesuaikan istilah RSM/MSM dengan UI Anda.
+export const JALUR_LABEL: Record<JalurFkp, string> = {
+  pcs: 'Pcs (ditangani APSM)',
+  approval_rsm: 'Approval RSM',
+  approval_direktur: 'Approval Direktur',
 }
 
 export const JENIS_KELUHAN_LABEL: Record<string, string> = {
@@ -117,7 +144,6 @@ export const JENIS_KELUHAN_LABEL: Record<string, string> = {
   benda_asing: 'Ditemukan benda asing',
   // expired:               'Produk kadaluarsa',
   salah_produk: 'Produk tidak sesuai pesanan',
-  kualitas_tidak_sesuai: 'Kualitas tidak sesuai standar',
   lainnya: 'Lainnya',
 }
 
@@ -130,7 +156,6 @@ export const METODE_PENANGANAN_LABEL: Record<MetodePenangananFisik, string> = {
 export const TIPE_RESOLUSI_LABEL: Record<TipeResolusi, string> = {
   tukar_barang: 'Tukar Barang',
   potong_tagihan: 'Potong Tagihan / Cashback',
-  tidak_ada_kompensasi: 'Tanpa Kompensasi',
 }
 
 export const REKOMENDASI_PENANGANAN_LABEL: Record<RekomendasiPenanganan, string> = {
@@ -142,7 +167,6 @@ export const REKOMENDASI_PENANGANAN_LABEL: Record<RekomendasiPenanganan, string>
 export const REKOMENDASI_KOMPENSASI_LABEL: Record<RekomendasiKompensasi, string> = {
   ganti_barang: 'Ganti barang',
   potong_tagihan: 'Potong tagihan',
-  tidak_ada_kompensasi: 'Tanpa kompensasi',
 }
 
 // ─── AREA & WILAYAH ───────────────────────────────────────────────────────────
@@ -183,7 +207,11 @@ export interface Product {
   id: string
   kode_produk: string
   nama_produk: string
+  /** @deprecated Kemasan utama saja. Untuk UI baru pakai `kemasan_tersedia`. */
   jenis_kemasan: JenisKemasan
+  /** Semua kemasan produk (dari backend, sudah terurut). */
+  kemasan_tersedia: string[]
+  qty_per_kemasan?: number | null
   berat_gr: number | null
   foto_url: string | null
   is_active: boolean
@@ -328,8 +356,14 @@ export interface FkpDetail {
   area_info: FkpAreaInfo | null
   submitted_by: string
   handled_by: string | null
+  /** @deprecated selalu 'reguler' untuk FKP baru; jangan tampilkan */
   prioritas: FkpPrioritas
   status: FkpStatusKey
+  jalur: JalurFkp | null
+  pcs_tahap: TahapPcs | null
+  pcs_pengajuan_at: string | null
+  pcs_proses_at: string | null
+  pcs_selesai_at: string | null
   catatan_distributor: string | null
   lokasi_pembelian: string | null
   catatan_sc_spv: string | null
@@ -376,7 +410,10 @@ export interface FkpListItem {
   distributor_info: FkpDistributorInfo | null
   outlet_info: FkpOutletInfo | null
   status: FkpStatusKey
+  /** @deprecated selalu 'reguler' untuk FKP baru; jangan tampilkan */
   prioritas: string
+  jalur: JalurFkp | null
+  pcs_tahap: TahapPcs | null
   tanggal_pengajuan: string | null
   created_at: string
   jenis_keluhan: string | null

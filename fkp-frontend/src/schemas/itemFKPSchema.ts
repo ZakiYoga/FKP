@@ -8,6 +8,8 @@ export const JENIS_KEMASAN_OPTIONS = [
   { value: 'karton', label: 'Karton (Dus)' },
   { value: 'ball', label: 'Ball' },
   { value: 'zak', label: 'Zak (10 kg)' },
+    { value: 'pcs', label: 'Pcs' },
+
 ] as const
 
 export type JenisKemasan = typeof JENIS_KEMASAN_OPTIONS[number]['value']
@@ -28,7 +30,7 @@ export const buildItemSchema = (originalExpiredDate?: string | null) =>
   z
     .object({
       product_id: z.string().min(1, 'Produk wajib dipilih'),
-      jenis_kemasan: z.enum(['karton', 'renceng', 'ball', 'zak', 'pcs'], {
+      jenis_kemasan: z.enum(['karton', 'ball', 'zak', 'pcs'], {
         errorMap: () => ({ message: 'Jenis kemasan wajib dipilih' }),
       }),
       jenis_keluhan_custom: z.string().optional().nullable(),

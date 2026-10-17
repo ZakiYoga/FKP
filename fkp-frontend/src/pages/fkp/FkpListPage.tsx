@@ -7,6 +7,7 @@ import { FkpFilterBar } from '@/components/fkp/FkpFilterBar'
 import type { AdvFilters } from '@/components/fkp/FkpFilterBar'
 import { PageLoader } from '@/components/ui/Spinner'
 import { useKodeRole } from '@/store/authStore'
+import type { JalurFkp } from '@/types'
 
 // Role yang boleh membuat FKP baru
 const CAN_CREATE = ['outlet', 'distributor', 'sc_spv', 'apsm', 'superadmin']
@@ -29,7 +30,7 @@ export function FkpListPage() {
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
-  const [prioritasFilter, setPrioritasFilter] = useState('')
+  const [jalurFilter, setJalurFilter] = useState('')  
   const [advFilters, setAdvFilters] = useState<AdvFilters>(EMPTY_ADV_FILTERS)
 
   const handleAdvChange = (patch: Partial<AdvFilters>) => {
@@ -47,7 +48,7 @@ export function FkpListPage() {
 
   const params = {
     status: statusFilter || undefined,
-    prioritas: prioritasFilter || undefined,
+    jalur: (jalurFilter || undefined) as JalurFkp | undefined,
     outlet_id: advFilters.outlet_id || undefined,
     distributor_id: advFilters.distributor_id || undefined,
     area_id: advFilters.area_id || undefined,
@@ -71,7 +72,7 @@ export function FkpListPage() {
   }, [fkpList, search])
 
   const hasAnyFilter =
-    search || statusFilter || prioritasFilter || Object.values(advFilters).some(Boolean)
+    search || statusFilter || jalurFilter || Object.values(advFilters).some(Boolean)
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -90,7 +91,7 @@ export function FkpListPage() {
             <button
               onClick={() => exportMut.mutate(params)}
               disabled={exportMut.isPending}
-              className="btn-secondary p-2 px-4 !text-sm bg-green-500 hover:bg-green-600"
+              className="btn-secondary text-white p-2 px-4 bg-green-600 hover:bg-green-700"
             >
               <Download className="w-4 h-4" />
               {exportMut.isPending ? 'Menyiapkan...' : 'Download Excel'}
@@ -112,8 +113,8 @@ export function FkpListPage() {
         onSearchChange={setSearch}
         statusFilter={statusFilter}
         onStatusChange={setStatusFilter}
-        prioritasFilter={prioritasFilter}
-        onPrioritasChange={setPrioritasFilter}
+        jalurFilter={jalurFilter}
+        onJalurChange={setJalurFilter}
         advFilters={advFilters}
         onAdvChange={handleAdvChange}
         totalCount={filtered.length}

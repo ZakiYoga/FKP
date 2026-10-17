@@ -22,9 +22,9 @@ import { Input } from '@/components/ui/Input'
 import { FkpItemFormModal, type FileWithMeta } from '@/components/fkp/FkpItemFormModal'
 import { FkpItemReviewForm, type ApsmReviewState, APSM_REVIEW_BLANK } from '@/components/fkp/FkpItemReviewForm'
 import { formatDateTime, formatRupiah } from '@/lib/utils'
-import { butuhApprovalDirektur, hitungTotalQtyJalur, BATAS_QTY_DIREKTUR } from '@/lib/fkpUtils'
+import { hitungTotalQtyJalur, BATAS_QTY_DIREKTUR } from '@/lib/fkpUtils'
 import { useAuthStore, useKodeRole } from '@/store/authStore'
-import { FKP_STATUS_LABEL, METODE_PENANGANAN_LABEL, TIPE_RESOLUSI_LABEL, SURAT_JALAN_STATUS_LABEL, SAMPLE_STATUS_LABEL, SAMPLE_STATUS_TERMINAL } from '@/types'
+import { FKP_STATUS_LABEL, JALUR_LABEL, METODE_PENANGANAN_LABEL, TIPE_RESOLUSI_LABEL, SURAT_JALAN_STATUS_LABEL, SAMPLE_STATUS_LABEL, SAMPLE_STATUS_TERMINAL } from '@/types'
 import type {
   FkpStatusKey, FkpItem, FkpItemCreatePayload, TipeResolusi, MetodePenangananFisik,
   RekomendasiPenanganan, RekomendasiKompensasi,
@@ -44,6 +44,8 @@ import { AttachmentUploadModal } from '@/components/AttachmentUploadModal'
 import { useCanWriteFkp } from '@/hooks/useCanWriteFkp'
 import { AuthenticatedImage } from '@/components/AuthenticatedImage'
 import { openAuthenticatedFile } from '@/hooks/useAuthenticatedImage'
+import { PcsActionPanel } from '@/components/fkp-pcs/PcsActionPanel'
+import { cekCampurKemasan } from '@/lib/kemasan'
 
 // ── Tipe modal ────────────────────────────────────────────────────────────────
 
@@ -62,9 +64,7 @@ type ModalTipe =
   | 'lengkapi_qty_sj'
   | 'lengkapi_rekening'
   | 'terbitkan_invoice'
-  | 'proses_finance'
-  | 'confirm_resolusi'
-  | 'sj_ship'
+  | 'proses_finance' | 'sj_ship'
   | 'revision' | 'reject' | 'close'
   | 'qr_code'
   | 'upload_ba_signed'
@@ -477,12 +477,6 @@ export function FkpDetailPage() {
     setModal('terbitkan_invoice')
   }
 
-  // ── tidak_ada_kompensasi: konfirmasi resolusi (trigger in_process) ──────
-  const openConfirmResolusiModal = () => {
-    setCatatan('')
-    setModal('confirm_resolusi')
-  }
-
   // ── Surat Jalan existing: kirim (issued → shipped) ──────────────────────
   const openShipSjModal = (sjId: string) => {
     setSelectedSjId(sjId)
@@ -717,13 +711,6 @@ export function FkpDetailPage() {
       case 'proses_finance':
         return runAction(() => financeApi.prosesFinance(id, { catatan: catatan || null }))
 
-      // tidak_ada_kompensasi (± dimusnahkan) — INI yang trigger accepted → in_process
-      case 'confirm_resolusi':
-        if (fkp?.resolution?.tipe_resolusi === 'tidak_ada_kompensasi' && !catatan.trim()) {
-          toast.error('Catatan/alasan wajib diisi untuk resolusi tanpa kompensasi.'); return
-        }
-        return runAction(() => fkpApi.confirmResolusi(id, catatan || null))
-
       // Surat Jalan yang sudah issued → shipped
       case 'sj_ship':
         if (!selectedSjId) return
@@ -760,6 +747,18 @@ export function FkpDetailPage() {
 
   const canEdit = canWrite && (fkp.status === 'draft' || fkp.status === 'need_revision')
 
+  // ── Jalur pcs ───────────────────────────────────────────────────────────
+  const isPcs = fkp.jalur === 'pcs'
+  const alasanTolakPcs =
+    isPcs && fkp.status === 'rejected'
+      ? ([...fkp.status_logs].reverse().find((l) => l.status_baru === 'rejected')?.catatan ?? null)
+      : null
+  // Campur kemasan pcs vs zak/ball/karton (draft hasil edit bisa saja campuran)
+  const campurKemasan = cekCampurKemasan(
+    fkp.items,
+    Object.fromEntries(products.map((p) => [p.id, p.nama_produk])),
+  )
+
   // [PERUBAHAN 2/3] Teks provinsi untuk card "Asal Pengajuan".
   // `?? []` menjaga agar tidak crash kalau area_info/provinsi tidak ada
   // di response backend (undefined/null).
@@ -783,14 +782,16 @@ export function FkpDetailPage() {
   // lihat RBAC §11.2 dokumen rencana modul: warehouse berhak buat Surat
   // Jalan, finance berhak terbitkan invoice.
   const tipeResolusiAktif = fkp.resolution?.tipe_resolusi
-  // ── Preview gate Direktur (cermin backend butuh_approval_direktur) ──────
+  // ── Preview jalur approval (cermin admin_ho_review() di backend) ──────
   // total qty klaim (BUKAN qty_disetujui — itu baru terisi setelah accepted).
   // Dipakai untuk label tombol & badge info sebelum RSM approve, supaya
   // user tahu next-step-nya "langsung accepted" atau "ke Direktur dulu".
-  // Hanya kemasan zak/ball/karton yang dihitung (renceng & pcs tidak) — cermin
-  // _hitung_total_qty_jalur() di backend.
+  // Hanya kemasan zak/ball/karton yang dihitung — cermin _hitung_total_qty_jalur()
+  // di backend. Direktur terlibat ⇔ total > BATAS_QTY_DIREKTUR untuk SEMUA tipe
+  // resolusi (tukar_barang, potong_tagihan); tipe resolusi tidak menentukan.
   const totalQtyKlaim = hitungTotalQtyJalur(fkp.items, products)
-  const akanKeDirektur = butuhApprovalDirektur(tipeResolusiAktif, totalQtyKlaim)
+  // FKP yang sudah di rsm_approval_resolusi PASTI jalur Direktur (juga untuk data lama).
+  const akanKeDirektur = totalQtyKlaim > BATAS_QTY_DIREKTUR || fkp.status === 'rsm_approval_resolusi'
   // BARU — jalur cepat: total qty klaim ≤ BATAS_QTY_DIREKTUR. Dipakai untuk
   // menampilkan section "Catatan Investigasi QC (Paralel)" — cermin logic
   // backend admin_ho_review()/qc_catatan_investigasi_paralel().
@@ -813,7 +814,6 @@ export function FkpDetailPage() {
   // permission warehouse.surat_jalan.create dicabut dari admin_ho).
   const bisaBuatSj = ['warehouse', 'superadmin'].includes(kodeRole)
   const bisaKelolaInvoice = ['admin_ho', 'finance', 'superadmin'].includes(kodeRole)
-  const bisaConfirmResolusi = ['admin_ho', 'superadmin'].includes(kodeRole)
 
   const sisaKuotaItem = (itemId: string): number | null => {
     const item = fkp.items.find((it) => it.id === itemId)
@@ -888,14 +888,12 @@ export function FkpDetailPage() {
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div className="flex flex-1 flex-col gap-y-2">
-            <StatusBadge classname="flex w-fit flex-wrap sm:hidden rounded-md" status={fkp.status} />
-            <p className="text-xs font-mono text-gray-400">{fkp.nomor_fkp}</p>
+            <StatusBadge classname="flex w-fit flex-wrap sm:hidden rounded-md" status={fkp.status} jalur={fkp.jalur} pcsTahap={fkp.pcs_tahap} />            <p className="text-xs font-mono text-gray-400">{fkp.nomor_fkp}</p>
             <h1 className="text-xl font-bold text-gray-900 mt-0.5">Detail FKP</h1>
           </div>
         </div>
         <div className="hidden sm:flex h-full flex-col items-end md:flex-row md:items-center gap-2 shrink-0">
-          <StatusBadge classname="hidden sm:flex w-fit flex-wrap rounded-md" status={fkp.status} />
-          {/* <PrioritasBadge prioritas={fkp.prioritas} /> */}
+          <StatusBadge classname="hidden sm:flex w-fit flex-wrap rounded-md" status={fkp.status} jalur={fkp.jalur} pcsTahap={fkp.pcs_tahap} />          {/* <PrioritasBadge prioritas={fkp.prioritas} /> */}
         </div>
       </div>
 
@@ -907,6 +905,36 @@ export function FkpDetailPage() {
             <p className="text-sm font-semibold text-red-800">FKP Perlu Diperbaiki</p>
             <p className="text-sm text-red-700 mt-0.5">Periksa catatan, perbaiki data/item, lalu submit kembali.</p>
           </div>
+        </div>
+      )}
+
+      {/* ── Jalur pcs: ditolak APSM ───────────────────────────────────────── */}
+      {isPcs && fkp.status === 'rejected' && (
+        <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
+          <XCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-red-800">FKP Ditolak oleh APSM</p>
+            {alasanTolakPcs && <p className="text-sm text-red-700">Alasan: {alasanTolakPcs}</p>}
+            <p className="text-sm text-red-700">
+              FKP yang ditolak tidak dapat direvisi. Silakan buat FKP baru.
+            </p>
+            {['distributor', 'outlet', 'sc_spv'].includes(kodeRole) && (
+              <button onClick={() => navigate('/fkp/baru')} className="btn-secondary btn-sm mt-1">
+                <Plus className="w-3.5 h-3.5" /> Buat FKP Baru
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Jalur pcs: selesai ────────────────────────────────────────────── */}
+      {isPcs && fkp.status === 'closed' && (
+        <div className="flex items-start gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+          <p className="text-sm text-emerald-800">
+            Barang keluhan telah diganti oleh APSM
+            {fkp.pcs_selesai_at && <> pada {formatDateTime(fkp.pcs_selesai_at)}</>}.
+          </p>
         </div>
       )}
 
@@ -957,6 +985,8 @@ export function FkpDetailPage() {
             <div className="card-body space-y-4">
               <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
                 <InfoRow label="Nomor FKP" value={fkp.nomor_fkp} mono />
+
+                {fkp.jalur && <InfoRow label="Jalur" value={JALUR_LABEL[fkp.jalur]} />}
                 {/* <InfoRow label="Prioritas" value={fkp.prioritas.replace('_', ' ')} className="capitalize" /> */}
                 {fkp.tanggal_pengajuan && <InfoRow label="Tgl Pengajuan" value={formatDateTime(fkp.tanggal_pengajuan)} />}
                 {fkp.tanggal_selesai && <InfoRow label="Tgl Selesai" value={formatDateTime(fkp.tanggal_selesai)} />}
@@ -997,7 +1027,7 @@ export function FkpDetailPage() {
           {/* Sample Shipment — pengiriman sample fisik ke QC pusat. Selalu
               ditampilkan kecuali FKP masih draft (belum boleh didaftarkan
               sample apapun, lihat guard backend §4.3). */}
-          {fkp.status !== 'draft' && (
+          {fkp.status !== 'draft' && !isPcs && (
             <SampleShipmentSection
               fkpId={fkp.id}
               fkpItems={fkp.items}
@@ -1224,7 +1254,10 @@ export function FkpDetailPage() {
         <div className="grid-col-span-1 space-y-5 order-1 lg:order-2">
 
           {/* Card Aksi */}
-          {hasAnyAction && (
+          {/* Jalur pcs: panel tunggal. Role non-APSM melihatnya read-only. */}
+          {isPcs && <PcsActionPanel fkp={fkp} />}
+
+          {hasAnyAction && !isPcs && (
             <div className="card">
               <div className="card-header"><h2 className="font-semibold text-gray-900">Aksi</h2></div>
               <div className="card-body space-y-2">
@@ -1452,6 +1485,32 @@ export function FkpDetailPage() {
                       <div className="text-xs text-slate-500">Menunggu Warehouse membuat Surat Jalan.</div>
                     )}
 
+                    {/* ── potong_tagihan: detail rekening (Admin HO) → terbitkan invoice (Finance/Admin HO).
+                        Menerbitkan invoice yang men-trigger accepted → in_process. ── */}
+                    {tipeResolusiAktif === 'potong_tagihan' && !invoiceDoc && (
+                      <>
+                        {['admin_ho', 'superadmin'].includes(kodeRole) && (
+                          <button className="btn-secondary w-full" onClick={openRekeningModal}>
+                            <Banknote className="w-4 h-4" />
+                            {rekeningTerisi ? 'Ubah Detail Rekening' : 'Lengkapi Detail Rekening'}
+                          </button>
+                        )}
+                        {bisaKelolaInvoice && (
+                          <button
+                            className="btn-primary w-full"
+                            disabled={!rekeningTerisi}
+                            title={!rekeningTerisi ? 'Detail rekening belum lengkap' : undefined}
+                            onClick={openInvoiceModal}
+                          >
+                            <FileText className="w-4 h-4" /> Terbitkan Invoice
+                          </button>
+                        )}
+                        {!rekeningTerisi && (
+                          <div className="text-xs text-slate-500">Menunggu Admin HO melengkapi detail rekening.</div>
+                        )}
+                      </>
+                    )}
+
                     {/* ── potong_tagihan: info invoice yang sudah diterbitkan ── */}
                     {tipeResolusiAktif === 'potong_tagihan' && invoiceDoc && (
                       <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
@@ -1572,24 +1631,6 @@ export function FkpDetailPage() {
                         </div>
                       </div>
                     )}
-
-                    {/* ── tidak_ada_kompensasi (± dimusnahkan): konfirmasi resolusi ── */}
-                    {tipeResolusiAktif === 'tidak_ada_kompensasi' && (
-                      <>
-                        {/* Info saja, TIDAK memblokir tombol konfirmasi — gate ada di close */}
-                        {butuhBaPemusnahan && (
-                          <div className="text-xs text-amber-600">
-                            Upload dokumen "Berita Acara Pemusnahan & Tukar Barang" bisa menyusul kapan saja sebelum FKP ini ditutup.
-                          </div>
-                        )}
-
-                        {bisaConfirmResolusi && (
-                          <button className="btn-primary w-full" onClick={openConfirmResolusiModal}>
-                            <CheckCircle2 className="w-4 h-4" /> Konfirmasi Resolusi
-                          </button>
-                        )}
-                      </>
-                    )}
                   </>
                 )}
 
@@ -1638,11 +1679,22 @@ export function FkpDetailPage() {
 
                 {canEdit && (
                   <>
-                    <button onClick={() => submit()} disabled={isSubmitting} className="btn-primary w-full">
+                    {campurKemasan && (
+                      <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 space-y-1">
+                        <p>{campurKemasan.pesan}</p>
+                        <p><b>Item pcs:</b> {campurKemasan.itemPcs.join(', ')}</p>
+                        <p><b>Item zak/ball/karton:</b> {campurKemasan.itemNon.join(', ')}</p>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => submit()}
+                      disabled={isSubmitting || !!campurKemasan}
+                      title={campurKemasan ? 'Pisahkan item pcs dan zak/ball/karton ke FKP berbeda' : undefined}
+                      className="btn-primary w-full"
+                    >
                       {isSubmitting
                         ? <><Loader2 className="w-4 h-4 animate-spin" /> Memproses...</>
-                        : <><Send className="w-4 h-4" /> Submit FKP</>
-                      }
+                        : <><Send className="w-4 h-4" /> Submit FKP</>}
                     </button>
                     <button onClick={() => navigate(`/fkp/${fkp.id}/edit`)} className="btn-secondary w-full">
                       <Edit2 className="w-4 h-4" /> Edit FKP
@@ -1682,8 +1734,7 @@ export function FkpDetailPage() {
                       <div className="absolute -left-1.5 w-3 h-3 rounded-full border-2 border-white bg-brand-400" />
                       <p className="text-xs text-gray-400">{formatDateTime(log.changed_at)}</p>
                       <p className="text-sm font-medium text-gray-800 mt-0.5">
-                        {log.status_lama && (
-                          <span className="text-gray-400">
+                        {log.status_lama && log.status_lama !== log.status_baru && (                          <span className="text-gray-400">
                             {FKP_STATUS_LABEL[log.status_lama as FkpStatusKey] ?? log.status_lama} →{' '}
                           </span>
                         )}
@@ -1926,7 +1977,6 @@ export function FkpDetailPage() {
                 onChange={(e) => setTipeResolusi(e.target.value)}>
                 <option value="tukar_barang">Tukar Barang — kirim barang pengganti</option>
                 <option value="potong_tagihan">Potong Tagihan / Cashback</option>
-                <option value="tidak_ada_kompensasi">Tanpa Kompensasi</option>
               </Select>
               {tipeResolusi === 'potong_tagihan' && (
                 <>

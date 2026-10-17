@@ -195,15 +195,11 @@ async def create_product(data: ProductCreate, db: AsyncSession) -> ProductCatalo
     # (jenis_kemasan = kemasan utama). `kemasan` bukan kolom ProductCatalog.
     product = ProductCatalog(**data.model_dump(exclude={"kemasan"}))
     db.add(product)
-    await db.flush()  # product.id tersedia untuk baris kemasan
-
-    await _terapkan_kemasan(product, data.kemasan or [], db)
-
     try:
+        await db.flush()  # product.id tersedia; unique constraint bisa gagal di sini
+        await _terapkan_kemasan(product, data.kemasan or [], db)
         await db.commit()
     except IntegrityError:
-        # Dua pembuatan bersamaan dengan kode yang sama lolos cek di atas;
-        # constraint unik di DB yang menolak yang kedua.
         await db.rollback()
         raise HTTPException(
             status_code=400,

@@ -9,10 +9,10 @@ import { useFkpList } from '@/hooks/useFkp'
 import { computeStats } from '@/api/dashboard'
 import { useCurrentUser, useKodeRole } from '@/store/authStore'
 import { PageLoader } from '@/components/ui/Spinner'
-import { StatusBadge, PrioritasBadge } from '@/components/ui/Badge'
+import { StatusBadge } from '@/components/ui/Badge'
 import { formatRelative } from '@/lib/utils'
-import { FKP_STATUS_LABEL, FKP_PRIORITAS_LABEL } from '@/types'
-import type { FkpStatusKey, FkpPrioritas } from '@/types'
+import { FKP_STATUS_LABEL, JALUR_LABEL, TAHAP_PCS_ORDER, TAHAP_PCS_LABEL_APSM } from '@/types'
+import type { FkpStatusKey, JalurFkp } from '@/types'
 
 // ── Warna chart ──────────────────────────────────────────────────────────────
 const STATUS_COLORS: Record<string, string> = {
@@ -30,11 +30,11 @@ const STATUS_COLORS: Record<string, string> = {
   resolved: '#22c55e',
   closed: '#64748b',
 }
-const PRIORITAS_COLORS: Record<string, string> = {
-  top_urgent: '#dc2626',
-  urgent: '#ea580c',
-  reguler: '#16a34a',
-  low: '#2563eb',
+const JALUR_COLORS: Record<string, string> = {
+  pcs: '#14b8a6',
+  approval_rsm: '#6366f1',
+  approval_direktur: '#a855f7',
+  belum: '#94a3b8',
 }
 const KEMASAN_COLORS = ['#6366f1', '#06b6d4', '#f59e0b']
 
@@ -60,14 +60,28 @@ export function DashboardPage() {
     }))
     .sort((a, b) => b.value - a.value)
 
-  // Data untuk pie chart prioritas
-  const prioritasChartData = Object.entries(stats.by_prioritas)
-    .filter(([, v]) => v > 0)
-    .map(([key, value]) => ({
-      name: FKP_PRIORITAS_LABEL[key as FkpPrioritas]?.replace(/^.\s/, '') ?? key,
-      value,
-      fill: PRIORITAS_COLORS[key] ?? '#94a3b8',
-    }))
+  // Distribusi jalur (pcs / approval RSM / approval Direktur)
+  const jalurChartData = Object.entries(
+    fkpList.reduce<Record<string, number>>((acc, f) => {
+      const k = f.jalur ?? 'belum'
+      acc[k] = (acc[k] ?? 0) + 1
+      return acc
+    }, {}),
+  ).map(([key, value]) => ({
+    name: key === 'belum' ? 'Belum ditentukan' : JALUR_LABEL[key as JalurFkp],
+    value,
+    fill: JALUR_COLORS[key] ?? '#94a3b8',
+  }))
+
+  // FKP pcs per tahap penanganan APSM
+  const fkpPcs = fkpList.filter((f) => f.jalur === 'pcs')
+  const pcsTahapData = [
+    { name: 'Menunggu APSM', value: fkpPcs.filter((f) => f.status === 'pcs_ditangani_apsm' && !f.pcs_tahap).length },
+    ...TAHAP_PCS_ORDER.map((t) => ({
+      name: TAHAP_PCS_LABEL_APSM[t],
+      value: fkpPcs.filter((f) => f.pcs_tahap === t).length,
+    })),
+  ]
 
   // Data kemasan pie
   const kemasanChartData = Object.entries(stats.by_kemasan)
@@ -180,29 +194,21 @@ export function DashboardPage() {
           </div>
         </div>
 
-        {/* Pie chart prioritas */}
+        {/* Pie chart jalur */}
         <div className="card">
           <div className="card-header">
-            <h2 className="font-semibold text-gray-900">Prioritas FKP</h2>
+            <h2 className="font-semibold text-gray-900">Jalur FKP</h2>
           </div>
           <div className="card-body flex flex-col items-center">
-            {prioritasChartData.length === 0 ? (
+            {jalurChartData.length === 0 ? (
               <EmptyChart />
             ) : (
               <>
                 <ResponsiveContainer width="100%" height={160}>
                   <PieChart>
-                    <Pie
-                      data={prioritasChartData}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={45}
-                      outerRadius={70}
-                      paddingAngle={3}
-                    >
-                      {prioritasChartData.map((entry, i) => (
+                    <Pie data={jalurChartData} dataKey="value" nameKey="name" cx="50%" cy="50%"
+                      innerRadius={45} outerRadius={70} paddingAngle={3}>
+                      {jalurChartData.map((entry, i) => (
                         <Cell key={i} fill={entry.fill} />
                       ))}
                     </Pie>
@@ -212,7 +218,7 @@ export function DashboardPage() {
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="space-y-1.5 w-full mt-2">
-                  {prioritasChartData.map((d) => (
+                  {jalurChartData.map((d) => (
                     <div key={d.name} className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-1.5">
                         <div className="w-2.5 h-2.5 rounded-full" style={{ background: d.fill }} />
@@ -222,6 +228,17 @@ export function DashboardPage() {
                     </div>
                   ))}
                 </div>
+                {fkpPcs.length > 0 && (
+                  <div className="w-full mt-3 pt-3 border-t border-gray-100 space-y-1">
+                    <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">FKP pcs per tahap</p>
+                    {pcsTahapData.map((d) => (
+                      <div key={d.name} className="flex items-center justify-between text-xs">
+                        <span className="text-gray-600">{d.name}</span>
+                        <span className="font-semibold text-gray-900">{d.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -318,7 +335,6 @@ export function DashboardPage() {
                 <tr className="border-b border-gray-50 bg-gray-50/50">
                   <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Nomor FKP</th>
                   <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Keluhan</th>
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Prioritas</th>
                   <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
                   <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Dibuat</th>
                   <th />
@@ -333,9 +349,7 @@ export function DashboardPage() {
                   >
                     <td className="px-5 py-3.5 font-mono text-xs text-gray-500">{fkp.nomor_fkp}</td>
                     <td className="px-5 py-3.5 text-gray-800 font-medium truncate max-w-50">{fkp.jenis_keluhan}</td>
-                    <td><PrioritasBadge prioritas={fkp.prioritas as FkpPrioritas} /></td>
-                    <td className="px-5 py-3.5"><StatusBadge status={fkp.status} /></td>
-                    <td className="px-5 py-3.5 text-gray-400 text-xs">{formatRelative(fkp.created_at)}</td>
+                    <td className="px-5 py-3.5"><StatusBadge status={fkp.status} jalur={fkp.jalur} pcsTahap={fkp.pcs_tahap} /></td>                    <td className="px-5 py-3.5 text-gray-400 text-xs">{formatRelative(fkp.created_at)}</td>
                     <td className="px-5 py-3.5">
                       <ArrowRight className="w-4 h-4 text-gray-300" />
                     </td>

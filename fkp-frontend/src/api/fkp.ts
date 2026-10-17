@@ -10,11 +10,13 @@ import type {
   QcInvestigasiPayload,
   ResolusiPayload,
   BeritaAcaraGenerateResponse,
+  JalurFkp,
+  TahapPcs,
 } from '@/types'
 
 export interface FkpListParams {
   status?: string
-  prioritas?: string
+  jalur?: JalurFkp
   outlet_id?: string
   distributor_id?: string
   area_id?: string
@@ -65,7 +67,7 @@ export const fkpApi = {
 
   update: async (
     id: string,
-    data: { outlet_id?: string | null; prioritas?: string; catatan_distributor?: string | null },
+    data: { outlet_id?: string | null; jalur?: JalurFkp; pcs_tahap?: TahapPcs; catatan_distributor?: string | null },
   ): Promise<FkpDetail> => {
     const res = await api.patch<FkpDetail>(`/fkp/${id}`, data)
     return res.data
@@ -180,11 +182,11 @@ export const fkpApi = {
   ) =>
     api.post<FkpDetail>(`/fkp/${id}/direktur-approve`, data).then((r) => r.data),
 
-  // accepted → in_process | closed (pemusnahan langsung closed)
+  // accepted → in_process (hanya stub; lihat catatan DEPRECATED di bawah)
   // [DEPRECATED] Backend sekarang stub yang forward ke buat_resolusi() dan
   // TIDAK PERNAH lagi memindahkan status (lihat catatan di
   // fkp_service.update_pengiriman()). Untuk tukar_barang pakai
-  // warehouseApi.create(), untuk resolusi lain pakai fkpApi.confirmResolusi().
+  // warehouseApi.create(), untuk potong_tagihan pakai financeApi.terbitkanInvoice().
   updatePengiriman: (
     id: string,
     data: {
@@ -214,6 +216,10 @@ export const fkpApi = {
   requestRevision: (id: string, data: { catatan?: string | null }) =>
     api.post<FkpDetail>(`/fkp/${id}/request-revision`, data).then((r) => r.data),
 
+  // Jalur pcs: majukan tahap penanganan (tidak bisa mundur). Mengembalikan detail terbaru.
+  updateTahapPcs: (id: string, data: { tahap: TahapPcs; catatan?: string | null }) =>
+    api.patch<FkpDetail>(`/fkp/${id}/pcs/tahap`, data).then((r) => r.data),
+
   // Tolak FKP — catatan wajib
   reject: (id: string, data: { catatan: string }) =>
     api.post<FkpDetail>(`/fkp/${id}/reject`, data).then((r) => r.data),
@@ -222,19 +228,9 @@ export const fkpApi = {
   createResolusi: (id: string, data: ResolusiPayload) =>
     api.post<FkpDetail>(`/fkp/${id}/resolusi`, data).then((r) => r.data),
 
-  // [BARU — Modul Sample Shipment] Trigger accepted → in_process untuk
-  // resolusi SELAIN tukar_barang & potong_tagihan (tidak_ada_kompensasi,
-  // dengan/tanpa metode_penanganan_fisik = dimusnahkan). Hanya admin_ho/
-  // superadmin. catatan WAJIB kalau tipe_resolusi = tidak_ada_kompensasi.
-  // [Phase 9] Gate BA pemusnahan TIDAK dicek di endpoint ini — dipindah ke
-  // close(). Generate/upload BA boleh dilakukan kapan saja selama
-  // accepted/in_process, tidak memblokir konfirmasi resolusi.
-  confirmResolusi: (id: string, catatan?: string | null) =>
-    api
-      .post<FkpDetail>(`/fkp/${id}/confirm-resolusi`, null, {
-        params: catatan ? { catatan } : undefined,
-      })
-      .then((r) => r.data),
+  // Resolusi hanya punya dua tipe (tukar_barang, potong_tagihan) dan masing-masing
+  // punya pemicu accepted → in_process sendiri (Surat Jalan / invoice), jadi tidak
+  // ada endpoint "konfirmasi resolusi". Gate BA pemusnahan dicek di close().
 
   teruskanKeWarehouse: (fkpId: string, catatan: string | null) =>
     api.post(`/fkp/${fkpId}/teruskan-warehouse`, { catatan }),

@@ -19,14 +19,16 @@ if TYPE_CHECKING:
 # ─── PENENTUAN JALUR APPROVAL ─────────────────────────────────────────────────
 # Jalur approval FKP ditentukan SEKALI, di admin_ho_review() (fkp_service.py),
 # murni dari TOTAL QTY KLAIM SAAT PENGAJUAN (FkpItem.qty, seluruh item FKP),
-# hanya untuk kemasan di KEMASAN_DIHITUNG_JALUR. Kemasan lain (pcs/renceng)
-# SENGAJA tidak dihitung.
+# hanya untuk kemasan di KEMASAN_DIHITUNG_JALUR (zak/ball/karton). FKP yang
+# SEMUA itemnya pcs TIDAK lewat jalur approval: ditangani langsung APSM
+# (FkpComplaint.jalur = pcs, status PCS_DITANGANI_APSM, lihat submit_fkp()).
+# pcs tidak boleh bercampur dengan zak/ball/karton dalam satu FKP.
 #
-#   total qty ≤ BATAS_QTY_DIREKTUR  → JALUR CEPAT
+#   total qty ≤ BATAS_QTY_DIREKTUR  → JALUR APPROVAL RSM
 #       apsm_reviewed → rsm_approval_final → accepted
 #       RSM adalah approval terakhir. Direktur TIDAK dilibatkan.
 #
-#   total qty > BATAS_QTY_DIREKTUR  → JALUR REGULER
+#   total qty > BATAS_QTY_DIREKTUR  → JALUR APPROVAL DIREKTUR
 #       apsm_reviewed → rsm_approval_investigasi → in_investigation
 #       → investigated → rsm_approval_resolusi → direktur_approval → accepted
 #       Direktur WAJIB approve untuk SEMUA tipe_resolusi.
@@ -44,23 +46,25 @@ class JenisKemasan:
     coalesce di _hitung_total_qty_jalur().
     """
     KARTON  = "karton"
-    RENCENG = "renceng"
     BALL    = "ball"
     ZAK     = "zak"
     PCS     = "pcs"
 
-    ALL = [KARTON, RENCENG, BALL, ZAK, PCS]
+    ALL = [KARTON, BALL, ZAK, PCS]
 
     LABELS = {
         KARTON:  "Karton",
-        RENCENG: "Renceng",
         BALL:    "Ball",
         ZAK:     "Zak",
-        PCS:     "Pcs",
+        PCS:     "Pcs (ecer)",
     }
 
 BATAS_QTY_DIREKTUR = 10
 KEMASAN_DIHITUNG_JALUR = (JenisKemasan.ZAK, JenisKemasan.BALL, JenisKemasan.KARTON)
+# KEMASAN_PCS dan KEMASAN_DIHITUNG_JALUR harus MEMBAGI JenisKemasan.ALL tanpa irisan
+# (dijaga lewat test). Didefinisikan di sini, bukan di product.py, karena product.py
+# meng-import FkpItem dari file ini.
+KEMASAN_PCS = (JenisKemasan.PCS,)
 
 # ─── KONSTANTA ────────────────────────────────────────────────────────────────
 
@@ -73,7 +77,7 @@ class FkpStatus:
     INVESTIGATED             = "investigated"
     RSM_APPROVAL_RESOLUSI    = "rsm_approval_resolusi"
     DIREKTUR_APPROVAL        = "direktur_approval"
-    # Jalur cepat (total qty klaim ≤ BATAS_QTY_DIREKTUR). Tidak melewati
+    # Jalur approval RSM (total qty klaim ≤ BATAS_QTY_DIREKTUR). Tidak melewati
     # investigasi QC yang menahan status, dan tidak melewati Direktur.
     # Admin HO membuat resolusi (+ qty_disetujui bila tukar_barang) SAAT
     # status masih di sini, SEBELUM MSM approve — MSM_approve_final()
@@ -85,6 +89,9 @@ class FkpStatus:
     NEED_REVISION            = "need_revision"
     REJECTED                 = "rejected"
     CLOSED                   = "closed"
+    # Jalur pcs: FKP yang SEMUA itemnya pcs ditangani langsung APSM, tanpa
+    # Admin HO / RSM / QC / Direktur. Penutupan -> CLOSED, penolakan -> REJECTED.
+    PCS_DITANGANI_APSM       = "pcs_ditangani_apsm"
 
     ALL = [
         DRAFT, SUBMITTED, APSM_REVIEWED,
@@ -92,6 +99,7 @@ class FkpStatus:
         RSM_APPROVAL_RESOLUSI, DIREKTUR_APPROVAL, RSM_APPROVAL_FINAL,
         ACCEPTED, IN_PROCESS,
         NEED_REVISION, REJECTED, CLOSED,
+        PCS_DITANGANI_APSM,
     ]
 
     LABELS = {
@@ -109,6 +117,7 @@ class FkpStatus:
         NEED_REVISION:            "Perlu Revisi",
         REJECTED:                 "Ditolak",
         CLOSED:                   "Selesai / Ditutup",
+        PCS_DITANGANI_APSM:       "Pcs — Ditangani APSM",
     }
 
     # Status di mana FKP masih bisa diedit oleh distributor/outlet
@@ -118,6 +127,26 @@ class FkpStatus:
     TERMINAL = [REJECTED, CLOSED]
     
     FINANCE_VISIBLE = [ACCEPTED, IN_PROCESS, CLOSED]
+
+
+class JalurFkp:
+    """
+    Jalur penanganan FKP (kolom FkpComplaint.jalur). Menggantikan istilah
+    'jalur approval RSM/reguler'. NULL = belum ditentukan (FKP sebelum admin_ho_review,
+    atau FKP lama yang tidak ter-backfill).
+    """
+    PCS               = "pcs"
+    APPROVAL_RSM      = "approval_rsm"        # total zak/ball/karton <= BATAS_QTY_DIREKTUR
+    APPROVAL_DIREKTUR = "approval_direktur"   # total zak/ball/karton >  BATAS_QTY_DIREKTUR
+    ALL = [PCS, APPROVAL_RSM, APPROVAL_DIREKTUR]
+
+
+class TahapPcs:
+    """Tahap penanganan jalur pcs (FkpComplaint.pcs_tahap). Hanya maju."""
+    DALAM_PENGAJUAN = "dalam_pengajuan"
+    DALAM_PROSES    = "dalam_proses"
+    SELESAI         = "selesai"
+    URUTAN = (DALAM_PENGAJUAN, DALAM_PROSES, SELESAI)
 
 
 class FkpPrioritas:
@@ -357,7 +386,6 @@ class JenisKeluhan:
         BENDA_ASING:           "Ditemukan benda asing",
         KEMASAN_BOCOR:         "Kemasan bocor / rusak",
         SALAH_PRODUK:          "Produk tidak sesuai pesanan",
-        KUALITAS_TIDAK_SESUAI: "Kualitas tidak sesuai standar",
         LAINNYA:               "Lainnya",
     }
 
@@ -380,6 +408,22 @@ class FkpComplaint(SQLModel, table=True):
     prioritas: str = Field(default=FkpPrioritas.REGULER, max_length=20)
     status: str = Field(default=FkpStatus.DRAFT, max_length=40, index=True)
 
+    # Jalur penanganan (lihat JalurFkp). Semua kolom di bawah nullable supaya
+    # data lama tidak perlu diubah.
+    jalur: Optional[str] = Field(default=None, max_length=20, index=True)
+    # Jalur pcs: tahap aktif. NULL = baru masuk, belum disentuh APSM.
+    pcs_tahap: Optional[str] = Field(default=None, max_length=20)
+    # Timestamp = checklist tahap (terisi = tercentang) sekaligus bahan durasi/KPI.
+    pcs_pengajuan_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    pcs_proses_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    pcs_selesai_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+
     lokasi_pembelian: Optional[str] = Field(default=None, max_length=255)
     
     # Catatan level FKP (ringkasan, bukan per item)
@@ -401,9 +445,9 @@ class FkpComplaint(SQLModel, table=True):
     # SALING EKSKLUSIF — satu FKP hanya punya salah satunya terisi, sesuai
     # jalur approval-nya (lihat penjelasan jalur di atas BATAS_QTY_DIREKTUR):
     #
-    #   approved_by_direktur  → jalur REGULER (total qty klaim > batas).
+    #   approved_by_direktur  → jalur approval_direktur (total qty klaim > batas).
     #       Diisi direktur_approve(). Direktur selalu terlibat.
-    #   approved_by_rsm_final → jalur CEPAT (total qty klaim ≤ batas).
+    #   approved_by_rsm_final → jalur approval_rsm (total qty klaim ≤ batas).
     #       Diisi rsm_approve_final(). Direktur tidak pernah terlibat.
     #
     # Dipakai PDF FKP (section D. Tanda Tangan) untuk kolom TTD ke-4:
@@ -475,7 +519,7 @@ class FkpItem(SQLModel, table=True):
     jenis_kemasan: Optional[str] = Field(default=None, max_length=20)
 
     # Qty klaim saat pengajuan. Penjumlahan qty seluruh item (khusus kemasan
-    # di KEMASAN_DIHITUNG_JALUR) inilah SATU-SATUNYA penentu jalur cepat vs
+    # di KEMASAN_DIHITUNG_JALUR) inilah SATU-SATUNYA penentu jalur approval RSM vs
     # reguler + keterlibatan Direktur (lihat BATAS_QTY_DIREKTUR di atas).
     qty: int = Field(default=0) 
     batch_number: Optional[str] = Field(default=None, max_length=50)
@@ -515,8 +559,8 @@ class FkpItem(SQLModel, table=True):
     # persentase_disetujui_qc (di bawah) sebagai rekomendasi/insight.
     # status_item berubah dari 'pending' ke 'diterima' otomatis di titik
     # approval TERAKHIR yang menyetujui FKP:
-    #   - jalur cepat   → rsm_approve_final()
-    #   - jalur reguler → direktur_approve()
+    #   - jalur approval RSM   → rsm_approve_final()
+    #   - jalur approval Direktur → direktur_approve()
     # (lihat _tandai_item_diterima_setelah_approval_final() di fkp_service.py).
     # Dengan begitu status_item tidak pernah 'diterima' untuk FKP yang pada
     # akhirnya ditolak approval akhir.

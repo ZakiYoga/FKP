@@ -1,6 +1,6 @@
-import { Search, SlidersHorizontal, X } from 'lucide-react'
-import { FKP_STATUS_LABEL, FKP_PRIORITAS_LABEL } from '@/types'
-import type { FkpStatusKey, FkpPrioritas } from '@/types'
+import { Search, X } from 'lucide-react'
+import { FKP_STATUS_LABEL, JALUR_LABEL } from '@/types'
+import type { FkpStatusKey, JalurFkp } from '@/types'
 import { useAreas, useDistributors, useOutlets } from '@/hooks/useMasterData'
 
 export interface AdvFilters {
@@ -16,8 +16,10 @@ interface FkpFilterBarProps {
   onSearchChange: (v: string) => void
   statusFilter: string
   onStatusChange: (v: string) => void
-  prioritasFilter: string
-  onPrioritasChange: (v: string) => void
+  // Pengganti filter prioritas: semua FKP baru berprioritas 'reguler', jadi
+  // yang membedakan alur kini adalah jalur (pcs / approval RSM / approval Direktur).
+  jalurFilter: string
+  onJalurChange: (v: string) => void
   advFilters: AdvFilters
   onAdvChange: (patch: Partial<AdvFilters>) => void
   totalCount: number
@@ -27,22 +29,13 @@ const selectClass =
   'text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 ' +
   'focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 cursor-pointer'
 
-// SEMENTARA DINONAKTIFKAN — logic backend saat ini belum memperhatikan
-// prioritas sama sekali (semua data reguler/seragam), jadi filter ini
-// tidak berguna dan berpotensi membingungkan user (terlihat ada pilihan
-// tapi hasil filter tidak pernah berubah secara berarti).
-// Sengaja TIDAK dihapus (props, handler, dan opsi di FKP_PRIORITAS_LABEL
-// tetap ada) supaya tinggal di-set true lagi begitu logic prioritas
-// benar-benar dipakai di backend.
-const SHOW_PRIORITAS_FILTER = false
-
 export function FkpFilterBar({
   search,
   onSearchChange,
   statusFilter,
   onStatusChange,
-  prioritasFilter,
-  onPrioritasChange,
+  jalurFilter,
+  onJalurChange,
   advFilters,
   onAdvChange,
   totalCount,
@@ -53,14 +46,14 @@ export function FkpFilterBar({
 
   const hasFilter =
     statusFilter ||
-    (SHOW_PRIORITAS_FILTER && prioritasFilter) ||
+    jalurFilter ||
     search ||
     Object.values(advFilters).some(Boolean)
 
   const clearAll = () => {
     onSearchChange('')
     onStatusChange('')
-    onPrioritasChange('')
+    onJalurChange('')
     onAdvChange({
       area_id: '',
       distributor_id: '',
@@ -86,7 +79,7 @@ export function FkpFilterBar({
             />
           </div>
 
-          {/* Status filter */}
+          {/* Status filter — otomatis memuat 'Ditangani APSM' dari FKP_STATUS_LABEL */}
           <select
             value={statusFilter}
             onChange={(e) => onStatusChange(e.target.value)}
@@ -100,21 +93,19 @@ export function FkpFilterBar({
             ))}
           </select>
 
-          {/* Prioritas filter — lihat SHOW_PRIORITAS_FILTER di atas */}
-          {SHOW_PRIORITAS_FILTER && (
-            <select
-              value={prioritasFilter}
-              onChange={(e) => onPrioritasChange(e.target.value)}
-              className={selectClass}
-            >
-              <option value="">Semua Prioritas</option>
-              {(Object.keys(FKP_PRIORITAS_LABEL) as FkpPrioritas[]).map((key) => (
-                <option key={key} value={key}>
-                  {FKP_PRIORITAS_LABEL[key]}
-                </option>
-              ))}
-            </select>
-          )}
+          {/* Jalur filter */}
+          <select
+            value={jalurFilter}
+            onChange={(e) => onJalurChange(e.target.value)}
+            className={selectClass}
+          >
+            <option value="">Semua Jalur</option>
+            {(Object.keys(JALUR_LABEL) as JalurFkp[]).map((key) => (
+              <option key={key} value={key}>
+                {JALUR_LABEL[key]}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* Clear all */}

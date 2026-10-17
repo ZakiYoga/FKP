@@ -114,6 +114,22 @@ export const outletApi = {
 }
 
 // ─── PRODUCT ──────────────────────────────────────────────────────────────────
+export interface ProductCreatePayload {
+  kode_produk: string
+  nama_produk: string
+  kemasan: string[]
+  berat_gr: number
+  qty_per_kemasan?: number | null
+}
+
+export interface ProductUpdatePayload {
+  nama_produk?: string
+  berat_gr?: number | null
+  is_active?: boolean
+  qty_per_kemasan?: number | null
+  foto_url?: string | null
+}
+
 export const productApi = {
   list: async (params?: { jenis_kemasan?: string; is_active?: boolean }): Promise<Product[]> => {
     const res = await api.get<Product[]>('/products/', { params })
@@ -123,22 +139,16 @@ export const productApi = {
     const res = await api.get<Product>(`/products/${id}`)
     return res.data
   },
-  create: async (data: {
-    kode_produk: string
-    nama_produk: string
-    jenis_kemasan: string
-    berat_gr?: number | null
-  }): Promise<Product> => {
+  create: async (data: ProductCreatePayload): Promise<Product> => {
     const res = await api.post<Product>('/products/', data)
     return res.data
   },
-  update: async (id: string, data: Partial<{
-    nama_produk: string
-    jenis_kemasan: string
-    berat_gr: number
-    is_active: boolean
-  }>): Promise<Product> => {
+  update: async (id: string, data: ProductUpdatePayload): Promise<Product> => {
     const res = await api.put<Product>(`/products/${id}`, data)
+    return res.data
+  },
+  setKemasan: async (id: string, kemasan: string[]): Promise<Product> => {
+    const res = await api.put<Product>(`/products/${id}/kemasan`, { kemasan })
     return res.data
   },
 }

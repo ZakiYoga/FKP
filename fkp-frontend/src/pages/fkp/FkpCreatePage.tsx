@@ -15,6 +15,7 @@ import { JENIS_KELUHAN_LABEL } from '@/types'
 import toast from 'react-hot-toast'
 import { fkpApi } from '@/api/fkp'
 import type { ItemFormData } from '@/schemas/itemFKPSchema'
+import { cekCampurKemasan } from '@/lib/kemasan'
 
 
 // ─── Schema header FKP ────────────────────────────────────────────────────────
@@ -80,6 +81,7 @@ export function FkpCreatePage() {
 
     const watchDistributor = watch('distributor_id')
     const watchOutlet = watch('outlet_id')
+    const watchLokasiPembelian = watch('lokasi_pembelian')
 
     useEffect(() => {
         if (distributors.length === 1 && !watchDistributor)
@@ -136,7 +138,10 @@ export function FkpCreatePage() {
 
     const outletBelumTerdaftar = isOutlet && !loadingDist && distributors.length === 0
     const lokasi_pembelian = watch('lokasi_pembelian')
-
+    const campurKemasan = cekCampurKemasan(
+        items.map((i) => i.payload),
+        Object.fromEntries(products.map((p) => [p.id, p.nama_produk])),
+    )
     const openAddItemModal = () => {
         setEditingKey(null)
         setResetKey((k) => k + 1)
@@ -184,6 +189,7 @@ export function FkpCreatePage() {
     // ── Submit FKP ───────────────────────────────────────────────────────────
     const onSubmit = async (header: HeaderForm) => {
         if (items.length === 0) { toast.error('Tambahkan minimal 1 item produk.'); return }
+        if (campurKemasan) { toast.error('Pisahkan item pcs dan zak/ball/karton ke FKP berbeda.'); return }
         try {
             const fkp = await createFkp({
                 distributor_id: header.distributor_id,
@@ -219,8 +225,12 @@ export function FkpCreatePage() {
             }
 
             if (submitMode === 'submit') {
-                await fkpApi.submit(fkp.id)
-                toast.success(`FKP ${fkp.nomor_fkp} berhasil dibuat dan disubmit.`)
+                const submitted = await fkpApi.submit(fkp.id)
+                toast.success(
+                    submitted.status === 'pcs_ditangani_apsm'
+                        ? `FKP ${fkp.nomor_fkp} dikirim. FKP kemasan pcs ditangani langsung oleh APSM, tanpa approval Admin HO/RSM.`
+                        : `FKP ${fkp.nomor_fkp} berhasil dibuat dan disubmit.`,
+                )
             } else {
                 toast.success(`FKP ${fkp.nomor_fkp} berhasil disimpan sebagai Draft.`)
             }
@@ -518,6 +528,14 @@ export function FkpCreatePage() {
                                 )
                             })}
 
+                            {campurKemasan && (
+                                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 space-y-1">
+                                    <p>{campurKemasan.pesan}</p>
+                                    <p><b>Item pcs:</b> {campurKemasan.itemPcs.join(', ')}</p>
+                                    <p><b>Item zak/ball/karton:</b> {campurKemasan.itemNon.join(', ')}</p>
+                                </div>
+                            )}
+
                             <button type="button" onClick={openAddItemModal} disabled={loadingProd}
                                 className="w-full border-2 border-dashed border-gray-200 rounded-xl py-4
                                        flex items-center justify-center gap-2 text-gray-400 text-sm
@@ -529,19 +547,19 @@ export function FkpCreatePage() {
 
                 </div>
 
-                    {/* ── Section 3: Catatan ───────────────────────────── */}
-                    <div className="card">
-                        <div className="card-header">
-                            <h2 className="font-semibold text-gray-900">Catatan Tambahan</h2>
-                        </div>
-                        <div className="card-body">
-                            <Textarea
-                                placeholder="Catatan tambahan, kondisi penyimpanan, atau info lain yang relevan..."
-                                rows={3}
-                                {...register('catatan_distributor')}
-                            />
-                        </div>
+                {/* ── Section 3: Catatan ───────────────────────────── */}
+                <div className="card">
+                    <div className="card-header">
+                        <h2 className="font-semibold text-gray-900">Catatan Tambahan</h2>
                     </div>
+                    <div className="card-body">
+                        <Textarea
+                            placeholder="Catatan tambahan, kondisi penyimpanan, atau info lain yang relevan..."
+                            rows={3}
+                            {...register('catatan_distributor')}
+                        />
+                    </div>
+                </div>
 
                 {/* ── Actions ─────────────────────────────────────── */}
                 <div className="flex flex-col md:flex-row items-center justify-between gap-3 pb-8">
@@ -553,8 +571,7 @@ export function FkpCreatePage() {
                         <button
                             type="submit"
                             onClick={() => setSubmitMode('draft')}
-                            disabled={isCreating || outletBelumTerdaftar || !lokasi_pembelian || items.length === 0}
-                            className="btn-secondary w-full md:w-fit">
+disabled={isCreating || outletBelumTerdaftar || !lokasi_pembelian || items.length === 0 || !!campurKemasan}                            className="btn-secondary w-full md:w-fit">
                             {isCreating && submitMode === 'draft'
                                 ? <><Loader2 className="w-4 h-4 animate-spin" /> Menyimpan...</>
                                 : <><Package className="w-4 h-4" />Simpan Draft</>}
@@ -579,6 +596,7 @@ export function FkpCreatePage() {
                 resetKey={resetKey}
                 initialData={editingItem?.formData ?? null}
                 initialFiles={editingItem?.files}
+                existingItems={items.filter((i) => i._key !== editingKey).map((i) => i.payload)}
                 variant={editingItem ? 'edit-saved' : 'add'}
                 onSave={handleItemSave}
                 isSaving={isSavingItem}

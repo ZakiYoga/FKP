@@ -48,7 +48,7 @@ _SJ_KATEGORI = {
 _SJ_RANK = {"delivered": 3, "shipped": 2, "issued": 1, "draft": 1}
 
 _HEADERS = [
-    "Nomor FKP", "Tanggal FKP Dibuat", "Status FKP", "Jalur", "Tipe Resolusi",
+    "Nomor FKP", "Tanggal FKP Dibuat", "Status FKP", "Jalur", "Tahap PCS", "Tipe Resolusi",
     "Toko / Outlet", "Distributor", "Area",
     "Nama Produk", "Qty Klaim", "Qty Disetujui", "Status Item",
     "Metode Penanganan Fisik", "Nilai Cashback", "Catatan Resolusi",
@@ -201,14 +201,37 @@ def resolve_status_sj(sj_list: List[WarehouseSuratJalan]) -> str:
 
 # ─── Build baris (item x sample) ───────────────────────────────────────────
 
+_JALUR_DB_KE_KPI = {"approval_rsm": "cepat", "approval_direktur": "reguler", "pcs": "pcs"}
+_JALUR_LABELS = {"cepat": "Cepat", "reguler": "Reguler", "pcs": "PCS"}
+_TAHAP_PCS_LABELS = {
+    "dalam_pengajuan": "Dalam proses pengajuan",
+    "dalam_proses":    "Dalam proses",
+    "selesai":         "Selesai (close)",
+}
+_TIDAK_BERLAKU_PCS = "Tidak berlaku (jalur pcs — ditangani langsung APSM)"
+
+
+def _jalur_fkp(fkp: FkpComplaint, logs: List[FkpStatusLog]) -> Optional[str]:
+    """Jalur untuk tampilan/KPI. Utamakan kolom FkpComplaint.jalur (diisi submit_fkp()
+    untuk pcs dan admin_ho_review() untuk approval_rsm/approval_direktur); FKP lama
+    yang kolomnya masih NULL jatuh ke deteksi dari status_logs."""
+    return _JALUR_DB_KE_KPI.get(getattr(fkp, "jalur", None)) or deteksi_jalur(logs)
+
+
 def build_rows(complaints: List[FkpComplaint]) -> List[list]:
     rows: List[list] = []
 
     for fkp in complaints:
         logs = fkp.status_logs or []
-        jalur = deteksi_jalur(logs)
-        durasi_rsm = hitung_durasi_rsm(logs, jalur)
-        durasi_qc = hitung_durasi_qc(logs, jalur)
+        jalur = _jalur_fkp(fkp, logs)
+        if jalur == "pcs":
+            durasi_rsm = _TIDAK_BERLAKU_PCS
+            durasi_qc = _TIDAK_BERLAKU_PCS
+            tahap_pcs = _TAHAP_PCS_LABELS.get(getattr(fkp, "pcs_tahap", None), "Belum dimulai")
+        else:
+            durasi_rsm = hitung_durasi_rsm(logs, jalur)
+            durasi_qc = hitung_durasi_qc(logs, jalur)
+            tahap_pcs = "-"
         status_sj = resolve_status_sj(fkp.warehouse_surat_jalan or [])
 
         resolusi = fkp.resolution
@@ -228,7 +251,8 @@ def build_rows(complaints: List[FkpComplaint]) -> List[list]:
             fkp.nomor_fkp,
             _to_wib(fkp.created_at),
             FkpStatus.LABELS.get(fkp.status, fkp.status),
-            {"cepat": "Cepat", "reguler": "Reguler"}.get(jalur, "-"),
+            _JALUR_LABELS.get(jalur, "-"),
+            tahap_pcs,
             tipe_resolusi,
             fkp.outlet.nama_toko if fkp.outlet else "-",
             fkp.distributor.nama_perusahaan if fkp.distributor else "-",
@@ -333,13 +357,17 @@ async def export_fkp_excel(
     area_id=None,
     tanggal_dari=None,
     tanggal_sampai=None,
+    jalur: Optional[str] = None,
 ) -> io.BytesIO:
     """Reuse list_fkp() untuk scoping + filter — IDENTIK dengan yang aktif
     di halaman List FKP. eager_full=True supaya semua relasi yang dibutuhkan
-    export ikut ter-load dalam 1 query (lihat perubahan di fkp_service.py)."""
+    export ikut ter-load dalam beberapa selectinload (tanpa N+1).
+
+    jalur: pcs | approval_rsm | approval_direktur (divalidasi list_fkp(), 400
+    bila salah). Isi 'pcs' untuk export khusus FKP kemasan pcs."""
     complaints = await list_fkp(
         db, user, kode_role,
-        status_filter=status, prioritas_filter=prioritas,
+        status_filter=status, prioritas_filter=prioritas, jalur_filter=jalur,
         outlet_id=outlet_id, distributor_id=distributor_id, area_id=area_id,
         tanggal_dari=tanggal_dari, tanggal_sampai=tanggal_sampai,
         eager_full=True,

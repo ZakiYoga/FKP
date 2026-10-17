@@ -24,6 +24,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { fkpKeys } from '@/hooks/useFkp'
 import type { ItemFormData } from '@/schemas/itemFKPSchema'
 import { useFkpEditState, type PendingAddedItem } from '@/hooks/useFkpEditState'
+import { cekCampurKemasan } from '@/lib/kemasan'
 
 // ── Schema header ─────────────────────────────────────────────────────────────
 
@@ -217,7 +218,7 @@ export function FkpEditPage() {
 
       queryClient.invalidateQueries({ queryKey: fkpKeys.detail(id!) })
       notifications.show({ message: 'FKP berhasil disimpan.', color: 'green' })
-      isNavigatingAfterSaveRef.current = true 
+      isNavigatingAfterSaveRef.current = true
       navigate(`/fkp/${id}`)
     } catch {
       notifications.show({ message: 'Gagal menyimpan sebagian perubahan. Coba lagi.', color: 'red' })
@@ -412,6 +413,28 @@ export function FkpEditPage() {
   }
 
   const modalProps = getModalProps()
+
+  // Kemasan semua item yang tampil, dengan perubahan sesi ini ikut dihitung.
+  const semuaItemKemasan = [
+    ...visibleItems.existing.map((i) => ({
+      key: i.id,
+      product_id: editState.updated[i.id]?.payload.product_id ?? i.product_id,
+      jenis_kemasan: editState.updated[i.id]?.payload.jenis_kemasan ?? i.jenis_kemasan,
+    })),
+    ...visibleItems.added.map((i) => ({
+      key: i.tempId,
+      product_id: i.payload.product_id,
+      jenis_kemasan: i.payload.jenis_kemasan,
+    })),
+  ]
+  const keyItemDiedit =
+    modalMode?.type === 'edit-existing' ? modalMode.item.id
+      : modalMode?.type === 'edit-added' ? modalMode.item.tempId
+        : null
+  const campurKemasan = cekCampurKemasan(
+    semuaItemKemasan,
+    Object.fromEntries(products.map((p) => [p.id, p.nama_produk])),
+  )
 
   return (
     <div className="max-w-3xl mx-auto animate-fade-in">
@@ -613,6 +636,15 @@ export function FkpEditPage() {
             })}
 
             {/* Hint jika semua item dihapus */}
+            {campurKemasan && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 space-y-1">
+                <p>{campurKemasan.pesan}</p>
+                <p><b>Item pcs:</b> {campurKemasan.itemPcs.join(', ')}</p>
+                <p><b>Item zak/ball/karton:</b> {campurKemasan.itemNon.join(', ')}</p>
+                <p>FKP ini tidak bisa disubmit sebelum kemasannya seragam.</p>
+              </div>
+            )}
+
             {totalItems === 0 && (
               <div className="text-center py-4 px-3 bg-red-50 border border-red-100 rounded-xl">
                 <p className="text-sm text-red-600 font-medium">Minimal 1 item produk harus ada</p>
@@ -766,6 +798,7 @@ export function FkpEditPage() {
         onSave={handleItemSave}
         isSaving={isSavingItem}
         {...modalProps}
+        existingItems={semuaItemKemasan.filter((i) => i.key !== keyItemDiedit)}
       />
 
       {/* ── Confirm: buang perubahan ──────────────────────────────── */}

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/pages/documents/PemusnahanTukarBarangTab.tsx
 //
 // Konten form "Berita Acara Pemusnahan dan Tukar Barang" (SPP/QC/FORM 26).
@@ -32,7 +33,6 @@ const TINDAK_OPTIONS = [
     { value: '', label: '— Pilih tindak lanjut —' },
     { value: 'penukaran_barang', label: 'Penukaran Barang' },
     { value: 'potong_tagihan', label: 'Potong Tagihan' },
-    { value: 'tanpa_kompensasi', label: 'Tanpa Kompensasi' },
 ]
 
 const ITEM_BLANK: BeritaAcaraItemManual = {

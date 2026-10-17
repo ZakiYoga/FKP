@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Settings, LogOut, ChevronDown } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { LayoutDashboard, Settings, LogOut, ChevronDown, User, Route } from 'lucide-react'
 import {
   Menu,
   Avatar,
@@ -20,7 +20,9 @@ interface MenuItem {
 
 const MENU_ITEMS: MenuItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Ubah Password', href: '/change-password', icon: Settings },
+  { label: 'Profil', href: '/me', icon: User },
+  // { label: 'Ubah Password', href: '/change-password', icon: Settings },
+  { label: 'Lacak Proses FKP', href: '/track', icon: Route },
 ]
 
 function getInitials(nama?: string) {
@@ -66,14 +68,6 @@ export function UserProfileDropdown() {
           <Avatar size={32} radius="xl" color="brand" variant="filled">
             {getInitials(user?.nama)}
           </Avatar>
-          {/* <Box visibleFrom="md">
-            <Text size="sm" fw={500} c="gray.9" lh={1.3}>
-              {user?.nama}
-            </Text>
-            <Text size="xs" c="dimmed" lh={1.2}>
-              {user?.role?.nama_role}
-            </Text>
-          </Box> */}
           <ChevronDown size={16} />
         </button>
       </Menu.Target>
@@ -82,13 +76,13 @@ export function UserProfileDropdown() {
         style={{ border: '1px solid var(--mantine-color-gray-3)' }}
         py={4}
       >
+
         {/* Profile card */}
-        <Box px="sm" py="xs">
-          <Group gap="sm">
-            <Avatar size={42} radius="xl" color="brand" variant="filled">
+        <Link to='/ganti-password' className='w-full p-2 flex items-center gap-2 justify-start'>
+            <Avatar size={30} radius="xl" color="brand" variant="filled">
               {getInitials(user?.nama)}
             </Avatar>
-            <Box style={{ minWidth: 0, flex: 1 }}>
+            <Box className='w-full flex flex-col justify-end items-start'>
               <Text size="sm" fw={600} truncate>
                 {user?.nama}
               </Text>
@@ -96,8 +90,7 @@ export function UserProfileDropdown() {
                 {user?.role?.nama_role}
               </Text>
             </Box>
-          </Group>
-        </Box>
+        </Link>
 
         <Divider my={4} />
 

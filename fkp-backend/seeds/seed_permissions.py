@@ -125,6 +125,18 @@ PERMISSION_CATALOG: List[Dict] = [
         "roles": ["admin_ho"],
     },
 
+    # ── 4.1b Module fkp — Penanganan jalur pcs (BARU) ─────────────────────
+    {
+        "code": "fkp.pcs.handle",
+        "module": "fkp", "action": "pcs.handle",
+        "label": "Tangani FKP Jalur Pcs",
+        "deskripsi": (
+            "APSM menangani FKP jalur pcs: memajukan tahap (dalam_pengajuan → dalam_proses → selesai) "
+            "dan menolak FKP selama tahap masih kosong. Hanya untuk role apsm."
+        ),
+        "roles": ["apsm"],
+    },
+
     # ── 4.2 Module fkp — CRUD & Dokumen ────────────────────────────────────
     {
         "code": "fkp.create",

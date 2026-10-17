@@ -1,11 +1,30 @@
 """
-FKP API — entry point aplikasi FastAPI.
+FKP API: entry point aplikasi FastAPI (Formulir Keluhan Produk SaktiFood).
 
-Versi ini identik dengan main.py Anda + registrasi bapkp_router (2 baris
-ditambahkan, ditandai [BARU — Modul BAPKP] di bawah). Sudah diverifikasi:
-`app.main` berhasil dirakit penuh bersama SEMUA router asli (auth, users,
-fkp, sample_router, warehouse_router, dst), total 107 path terdaftar,
-0 bentrok route di seluruh aplikasi.
+Tanggung jawab file ini:
+  - membuat aplikasi, CORS, dan lifespan (memastikan UPLOAD_DIR ada)
+  - mendaftarkan semua router di bawah prefix /api
+  - menyajikan satu-satunya static mount publik: foto katalog produk
+
+File upload:
+  - Lampiran FKP (foto bukti, bukti transfer, dokumen finansial) TIDAK publik.
+    Disajikan lewat GET /api/fkp/{fkp_id}/attachments/{attachment_id}/file
+    dengan scope check yang sama seperti get_fkp_detail().
+  - Foto produk publik di /uploads/products (tag <img> FE tidak bisa kirim
+    token). Lokasi dan prefix URL didefinisikan sekali di app/core/uploads.py.
+    Mount ini berada DI LUAR prefix /api, jadi reverse proxy harus
+    meneruskan /uploads/products/ ke backend.
+  - Jika suatu hari ada mount induk /uploads, daftarkan /uploads/products
+    lebih dulu.
+
+Modul yang terdaftar: Auth, Users, Roles, Areas, Distributors, Outlets,
+Products, Hierarchy, FKP, Notifications, Outlet Registrations, Testimoni,
+Public Tracking, RBAC Admin, Sample Shipment, Warehouse Surat Jalan, BAPKP.
+Router Debug hanya aktif bila APP_ENV bukan "production".
+
+BAPKP (SPP/QC/FORM/25) berbeda dari Berita Acara Pemusnahan (SPP/QC/FORM 26).
+Route Berita Acara Pemusnahan ada di dalam fkp.router
+(/api/fkp/{fkp_id}/berita-acara*), route BAPKP di /api/fkp/{fkp_id}/bapkp/....
 """
 import os
 from contextlib import asynccontextmanager

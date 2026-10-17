@@ -1,6 +1,6 @@
 import { NavItem } from "@/types/navItems";
-import { Bell, Building2, ClipboardList, FileText, FilePen, GitBranch, LayoutDashboard, MapPin, MessageSquareQuote, Package, Route, Settings, Store, Users, } from "lucide-react";
-
+import { Bell, Building2, ClipboardList, FileText, FilePen, GitBranch, LayoutDashboard, MapPin, MessageSquareQuote, Package, PackageCheck, Route, Settings, Store, Users, } from "lucide-react";
+import { ROLE_PENANGAN_PCS } from "@/constants/fkpPcs";
 
 export const NAV_ITEMS: NavItem[] = [
     { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -39,6 +39,11 @@ export const NAV_ITEMS: NavItem[] = [
     },
     {
         label: 'Penerbitan FKP', href: '/penerbitan-fkp', icon: FilePen,
+        roles: ['superadmin', 'admin_ho', 'apsm', 'sc_spv', 'distributor']
+    },
+    {
+        label: 'FKP Pcs', href: '/apsm/fkp-pcs', icon: PackageCheck,
+        roles: ROLE_PENANGAN_PCS
     },
     {
         label: 'Buat BA', href: '/buat-berita-acara', icon: FilePen,
@@ -46,11 +51,5 @@ export const NAV_ITEMS: NavItem[] = [
     },
     {
         label: 'Notifikasi', href: '/notifications', icon: Bell
-    },
-    {
-        label: 'Track FKP', href: '/track', icon: Route
-    },
-    {
-        label: 'Ubah Password', href: '/change-password', icon: Settings
     },
 ]

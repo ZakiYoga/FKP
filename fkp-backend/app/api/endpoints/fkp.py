@@ -64,6 +64,7 @@ from app.schemas.fkp import (
     ApsmReviewRequest, AdminHoReviewRequest,
     RsmApproveRequest, DirekturApproveRequest,
     InvestigasiQcRequest, RejectRequest, RevisionRequest, TeruskanWarehouseRequest,
+    PcsTahapRequest,
     UpdatePengirimanRequest, ResolusiCreate,
     SuratJalanRequest, AttachmentResponse,
     FkpDocumentCreate, FkpDocumentResponse,
@@ -103,21 +104,6 @@ router = APIRouter()
 # masing-masing fungsi. Mapping role identik dengan tuple lama, dikelola
 # lewat seeds/seed_permissions.py + dashboard RBAC.
 
-# Status yang diizinkan untuk download (bukan draft, bukan need_revision)
-_FORMULIR_DOWNLOADABLE_STATUS = {
-    FkpStatus.SUBMITTED,
-    FkpStatus.APSM_REVIEWED,
-    FkpStatus.RSM_APPROVAL_INVESTIGASI,
-    FkpStatus.IN_INVESTIGATION,
-    FkpStatus.INVESTIGATED,
-    FkpStatus.RSM_APPROVAL_RESOLUSI,
-    FkpStatus.DIREKTUR_APPROVAL,
-    FkpStatus.ACCEPTED,
-    FkpStatus.IN_PROCESS,
-    FkpStatus.CLOSED,
-    FkpStatus.REJECTED,
-}
-
 _WIB = timezone(timedelta(hours=7))
 
 @router.get(
@@ -135,7 +121,8 @@ async def list_fkp_penerbitan(
 ):
     """
     List FKP untuk penerbitan dokumen formulir.
-    - Hanya menampilkan FKP yang sudah melewati draft/need_revision
+    - Hanya FKP yang sudah melewati draft/need_revision
+    - FKP jalur pcs TIDAK ikut (tidak punya formulir PDF; ditangani langsung APSM)
     - Otomatis difilter berdasarkan scope role
     """
     return await _list(db, user, kode_role, status, tanggal_dari, tanggal_sampai)
@@ -166,7 +153,11 @@ async def download_formulir_fkp_pdf(
     - distributor  → FKP milik distributor sendiri
     - sc_spv       → FKP distributor yang ditangani
     - apsm         → FKP area APSM
-    - admin_ho / qc / rsm / direktur / superadmin / finance → semua FKP
+    - finance      → FKP potong_tagihan pada status yang relevan
+    - admin_ho / qc / rsm / direktur / warehouse / superadmin → semua FKP
+
+    422 bila FKP belum bisa didownload (draft/need_revision) atau FKP jalur pcs
+    (formulir tidak tersedia untuk pcs).
     """
 
     try:
@@ -236,18 +227,23 @@ async def list_tipe_dokumen():
 @router.get("", response_model=List[FkpListResponse])
 async def get_list_fkp(
     status:    Optional[str] = Query(None, description="Filter berdasarkan status FKP"),
-    prioritas: Optional[str] = Query(None, description="Filter berdasarkan prioritas"),
+    prioritas: Optional[str] = Query(None, description="Filter berdasarkan prioritas (deprecated)"),
+    jalur:     Optional[str] = Query(None, description="Filter jalur: pcs | approval_rsm | approval_direktur"),
     db:        AsyncSession = Depends(get_db),
     user:      User = Depends(get_current_user),
     kode_role: str  = Depends(get_kode_role),
 ):
     """
-    Ambil daftar FKP. Otomatis difilter berdasarkan role:
-    - outlet/distributor/sc_spv/apsm → hanya FKP area mereka
-    - rsm/admin_ho/qc/direktur/superadmin → semua FKP
-    """
-    return await list_fkp(db, user, kode_role, status, prioritas)
+    Ambil daftar FKP. Otomatis difilter berdasarkan role (data-scope):
+    - outlet/distributor/sc_spv/apsm → hanya FKP dalam cakupan/area mereka
+    - finance → FKP potong_tagihan pada status yang relevan
+    - rsm/admin_ho/qc/direktur/warehouse/superadmin → semua FKP
 
+    Filter opsional: status, jalur (pcs | approval_rsm | approval_direktur;
+    jalur=pcs dipakai halaman FKP pcs APSM), prioritas (deprecated — prioritas
+    sudah dihapus dari UI).
+    """
+    return await list_fkp(db, user, kode_role, status, prioritas, jalur_filter=jalur)
 
 @router.post("", response_model=FkpDetailResponse, status_code=201)
 async def buat_fkp(
@@ -302,12 +298,9 @@ async def download_fkp_pdf(
     kode_role:    str  = Depends(get_kode_role),
 ):
     """
-    Download FKP sebagai PDF siap cetak.
-
-    PERBAIKAN KEAMANAN: sebelumnya endpoint ini hanya butuh login (tidak ada
-    validasi kode_role/scope sama sekali), sehingga user dari outlet/distributor
-    mana pun bisa mendownload PDF FKP milik pihak lain selama tahu UUID-nya.
-    Sekarang divalidasi sama seperti /formulir-pdf.
+    Download FKP sebagai PDF siap cetak. Validasi akses & status identik dengan
+    /formulir-pdf (validate_fkp_formulir_access()), termasuk penolakan 422 untuk
+    FKP jalur pcs.
     """
     await validate_fkp_formulir_access(fkp_id, current_user, kode_role, db)
 
@@ -703,7 +696,12 @@ async def submit(
     user:      User = Depends(get_current_user),
     kode_role: str  = Depends(get_kode_role),
 ):
-    """Submit FKP dari status draft/need_revision ke submitted."""
+    """
+    Submit FKP dari draft/need_revision. Jalur ditentukan menurut kemasan:
+    - semua item pcs → langsung status pcs_ditangani_apsm (ditangani APSM)
+    - semua item zak/ball/karton → submitted (lanjut apsm-review → admin-ho-review)
+    Campuran pcs + zak/ball/karton ditolak 400 — pisahkan menjadi dua FKP.
+    """
     return await submit_fkp(fkp_id, user, kode_role, db)
 
 
@@ -728,10 +726,12 @@ async def review_admin_ho(
     kode_role: str  = Depends(get_kode_role),
 ):
     """
-    Admin HO teruskan FKP ke RSM. Status: apsm_reviewed → rsm_approval_investigasi.
-
-    PERUBAHAN: Admin HO tidak lagi mengisi rekomendasi per item — aksi ini
-    sekarang murni "teruskan ke RSM" (hanya catatan_admin level FKP).
+    Admin HO teruskan FKP zak/ball/karton ke RSM. Status tujuan ditentukan
+    otomatis dari total qty klaim saat pengajuan (bukan dari request), hanya
+    kemasan zak/ball/karton yang dihitung:
+      - total ≤ BATAS_QTY_DIREKTUR → rsm_approval_final (jalur approval RSM)
+      - total > BATAS_QTY_DIREKTUR → rsm_approval_investigasi (jalur approval Direktur)
+    Aksi murni "teruskan ke RSM" (hanya catatan_admin level FKP).
     """
     return await admin_ho_review(fkp_id, data, user, kode_role, db)
 
@@ -769,10 +769,16 @@ async def rsm_approve_final_endpoint(
     kode_role: str  = Depends(get_kode_role),
 ):
     """
-    BARU — Jalur cepat. RSM approve/tolak LANGSUNG (resolusi belum ada).
-    Status: rsm_approval_final → accepted (approve) / rejected (tolak).
+    Jalur approval RSM — RSM approve/tolak sebagai approval TERAKHIR
+    (Direktur tidak pernah dilibatkan). Status: rsm_approval_final → accepted
+    (approve) / rejected (tolak; catatan wajib).
+
+    Resolusi WAJIB sudah ada sebelum endpoint ini dipanggil: Admin HO membuatnya
+    lewat POST .../resolusi selagi status masih rsm_approval_final
+    (buat_resolusi() Fase 1). Bila belum ada, approve ditolak 400.
+
     Hanya valid untuk FKP dengan total qty klaim ≤ BATAS_QTY_DIREKTUR
-    (ditentukan oleh admin_ho_review() saat meneruskan ke RSM).
+    (ditentukan admin_ho_review()).
     """
     return await rsm_approve_final(fkp_id, data, user, kode_role, db)
 
@@ -786,11 +792,13 @@ async def qc_catatan_paralel_endpoint(
     kode_role: str  = Depends(get_kode_role),
 ):
     """
-    BARU — Jalur cepat. QC mencatat hasil investigasi sebagai dokumentasi/
-    insight — TIDAK mengubah status FKP, TIDAK menahan proses resolusi/
-    RSM/surat jalan yang berjalan bersamaan. Upload BA hasil pemeriksaan
-    (attachment tipe BA_PEMERIKSAAN) dilakukan terpisah lewat endpoint
-    upload attachment yang sudah ada.
+    Jalur approval RSM. QC mencatat hasil investigasi sebagai dokumentasi/insight
+    — TIDAK mengubah status FKP maupun status_item, TIDAK menahan resolusi/RSM/
+    surat jalan. Hanya valid saat status rsm_approval_final, accepted, atau
+    in_process. QC diberi tahu lewat notifikasi saat Admin HO membuat resolusi
+    pertama. Catatan ini juga menjadi syarat close (FKP tidak bisa ditutup bila
+    QC belum pernah mencatat). Upload BA hasil pemeriksaan (BA_PEMERIKSAAN) lewat
+    endpoint attachment.
     """
     return await qc_catatan_investigasi_paralel(fkp_id, data, user, kode_role, db)
 
@@ -815,7 +823,11 @@ async def rsm_approve_res(
     user:      User = Depends(get_current_user),
     kode_role: str  = Depends(get_kode_role),
 ):
-    """RSM approve/tolak resolusi. Approve → direktur_approval. Tolak → rejected."""
+    """
+    Jalur approval Direktur. RSM approve/tolak resolusi. Approve →
+    direktur_approval SELALU (Direktur wajib untuk semua tipe_resolusi:
+    tukar_barang dan potong_tagihan). Tolak → rejected (catatan wajib).
+    """
     return await rsm_approve_resolusi(fkp_id, data, user, kode_role, db)
 
 
@@ -854,7 +866,13 @@ async def tutup_fkp(
     user:      User = Depends(get_current_user),
     kode_role: str  = Depends(get_kode_role),
 ):
-    """Tutup FKP setelah resolusi selesai. Status: in_process → closed."""
+    """
+    Tutup FKP setelah resolusi selesai. Status: in_process → closed. Syarat di
+    close_fkp(): investigasi QC sudah tercatat; potong_tagihan = pembayaran
+    dikonfirmasi Finance; tukar_barang = surat jalan delivered; dimusnahkan = BA
+    bertanda tangan terunggah. FKP jalur pcs ditutup lewat
+    PATCH /{fkp_id}/pcs/tahap (tahap=selesai), bukan endpoint ini.
+    """
     return await close_fkp(fkp_id, catatan, user, kode_role, db)
 
 
@@ -878,9 +896,29 @@ async def tolak_fkp(
     user:      User = Depends(get_current_user),
     kode_role: str  = Depends(get_kode_role),
 ):
-    """Tolak FKP. Status → rejected. Alasan penolakan wajib diisi."""
+    """
+    Tolak FKP. Status → rejected, alasan wajib. FKP jalur pcs: hanya APSM area
+    (permission fkp.pcs.handle) dan hanya sebelum tahap pertama dipilih
+    (pcs_tahap kosong); terminal, tanpa revisi.
+    """
     return await reject_fkp(fkp_id, data, user, kode_role, db)
 
+@router.patch("/{fkp_id}/pcs/tahap", response_model=FkpDetailResponse)
+async def ubah_tahap_pcs(
+    fkp_id:    uuid.UUID,
+    data:      PcsTahapRequest,
+    db:        AsyncSession = Depends(get_db),
+    user:      User = Depends(get_current_user),
+    kode_role: str  = Depends(get_kode_role),
+):
+    """
+    Jalur pcs: APSM memajukan tahap penanganan
+    (dalam_pengajuan → dalam_proses → selesai). Hanya maju; lompat tahap boleh
+    (tahap sebelumnya otomatis tercatat). 'selesai' menutup FKP (closed)
+    langsung — gate close_fkp() (QC, Finance, surat jalan, BA) tidak berlaku di
+    jalur pcs. Permission: fkp.pcs.handle (dicek di service) + scope area APSM.
+    """
+    return await fkp_service.apsm_update_tahap_pcs(fkp_id, data, user, kode_role, db)
 
 # ─── RESOLUSI ─────────────────────────────────────────────────────────────────
 
@@ -895,16 +933,24 @@ async def buat_resolusi(
     """
     Admin HO buat/update resolusi. Satu endpoint, dua fase:
 
-    - Status 'investigated'       → isi tipe + metode fisik (wajib)
-    - Status 'rsm_approval_resolusi' → edit tipe/metode jika RSM minta revisi
-    - Status 'accepted'           → isi detail eksekusi (nomor DO / rekening / dll)
+    Fase 1 (SEBELUM approval final):
+    - Status 'investigated'          → jalur approval Direktur: isi tipe + metode fisik (wajib)
+    - Status 'rsm_approval_resolusi' → jalur approval Direktur: edit bila RSM minta revisi
+    - Status 'rsm_approval_final'    → jalur approval RSM: isi tipe + metode fisik (wajib),
+                                       SEBELUM RSM approve
+    Fase 2:
+    - Status 'accepted'              → isi detail eksekusi (nomor DO / rekening / dll)
 
-    [DIUBAH — Modul Sample Shipment] Endpoint ini TIDAK LAGI otomatis
-    memindahkan status ke in_process. Setelah field eksekusi Fase 2 terisi,
-    gunakan salah satu endpoint pemicu berikut sesuai tipe_resolusi:
-      - tukar_barang        → POST /{fkp_id}/warehouse/surat-jalan
-      - potong_tagihan      → POST /{fkp_id}/finance/invoice
-      - lainnya             → POST /{fkp_id}/confirm-resolusi
+    Untuk tukar_barang, item_qty_disetujui (qty per item) bisa dikirim di fase mana
+    pun: qty_disetujui = 0 → item ditolak (alasan_penolakan wajib), > 0 → qty
+    tersimpan (status item resmi 'diterima' saat approval terakhir).
+
+    Endpoint ini TIDAK memindahkan status. Setelah Fase 2 terisi, pemicu
+    accepted → in_process sesuai tipe_resolusi:
+      - tukar_barang   → POST /{fkp_id}/teruskan-warehouse, lalu
+                         POST /{fkp_id}/warehouse/surat-jalan
+      - potong_tagihan → POST /{fkp_id}/finance/invoice
+    FKP jalur pcs tidak punya resolusi.
     """
     return await fkp_service.buat_resolusi(fkp_id, data, user, kode_role, db)
 
@@ -1152,7 +1198,8 @@ async def teruskan_warehouse_endpoint(
 @router.get("/export/excel")
 async def download_fkp_excel(
     status:             Optional[str] = Query(None, description="Filter berdasarkan status FKP"),
-    prioritas:          Optional[str] = Query(None, description="Filter berdasarkan prioritas"),
+    prioritas:          Optional[str] = Query(None, description="Filter berdasarkan prioritas (deprecated)"),
+    jalur:              Optional[str] = Query(None, description="Filter jalur: pcs | approval_rsm | approval_direktur. Isi 'pcs' untuk export khusus FKP pcs."),
     outlet_id:          Optional[uuid.UUID] = Query(None, description="Filter berdasarkan outlet"),
     distributor_id:     Optional[uuid.UUID] = Query(None, description="Filter berdasarkan distributor"),
     area_id:            Optional[uuid.UUID] = Query(None, description="Filter berdasarkan area"),
@@ -1163,26 +1210,27 @@ async def download_fkp_excel(
     kode_role:          str  = Depends(get_kode_role),
 ):
     """
-    Export FKP ke Excel (.xlsx) — scoping & filter identik dengan GET /fkp.
-    Butuh permission 'fkp.export_excel'.
+    Export FKP ke Excel (.xlsx) — scoping & filter identik dengan GET /fkp
+    (termasuk `jalur`). Butuh permission 'fkp.export_excel'.
     """
     # Cek permission DULU, sebelum query berat (list_fkp + eager_full=True).
     await require_permission(kode_role, "fkp.export_excel", db)
- 
-    # PENTING: export_fkp_excel() menerima keyword `status` / `prioritas`
-    # (BUKAN `status_filter` / `prioritas_filter` seperti di list_fkp()).
-    # Salah nama keyword di sini langsung TypeError saat dipanggil.
+
+    # PENTING: export_fkp_excel() menerima keyword `status` / `prioritas` / `jalur`
+    # (BUKAN `status_filter` / `prioritas_filter` / `jalur_filter` seperti di
+    # list_fkp()). Salah nama keyword di sini langsung TypeError saat dipanggil.
     buf = await export_fkp_excel(
         db, user, kode_role,
         status=status,
         prioritas=prioritas,
+        jalur=jalur,
         outlet_id=outlet_id,
         distributor_id=distributor_id,
         area_id=area_id,
         tanggal_dari=tanggal_dari,
         tanggal_sampai=tanggal_sampai,
     )
- 
+
     filename = f"FKP_Export_{datetime.now(_WIB):%Y%m%d_%H%M}.xlsx"
     return StreamingResponse(
         buf,

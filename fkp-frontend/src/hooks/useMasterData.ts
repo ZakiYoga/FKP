@@ -247,3 +247,44 @@ export function useUpdateProduct() {
     onError: (e) => toast.error(getErrorMessage(e)),
   })
 }
+
+export function useSetProductKemasan() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, kemasan }: { id: string; kemasan: string[] }) =>
+      productApi.setKemasan(id, kemasan),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['products'] })
+      toast.success('Kemasan produk berhasil diupdate.')
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  })
+}
+
+// Alur edit dari modal: PUT data dasar, lalu PUT kemasan hanya bila `kemasan` diberikan.
+// Satu toast sukses; daftar produk selalu di-refetch (onSettled) walau langkah kedua gagal.
+export function useSaveProduct() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, data, kemasan }: {
+      id: string
+      data: Parameters<typeof productApi.update>[1]
+      kemasan?: string[] | undefined
+    }) => {
+      let hasil = await productApi.update(id, data)
+      if (kemasan) {
+        try {
+          hasil = await productApi.setKemasan(id, kemasan)
+        } catch (e) {
+          throw new Error(
+            `Data dasar produk sudah tersimpan, tetapi kemasan gagal diubah: ${getErrorMessage(e)}`,
+          )
+        }
+      }
+      return hasil
+    },
+    onSuccess: () => toast.success('Produk berhasil disimpan.'),
+    onError: (e) => toast.error(getErrorMessage(e)),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['products'] }),
+  })
+}

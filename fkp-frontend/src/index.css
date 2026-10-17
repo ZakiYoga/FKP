@@ -140,6 +140,11 @@
   }
 }
 
+:root {
+  --control-radius: 0.5rem;   /* radius button + input + select */
+  --control-h: 2.5rem;        /* tinggi default button + input */
+}
+
 /* ============================================================
    BASE STYLES
    ============================================================ */
@@ -176,7 +181,7 @@
    UTILITIES — Input
    ============================================================ */
 @utility input-base {
-  @apply w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5
+  @apply w-full border border-gray-300 bg-white
          text-sm text-gray-900 placeholder-gray-400
          transition-all duration-150
          focus:border-brand-500 focus:outline-hidden focus:ring-2 focus:ring-brand-500/20
@@ -185,6 +190,9 @@
          dark:placeholder-gray-500
          dark:focus:border-brand-400 dark:focus:ring-brand-400/20
          dark:disabled:bg-gray-800 dark:disabled:text-gray-600;
+  min-height: var(--control-h);
+  padding: 0.5rem 0.875rem;
+  border-radius: var(--control-radius);
 }
 
 @utility input-error {
@@ -196,17 +204,28 @@
    UTILITIES — Button
    ============================================================ */
 @utility btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5
-         text-sm font-semibold transition-all duration-150
+  @apply inline-flex items-center justify-center gap-2 font-semibold
+         transition-all duration-150
          focus:outline-hidden focus:ring-2 focus:ring-offset-2
          disabled:cursor-not-allowed disabled:opacity-50;
+  min-height: var(--btn-h, var(--control-h));
+  padding-inline: var(--btn-px, 1rem);
+  font-size: var(--btn-fs, 0.875rem);
+  border: 1px solid transparent;
+  border-radius: var(--control-radius);
 }
 
 @utility btn-primary {
-  @apply btn bg-brand-600 text-white
-         hover:bg-brand-700 active:bg-brand-800 focus:ring-brand-500
-         dark:bg-brand-500 dark:hover:bg-brand-600 dark:active:bg-brand-700;
+  @apply btn bg-brand-600 text-white border-brand-600
+         hover:bg-brand-700 hover:border-brand-700
+         active:bg-brand-800 focus:ring-brand-500
+         dark:bg-brand-500 dark:border-brand-500
+         dark:hover:bg-brand-600 dark:active:bg-brand-700;
 }
+
+@utility btn-sm { --btn-h: 2rem;   --btn-px: 0.75rem; --btn-fs: 0.75rem; }
+@utility btn-md { --btn-h: 2.5rem; --btn-px: 1rem;    --btn-fs: 0.875rem; }
+@utility btn-lg { --btn-h: 3rem;   --btn-px: 1.5rem;  --btn-fs: 1rem; }
 
 @utility btn-secondary {
   @apply btn bg-white text-gray-700 border border-gray-300

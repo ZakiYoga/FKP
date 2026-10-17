@@ -21,7 +21,7 @@
     "@tanstack/react-query": "^5.100.10",
     "@tanstack/react-query-devtools": "^5.62.0",
     "@zxing/browser": "^0.2.0",
-    "@zxing/library": "^0.22.0",
+    "@zxing/library": "^0.23.0",
     "auto-skeleton-react": "^1.0.5",
     "axios": "^1.7.9",
     "clsx": "^2.1.1",

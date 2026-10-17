@@ -167,6 +167,11 @@ export function FkpActionPanel({ fkp }: FkpActionPanelProps) {
       metode_penanganan_fisik: metodePenanganan,
       detail_penanganan: detailPenanganan || null,
       keterangan: catatan || null,
+      // Hanya relevan bila barang dimusnahkan (backend mewajibkan lokasi_pemusnahan).
+      // Ditentukan metode penanganan fisik, BUKAN tipe resolusi, jadi berlaku untuk
+      // tukar_barang maupun potong_tagihan.
+      lokasi_pemusnahan: metodePenanganan === 'dimusnahkan' ? (resolusiData.lokasi_pemusnahan || null) : null,
+      tanggal_pemusnahan: metodePenanganan === 'dimusnahkan' ? (resolusiData.tanggal_pemusnahan || null) : null,
     }
     if (resolusiTipe === 'potong_tagihan') {
       return {
@@ -179,19 +184,10 @@ export function FkpActionPanel({ fkp }: FkpActionPanelProps) {
         //           (field ini adalah fase 2, diisi di "Mulai Proses")
       }
     }
-    if (resolusiTipe === 'tukar_barang') {
-      return {
-        ...base,
-        // ← HAPUS: nomor_do, ekspedisi, resi_pengiriman
-        //           (field ini adalah fase 2, diisi di "Mulai Proses")
-      }
-    }
-    // tidak_ada_kompensasi
-    return {
-      ...base,
-      lokasi_pemusnahan: resolusiData.lokasi_pemusnahan || null,
-      tanggal_pemusnahan: resolusiData.tanggal_pemusnahan || null,
-    }
+    // tukar_barang: nomor_do, ekspedisi, resi_pengiriman adalah field fase 2 (eksekusi
+    // lewat Surat Jalan Warehouse), tidak dikirim di sini. Resolusi hanya punya dua
+    // tipe: tukar_barang dan potong_tagihan.
+    return base
   }
 
 
@@ -389,7 +385,6 @@ export function FkpActionPanel({ fkp }: FkpActionPanelProps) {
               >
                 <option value="tukar_barang">Tukar Barang</option>
                 <option value="potong_tagihan">Potong Tagihan (Cashback)</option>
-                <option value="tidak_ada_kompensasi">Tanpa Kompensasi</option>
               </Select>
 
               {/* ← UBAH: untuk potong_tagihan hanya tampilkan persentase (fase 1).

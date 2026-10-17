@@ -25,7 +25,9 @@ import { FkpTrackPage } from '@/pages/public/FkpTrackPage'
 import { TestimoniPage } from '@/pages/testimoni/TestimoniPage'
 import { PenerbitanFkpPage } from '@/pages/documents/PenerbitanFkpPage'
 import { BaManualPage } from '@/pages/documents/BaManualPage'
+import { ROLE_PENANGAN_PCS } from '@/constants/fkpPcs'
 import { NotFoundPage, ForbiddenPage } from '@/pages/ErrorPages'
+import { FkpPcsPage } from '@/pages/apsm/FkpPcsPage'
 
 // AuthProvider dibungkus di root layout agar punya akses ke router context
 function RootLayout() {
@@ -120,6 +122,14 @@ export const router = createBrowserRouter([
                 element: <ProtectedRoute allowedRoles={['admin_ho', 'superadmin', 'qc', 'rsm', 'direktur']} />,
                 children: [
                   { path: '/buat-berita-acara', element: <BaManualPage /> },
+                ],
+              },
+
+              // Penanganan FKP pcs oleh APSM (daftar role dari satu konstanta)
+              {
+                element: <ProtectedRoute allowedRoles={ROLE_PENANGAN_PCS} />,
+                children: [
+                  { path: '/apsm/fkp-pcs', element: <FkpPcsPage /> },
                 ],
               },
             ],

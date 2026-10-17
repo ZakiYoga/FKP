@@ -1,5 +1,5 @@
 import uuid
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Literal
 from datetime import datetime, date
 from decimal import Decimal
 from pydantic import BaseModel, Field, field_validator, model_validator, computed_field
@@ -330,17 +330,9 @@ class FkpCreate(BaseModel):
     """
     distributor_id: uuid.UUID
     outlet_id: Optional[uuid.UUID] = None
-    prioritas: str = FkpPrioritas.REGULER
     catatan_distributor: Optional[str] = None
     lokasi_pembelian: Optional[str] = None
     items: List[FkpItemCreate]
-
-    @field_validator("prioritas")
-    @classmethod
-    def validate_prioritas(cls, v):
-        if v not in FkpPrioritas.ALL:
-            raise ValueError(f"prioritas harus salah satu dari: {FkpPrioritas.ALL}")
-        return v
 
     @field_validator("items")
     @classmethod
@@ -354,7 +346,6 @@ class FkpCreate(BaseModel):
             "example": {
                 "distributor_id": "uuid-distributor",
                 "outlet_id": "uuid-outlet-opsional",
-                "prioritas": "urgent",
                 "catatan_distributor": "Ditemukan saat unboxing",
                 "items": [
                     {
@@ -378,19 +369,10 @@ class FkpUpdate(BaseModel):
     berubah; null pada catatan_distributor / lokasi_pembelian = dikosongkan.
     """
     outlet_id: Optional[uuid.UUID] = None
-    prioritas: Optional[str] = None
     catatan_distributor: Optional[str] = None
     lokasi_pembelian: Optional[str] = None
 
-    @field_validator("prioritas")
-    @classmethod
-    def validate_prioritas(cls, v):
-        if v is not None and v not in FkpPrioritas.ALL:
-            raise ValueError(f"prioritas harus salah satu dari: {FkpPrioritas.ALL}")
-        return v
-
-
-# ─── REVIEW SCHEMAS ───────────────────────────────────────────────────────────
+    # ─── REVIEW SCHEMAS ───────────────────────────────────────────────────────────
 
 class ApsmReviewRequest(BaseModel):
     """APSM submit review keseluruhan FKP + rekomendasi per item."""
@@ -493,6 +475,19 @@ class InvestigasiQcRequest(BaseModel):
                 ]
             }
         }
+
+
+class PcsTahapRequest(BaseModel):
+    """
+    Jalur pcs: APSM memilih tahap penanganan (PATCH /fkp/{id}/pcs/tahap).
+    Hanya maju; lompat maju boleh (tahap sebelumnya otomatis tercentang).
+    'selesai' menutup FKP. Validasi urutan ada di apsm_update_tahap_pcs().
+    """
+    tahap: Literal["dalam_pengajuan", "dalam_proses", "selesai"]
+    catatan: Optional[str] = Field(default=None, max_length=1000)
+
+    class Config:
+        json_schema_extra = {"example": {"tahap": "dalam_proses", "catatan": "Sample sudah diajukan."}}
 
 
 class RejectRequest(BaseModel):
@@ -713,6 +708,11 @@ class FkpDetailResponse(BaseModel):
     handled_by: Optional[uuid.UUID]
     prioritas: str
     status: str
+    jalur: Optional[str] = None
+    pcs_tahap: Optional[str] = None
+    pcs_pengajuan_at: Optional[datetime] = None
+    pcs_proses_at: Optional[datetime] = None
+    pcs_selesai_at: Optional[datetime] = None
     catatan_distributor: Optional[str]
     catatan_sc_spv: Optional[str]
     catatan_apsm: Optional[str]
@@ -776,6 +776,8 @@ class FkpListResponse(BaseModel):
     outlet_info: Optional[OutletInfo] = None
     prioritas: str
     status: str
+    jalur: Optional[str] = None
+    pcs_tahap: Optional[str] = None
     tanggal_pengajuan: Optional[datetime]
     created_at: datetime
 

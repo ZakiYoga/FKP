@@ -6,9 +6,11 @@ import type {
   ApsmReviewPayload,       // kini berisi item_reviews dengan field penanganan + kompensasi
   AdminHoReviewPayload,    // kini berisi item_reviews dengan field penanganan + kompensasi
   QcInvestigasiPayload,
+  TahapPcs,
 } from '@/types'
 import { distributorApi, outletApi, productApi } from '@/api/masterdata'
 import { getErrorMessage } from '@/lib/utils'
+import { notifKeys } from '@/hooks/useNotifications'
 import { notifications } from '@mantine/notifications'
 
 // ── Query Keys ─────────────────────────────────────────────────────────────
@@ -100,7 +102,6 @@ export function useUpdateFkp(fkpId: string) {
   return useMutation({
     mutationFn: (data: {
       outlet_id?: string | null
-      prioritas?: string
       catatan_distributor?: string | null
     }) => fkpApi.update(fkpId, data),
     onSuccess: () => {
@@ -241,11 +242,14 @@ export function useSubmitFkp(fkpId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: () => fkpApi.submit(fkpId),
-    onSuccess: () => {
+    onSuccess: (fkp) => {
       queryClient.invalidateQueries({ queryKey: fkpKeys.detail(fkpId) })
       queryClient.invalidateQueries({ queryKey: fkpKeys.all })
       notifications.show({
-        message: 'FKP berhasil disubmit. Menunggu review APSM.',
+        message:
+          fkp.status === 'pcs_ditangani_apsm'
+            ? 'FKP dikirim. FKP kemasan pcs ditangani langsung oleh APSM, tanpa approval Admin HO/RSM.'
+            : 'FKP berhasil disubmit. Menunggu review APSM.',
         color: 'green',
       })
     },
@@ -465,6 +469,35 @@ export function useRequestRevision(fkpId: string) {
         message: getErrorMessage(e),
         color: 'red',
       })
+    },
+  })
+}
+
+// ── Jalur PCS: ubah tahap (tanpa optimistic update — tidak bisa dibatalkan) ──
+export function useUpdateTahapPcs(fkpId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (v: { tahap: TahapPcs; catatan?: string | null }) =>
+      fkpApi.updateTahapPcs(fkpId, v),
+    onSuccess: (fkp) => {
+      notifications.show({
+        title: 'Tahap diperbarui',
+        message: fkp.status === 'closed' ? 'FKP ditutup.' : 'Tahap penanganan berhasil diperbarui.',
+        color: 'green',
+      })
+    },
+    onError: (e) => {
+      notifications.show({
+        title: 'Gagal memperbarui tahap',
+        message: getErrorMessage(e),
+        color: 'red',
+      })
+    },
+    // Berhasil atau gagal: refetch. Layar bisa basi (tab lain, APSM lain).
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: fkpKeys.detail(fkpId) })
+      queryClient.invalidateQueries({ queryKey: fkpKeys.all })
+      queryClient.invalidateQueries({ queryKey: notifKeys.all })
     },
   })
 }

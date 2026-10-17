@@ -7,20 +7,23 @@ Setiap peran menerima notifikasi yang relevan dengan tugasnya.
 Pemetaan notifikasi per transisi (sinkron dengan fkp_service.py):
   DRAFT → SUBMITTED                    → APSM (area distributor) + Admin HO
   SUBMITTED → APSM_REVIEWED            → Submitter + Admin HO (need action)
-  APSM_REVIEWED → RSM_APPROVAL_INVESTIGASI → Submitter + RSM area (need action)   [jalur reguler]
-  APSM_REVIEWED → RSM_APPROVAL_FINAL       → Submitter + RSM area (need action)   [jalur cepat]
+  APSM_REVIEWED → RSM_APPROVAL_INVESTIGASI → Submitter + RSM area (need action)   [jalur approval Direktur]
+  APSM_REVIEWED → RSM_APPROVAL_FINAL       → Submitter + RSM area (need action)   [jalur approval RSM]
   RSM_APPROVAL_INVESTIGASI → IN_INVESTIGATION → Submitter + QC (need action)
   IN_INVESTIGATION → INVESTIGATED      → Admin HO + RSM area
   INVESTIGATED → RSM_APPROVAL_RESOLUSI → RSM area (need action)
   RSM_APPROVAL_RESOLUSI → DIREKTUR_APPROVAL → Direktur (need action)
-  buat_resolusi() pertama di jalur cepat (status rsm_approval_final) → QC
+  buat_resolusi() pertama di jalur approval RSM (status rsm_approval_final) → QC
     (need action) — TIDAK lewat kirim_notifikasi_transisi(), dipicu langsung
     dari fkp_service.buat_resolusi() karena bukan transisi status.
-  DIREKTUR_APPROVAL → ACCEPTED         → Admin HO + Submitter                     [jalur reguler]
-  RSM_APPROVAL_FINAL → ACCEPTED        → Admin HO + Submitter                     [jalur cepat]
+  DIREKTUR_APPROVAL → ACCEPTED         → Admin HO + Submitter                     [jalur approval Direktur]
+  RSM_APPROVAL_FINAL → ACCEPTED        → Admin HO + Submitter                     [jalur approval RSM]
   ACCEPTED → IN_PROCESS                → Submitter + Admin HO
   IN_PROCESS → CLOSED                  → Semua pihak terkait
   * → NEED_REVISION                    → Submitter (need action)
+  SUBMITTED → PCS_DITANGANI_APSM (otomatis, jalur pcs) → APSM area (need action) + Submitter
+  tahap pcs berubah                    → Submitter (kirim_notifikasi_pcs_tahap)
+  PCS_DITANGANI_APSM → REJECTED        → Submitter (Admin HO tidak dinotifikasi)
   * → REJECTED                         → Submitter + Admin HO
   ACCEPTED → CLOSED (pemusnahan)       → Semua pihak terkait
 """
@@ -32,7 +35,7 @@ from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.notification import Notification
-from app.models.fkp import FkpComplaint, FkpStatus
+from app.models.fkp import FkpComplaint, FkpStatus, TahapPcs
 from app.models.user import User
 from app.models.distributor import Distributor, DistributorUser
 from app.models.outlet import Outlet
@@ -147,6 +150,20 @@ async def _get_apsm_for_distributor(db: AsyncSession, distributor_id: uuid.UUID)
     return [apsm_map.apsm_user_id]
 
 
+async def _get_apsm_by_area(db: AsyncSession, distributor_id: uuid.UUID) -> List[uuid.UUID]:
+    """APSM yang menangani distributor ini menurut Area.pic_user_id.
+    Konsisten dengan get_apsm_distributor_ids() / _check_apsm_area_scope() di
+    fkp_service, supaya APSM yang dinotifikasi = APSM yang lolos scope tulis.
+    (_get_apsm_for_distributor() memakai rantai SC/SPV -> APSM, bisa beda orang.)"""
+    from app.models.area import Area
+    r = await db.execute(
+        select(Area.pic_user_id)
+        .join(Distributor, Distributor.area_id == Area.id)
+        .where(Distributor.id == distributor_id, Area.pic_user_id.is_not(None))
+    )
+    return list(dict.fromkeys(r.scalars().all()))
+
+
 async def _get_rsm_for_distributor(db: AsyncSession, distributor_id: uuid.UUID) -> List[uuid.UUID]:
     """Cari RSM yang bertanggung jawab atas distributor ini (via SC/SPV → APSM → RSM chain)."""
     apsm_ids = await _get_apsm_for_distributor(db, distributor_id)
@@ -173,6 +190,7 @@ async def kirim_notifikasi_transisi(
     status_lama: str,
     status_baru: str,
     aktor: User,
+    catatan: Optional[str] = None,
 ):
     """
     Dipanggil setelah setiap transisi status FKP.
@@ -209,6 +227,27 @@ async def kirim_notifikasi_transisi(
                     f"dan sedang menunggu review APSM."
                 ),
                 tipe=TipeNotifikasi.INFO,
+            )
+
+    # ── (DRAFT | NEED_REVISION) → PCS_DITANGANI_APSM ─────────────────────────
+    # Dipanggil dari submit_fkp() untuk FKP pcs-only (status_baru = status_akhir).
+    # Admin HO TIDAK dinotifikasi: tidak terlibat di jalur pcs.
+    elif status_baru == FkpStatus.PCS_DITANGANI_APSM:
+        apsm_ids = await _get_apsm_by_area(db, dist_id)
+        for uid in apsm_ids:
+            await _buat_notif(db, uid, fkp_id,
+                judul=f"FKP Pcs Menunggu Penanganan Anda: {nomor}",
+                pesan=(
+                    f"FKP {nomor} (kemasan pcs) telah disubmit oleh {aktor.nama}. "
+                    f"FKP ini ditangani langsung oleh APSM, tanpa approval Admin HO/RSM."
+                ),
+                tipe=TipeNotifikasi.NEED_ACTION,
+            )
+        if fkp.submitted_by not in apsm_ids:   # APSM pembuat FKP tidak perlu konfirmasi ke diri sendiri
+            await _buat_notif(db, fkp.submitted_by, fkp_id,
+                judul=f"FKP Diterima, Ditangani APSM: {nomor}",
+                pesan=f"FKP {nomor} telah diterima dan akan ditangani langsung oleh APSM area Anda.",
+                tipe=TipeNotifikasi.STATUS_CHANGE,
             )
 
     # ── SUBMITTED → APSM_REVIEWED ────────────────────────────────────────────
@@ -268,9 +307,9 @@ async def kirim_notifikasi_transisi(
                 tipe=TipeNotifikasi.NEED_ACTION,
             )
 
-    # ── APSM_REVIEWED → RSM_APPROVAL_FINAL (jalur cepat) ─────────────────────
+    # ── APSM_REVIEWED → RSM_APPROVAL_FINAL (jalur approval RSM) ─────────────────────
     # SEBELUMNYA TIDAK ADA branch untuk status_baru ini sama sekali — berarti
-    # RSM tidak pernah diberi tahu ada FKP jalur cepat menunggu approval
+    # RSM tidak pernah diberi tahu ada FKP jalur approval RSM menunggu approval
     # akhirnya (admin_ho_review() bisa mengarah ke sini, bukan cuma ke
     # RSM_APPROVAL_INVESTIGASI). Simetris dengan branch di atas.
     elif status_baru == FkpStatus.RSM_APPROVAL_FINAL:
@@ -278,7 +317,7 @@ async def kirim_notifikasi_transisi(
         await _buat_notif(db, fkp.submitted_by, fkp_id,
             judul=f"FKP Menunggu Persetujuan RSM: {nomor}",
             pesan=(
-                f"FKP {nomor} (jalur cepat) telah disetujui Admin HO ({aktor.nama}) "
+                f"FKP {nomor} telah disetujui Admin HO ({aktor.nama}) "
                 f"dan menunggu persetujuan akhir RSM."
             ),
             tipe=TipeNotifikasi.STATUS_CHANGE,
@@ -290,8 +329,8 @@ async def kirim_notifikasi_transisi(
                 judul=f"FKP Menunggu Persetujuan Akhir Anda: {nomor}",
                 pesan=(
                     f"Admin HO telah membuat resolusi dan meneruskan FKP {nomor} "
-                    f"(jalur cepat) untuk persetujuan akhir. Direktur tidak "
-                    f"dilibatkan di jalur ini — keputusan Anda final."
+                    f"untuk persetujuan akhir. Direktur tidak "
+                    f"dilibatkan untuk FKP ini — keputusan Anda final."
                 ),
                 tipe=TipeNotifikasi.NEED_ACTION,
             )
@@ -399,13 +438,13 @@ async def kirim_notifikasi_transisi(
 
     # ── RSM_APPROVAL_FINAL / DIREKTUR_APPROVAL → ACCEPTED ────────────────────
     # Dua sumber yang mungkin sampai ke ACCEPTED sekarang:
-    #   - DIREKTUR_APPROVAL → ACCEPTED   (jalur reguler, Direktur wajib)
-    #   - RSM_APPROVAL_FINAL → ACCEPTED  (jalur cepat, Direktur tidak dilibatkan)
+    #   - DIREKTUR_APPROVAL → ACCEPTED   (jalur approval Direktur, Direktur wajib)
+    #   - RSM_APPROVAL_FINAL → ACCEPTED  (jalur approval RSM, Direktur tidak dilibatkan)
     # RSM_APPROVAL_RESOLUSI TIDAK PERNAH langsung ke ACCEPTED lagi (selalu
     # lewat DIREKTUR_APPROVAL — Direktur wajib untuk semua tipe_resolusi di
-    # jalur reguler, lihat rsm_approve_resolusi() di fkp_service.py).
+    # jalur approval Direktur, lihat rsm_approve_resolusi() di fkp_service.py).
     # Pesan disesuaikan supaya tidak salah klaim "disetujui Direktur" padahal
-    # jalur cepat tidak pernah melibatkan Direktur sama sekali.
+    # jalur approval RSM tidak pernah melibatkan Direktur sama sekali.
     elif status_baru == FkpStatus.ACCEPTED:
         disetujui_oleh = (
             "Direktur" if status_lama == FkpStatus.DIREKTUR_APPROVAL else "RSM"
@@ -437,9 +476,9 @@ async def kirim_notifikasi_transisi(
             )
         # Notifikasi QC DIHAPUS dari sini — sebelumnya berbunyi "silakan
         # input resolusi" yang sudah tidak relevan sejak resolusi dibuat
-        # Admin HO (QC tidak pernah mengisi resolusi). Untuk jalur cepat, QC
+        # Admin HO (QC tidak pernah mengisi resolusi). Untuk jalur approval RSM, QC
         # sudah diberi tahu lebih awal saat resolusi pertama dibuat (lihat
-        # buat_resolusi() di fkp_service.py); untuk jalur reguler, QC sudah
+        # buat_resolusi() di fkp_service.py); untuk jalur approval Direktur, QC sudah
         # menuntaskan investigasi jauh sebelum titik ini.
 
 
@@ -479,17 +518,23 @@ async def kirim_notifikasi_transisi(
 
     # ── * → REJECTED ─────────────────────────────────────────────────────────
     elif status_baru == FkpStatus.REJECTED:
+        is_pcs = status_lama == FkpStatus.PCS_DITANGANI_APSM
+        pesan_tolak = (
+            f"FKP {nomor} ditolak oleh {aktor.nama}. Alasan: {catatan or '-'}. "
+            f"FKP yang ditolak tidak dapat direvisi; silakan buat FKP baru "
+            f"dengan data yang sudah diperbaiki."
+        ) if is_pcs else (
+            f"FKP {nomor} ditolak oleh {aktor.nama}. "
+            f"Silakan periksa catatan untuk alasan penolakan."
+        )
         # Notify submitter
         await _buat_notif(db, fkp.submitted_by, fkp_id,
             judul=f"FKP Ditolak ❌: {nomor}",
-            pesan=(
-                f"FKP {nomor} ditolak oleh {aktor.nama}. "
-                f"Silakan periksa catatan untuk alasan penolakan."
-            ),
+            pesan=pesan_tolak,
             tipe=TipeNotifikasi.STATUS_CHANGE,
         )
         # Notify Admin HO — info
-        for u in await _get_users_by_role(db, "admin_ho"):
+        for u in ([] if is_pcs else await _get_users_by_role(db, "admin_ho")):  # Admin HO tidak terlibat di jalur pcs
             await _buat_notif(db, u.id, fkp_id,
                 judul=f"FKP Ditolak: {nomor}",
                 pesan=(
@@ -675,7 +720,7 @@ async def delete_notification(
 
 async def kirim_notifikasi_qc_paralel(db: AsyncSession, fkp, user: User) -> None:
     """
-    BARU — notifikasi untuk qc_catatan_investigasi_paralel() (jalur cepat).
+    BARU — notifikasi untuk qc_catatan_investigasi_paralel() (jalur approval RSM).
     Beda dari kirim_notifikasi_transisi(): TIDAK berbasis pasangan
     status_lama/status_baru karena tidak ada transisi status di aksi ini —
     QC cuma menambahkan catatan/insight yang berjalan paralel, tidak
@@ -696,3 +741,32 @@ async def kirim_notifikasi_qc_paralel(db: AsyncSession, fkp, user: User) -> None
             pesan=pesan,
             tipe=TipeNotifikasi.STATUS_CHANGE,
         )
+
+
+# ─── JALUR PCS: notifikasi perubahan tahap ───────────────────────────────────
+
+_NOTIF_TAHAP_PCS = {
+    TahapPcs.DALAM_PENGAJUAN: ("FKP Dalam Pengajuan", "sedang dalam pengajuan"),
+    TahapPcs.DALAM_PROSES:    ("FKP Dalam Proses", "sedang dalam proses penggantian"),
+    TahapPcs.SELESAI:         ("FKP Selesai ✅", "telah selesai, barang keluhan sudah diganti oleh APSM"),
+}
+
+
+async def kirim_notifikasi_pcs_tahap(db: AsyncSession, fkp, tahap: str, aktor: User) -> None:
+    """
+    Jalur pcs: notifikasi ke PEMBUAT FKP setiap tahap berubah (termasuk 'selesai',
+    yang sekaligus menutup FKP; untuk jalur pcs TIDAK memakai cabang CLOSED di
+    kirim_notifikasi_transisi supaya Admin HO tidak ikut dinotifikasi).
+    Judul dibedakan per tahap, jadi dedup 5 menit di _buat_notif tidak menelan
+    notifikasi tahap berikutnya. Lompat tahap (kosong -> selesai) = satu notifikasi.
+    Tidak berbasis pasangan status (sama seperti kirim_notifikasi_qc_paralel).
+    """
+    if fkp.submitted_by == aktor.id:     # APSM yang menangani FKP buatannya sendiri
+        return
+    judul_dasar, keterangan = _NOTIF_TAHAP_PCS[tahap]
+    nomor = fkp.nomor_fkp
+    await _buat_notif(db, fkp.submitted_by, fkp.id,
+        judul=f"{judul_dasar}: {nomor}",
+        pesan=f"FKP {nomor} {keterangan} (ditangani oleh APSM {aktor.nama}).",
+        tipe=TipeNotifikasi.INFO if tahap == TahapPcs.SELESAI else TipeNotifikasi.STATUS_CHANGE,
+    )

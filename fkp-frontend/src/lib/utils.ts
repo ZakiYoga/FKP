@@ -31,13 +31,6 @@ export function formatRelative(dateStr: string | null | undefined): string {
 }
 
 export function getErrorMessage(error: unknown): string {
-  console.log('RAW ERROR:', error)
-  console.log('FULL RESPONSE:', (error as any).response)
-  console.log('STATUS:', (error as any).response?.status)
-  console.log('DATA:', (error as any).response?.data)
-  console.log('DETAIL:', (error as any).response?.data?.detail)
-  console.log('HEADERS:', (error as any).response?.headers)
-
   if (error && typeof error === 'object' && 'response' in error) {
     const axiosError = error as { response?: { data?: ApiError } }
     console.log('RESPONSE DATA:', axiosError.response?.data)
@@ -56,7 +49,9 @@ export function getStatusColor(status: FkpStatusKey): string {
     submitted: 'bg-blue-100 text-blue-700',
     apsm_reviewed: 'bg-violet-100 text-violet-700',
     rsm_approval_investigasi: 'bg-amber-100 text-amber-700',
+    rsm_approval_final: 'bg-indigo-100 text-indigo-700',
     in_investigation: 'bg-orange-100 text-orange-700',
+    pcs_ditangani_apsm: 'bg-lime-100 text-lime-700',
     investigated: 'bg-cyan-100 text-cyan-700',
     rsm_approval_resolusi: 'bg-purple-100 text-purple-700',
     direktur_approval: 'bg-fuchsia-100 text-fuchsia-700',

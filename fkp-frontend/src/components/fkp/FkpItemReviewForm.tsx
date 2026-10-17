@@ -163,7 +163,6 @@ export function FkpItemReviewForm(props: Props) {
                         <option value="">— Pilih kompensasi —</option>
                         <option value="ganti_barang">Ganti barang baru</option>
                         <option value="potong_tagihan">Potong tagihan (cashback)</option>
-                        <option value="tidak_ada_kompensasi">Tanpa kompensasi</option>
                     </Select>
 
                     {/* ── [3] Persentase disetujui ─────────────────────────── */}
