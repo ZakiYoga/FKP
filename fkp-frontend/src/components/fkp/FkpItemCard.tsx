@@ -59,7 +59,7 @@ function FkpItemCard({ item, idx, canDelete, onDelete, attachments, products }: 
           <div className="text-xs">
             <h1 className="text-xs font-medium text-gray-800 mb-1">Deskripsi Keluhan : </h1>
             <p className="first-letter:uppercase">
-              {item.deskripsi_keluhan} Lorem ipsum dolor sit amet consectetur adipisicing elit. Quia, velit sunt. Beatae harum, ipsam sunt mollitia autem minima blanditiis, placeat non soluta, deleniti inventore velit doloremque consectetur neque quasi expedita?
+              {item.deskripsi_keluhan}
             </p>
           </div>
         </div>
