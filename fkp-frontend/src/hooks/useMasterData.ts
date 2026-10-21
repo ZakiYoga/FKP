@@ -1,4 +1,7 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { Paginated } from '@/types/pagination'
+import type { Distributor } from '@/types'
+import type { Outlet } from '@/types/outlet'
 import toast from 'react-hot-toast'
 import { areaApi, distributorApi, outletApi, productApi } from '@/api/masterdata'
 import { getErrorMessage } from '@/lib/utils'
@@ -62,6 +65,21 @@ export function useDistributors(params?: { area_id?: string; status?: string }) 
   })
 }
 
+export interface DistributorPageParams {
+  page: number
+  page_size: number
+  status?: string
+  search?: string
+  area_id?: string
+}
+
+export const distributorsPageQueryOptions = (params: DistributorPageParams) =>
+  queryOptions({
+    queryKey: ['distributors', 'page', params],
+    queryFn: async () =>
+      (await api.get<Paginated<Distributor>>('/distributors/page', { params })).data,
+  })
+
 export function useDistributorDetail(id: string | undefined) {
   return useQuery({
     queryKey: ['distributors', id],
@@ -120,12 +138,14 @@ export function useDeactivateDistributor() {
 }
 
 export function useActivateDistributor() {
-  const queryClient = useQueryClient()
+  const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => api.post(`/distributors/${id}/activate`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['distributors'] })
+      qc.invalidateQueries({ queryKey: ['distributors'] })
+      toast.success('Distributor diaktifkan kembali.')
     },
+    onError: (e) => toast.error(getErrorMessage(e)),
   })
 }
 
@@ -137,6 +157,22 @@ export function useOutlets(params?: { distributor_id?: string; status?: string }
     staleTime: 5 * 60 * 1000,
   })
 }
+
+export interface OutletPageParams {
+  page: number
+  page_size: number
+  status?: string
+  search?: string
+  distributor_id?: string
+  area_id?: string
+}
+
+export const outletsPageQueryOptions = (params: OutletPageParams) =>
+  queryOptions({
+    queryKey: ['outlets', 'page', params],
+    queryFn: async () =>
+      (await api.get<Paginated<Outlet>>('/outlets/page', { params })).data,
+  })
 
 export function useOutletDetail(id: string | undefined) {
   return useQuery({
@@ -266,25 +302,29 @@ export function useSetProductKemasan() {
 export function useSaveProduct() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, data, kemasan }: {
+    mutationFn: async ({
+      id,
+      data,
+      kemasan,
+      qty_per_kemasan,
+    }: {
       id: string
       data: Parameters<typeof productApi.update>[1]
-      kemasan?: string[] | undefined
+      kemasan?: string[]
+      qty_per_kemasan?: number | null
     }) => {
-      let hasil = await productApi.update(id, data)
-      if (kemasan) {
-        try {
-          hasil = await productApi.setKemasan(id, kemasan)
-        } catch (e) {
-          throw new Error(
-            `Data dasar produk sudah tersimpan, tetapi kemasan gagal diubah: ${getErrorMessage(e)}`,
-          )
-        }
-      }
-      return hasil
+      // 1) data dasar; 2) kemasan + isi per kemasan (satu kesatuan), hanya bila dikirim
+      const produk = await productApi.update(id, data)
+      return kemasan ? productApi.setKemasan(id, kemasan, qty_per_kemasan) : produk
     },
-    onSuccess: () => toast.success('Produk berhasil disimpan.'),
-    onError: (e) => toast.error(getErrorMessage(e)),
-    onSettled: () => qc.invalidateQueries({ queryKey: ['products'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['products'] })
+      toast.success('Produk berhasil diupdate.')
+    },
+    onError: (e) => {
+      // Langkah 1 bisa sudah tersimpan walau langkah 2 gagal: segarkan daftar.
+      qc.invalidateQueries({ queryKey: ['products'] })
+      toast.error(getErrorMessage(e))
+    },
   })
 }

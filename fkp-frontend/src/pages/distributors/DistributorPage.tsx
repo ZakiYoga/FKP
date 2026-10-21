@@ -1,20 +1,27 @@
-import { useState } from 'react'
-import { Plus, Building2, Pencil, PowerOff, Search, Filter, Power } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { keepPreviousData, useQueries } from '@tanstack/react-query'
+import { useDebouncedValue } from '@mantine/hooks'
+import {
+  distributorsPageQueryOptions,
+  useCreateDistributor, useUpdateDistributor,
+  useDeactivateDistributor, useActivateDistributor, useAreas,
+} from '@/hooks/useMasterData'
+import { Plus, Building2, Pencil, PowerOff, Phone, Mail, Power } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import {
-  useDistributors, useCreateDistributor,
-  useUpdateDistributor, useDeactivateDistributor, useActivateDistributor, useAreas,
-} from '@/hooks/useMasterData'
 import { Modal } from '@/components/ui/Modal'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { PageLoader } from '@/components/ui/Spinner'
 import { StatusToggleBadge } from '@/components/ui/StatusToggle'
+import { DistributorFilterBar } from '@/components/distributor/DistributorFilterBar'
 import { useKodeRole } from '@/store/authStore'
 import type { Distributor } from '@/types'
+import { Button, Pagination } from '@mantine/core'
+import { EntityCard, EntityCardIconButton } from '@/components/ui/EntityCard'
+import PageHeader from '@/components/ui/PageHeader'
 
 const createSchema = z.object({
   area_id: z.string().min(1, 'Area wajib dipilih'),
@@ -30,38 +37,119 @@ type CreateForm = z.infer<typeof createSchema>
 
 const CAN_MANAGE = ['superadmin', 'admin_ho']
 
+const PAGE_SIZE = 12
+
+const STATUS_SECTIONS = [
+  { key: 'aktif', title: 'Distributor Aktif' },
+  { key: 'nonaktif', title: 'Nonaktif' },
+] as const
+
+// ── Konfirmasi aksi distributor — SATU dialog untuk deactivate/activate ──
+type DistributorActionType = 'deactivate' | 'activate'
+
+type PendingDistributorAction = {
+  type: DistributorActionType
+  distributor: Distributor
+}
+
+type MutateById = (id: string, options?: { onSuccess?: () => void }) => void
+
+const ACTION_CONFIG: Record<
+  DistributorActionType,
+  {
+    variant: 'success' | 'danger'
+    title: string
+    message: (nama: string) => string
+    confirmLabel: string
+  }
+> = {
+  deactivate: {
+    variant: 'danger',
+    title: 'Nonaktifkan Distributor',
+    message: (nama) =>
+      `Yakin ingin menonaktifkan "${nama}"? Distributor tidak bisa menerima FKP baru.`,
+    confirmLabel: 'Ya, Nonaktifkan',
+  },
+  activate: {
+    variant: 'success',
+    title: 'Aktifkan Distributor',
+    message: (nama) =>
+      `Yakin ingin mengaktifkan kembali "${nama}"? Distributor akan bisa menerima FKP baru lagi.`,
+    confirmLabel: 'Ya, Aktifkan',
+  },
+}
+
 export function DistributorPage() {
   const kodeRole = useKodeRole()
   const canManage = CAN_MANAGE.includes(kodeRole)
 
   const [search, setSearch] = useState('')
   const [areaFilter, setAreaFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Distributor | null>(null)
-  const [deactivating, setDeactivating] = useState<Distributor | null>(null)
-  const [activating, setActivating] = useState<Distributor | null>(null)
+  const [pages, setPages] = useState<Record<string, number>>({}) // halaman per section
+  const resetPages = () => setPages({})
+  const [debouncedSearch] = useDebouncedValue(search, 400)
 
-  const { data: distributors = [], isLoading } = useDistributors(
-    areaFilter ? { area_id: areaFilter } : undefined,
-  )
+  const activeSections = STATUS_SECTIONS.filter((s) => !statusFilter || s.key === statusFilter)
+
+  const sectionQueries = useQueries({
+    queries: activeSections.map((s) => ({
+      ...distributorsPageQueryOptions({
+        page: pages[s.key] ?? 1,
+        page_size: PAGE_SIZE,
+        status: s.key,
+        search: debouncedSearch.trim() || undefined,
+        area_id: areaFilter || undefined,
+      }),
+      placeholderData: keepPreviousData,
+    })),
+  })
+
+  const isLoading = sectionQueries.some((q) => q.isPending)
+
+  // Section kosong disembunyikan, sama seperti perilaku sebelumnya.
+  const sections = activeSections.flatMap((s, i) => {
+    const q = sectionQueries[i]
+    return q.data && q.data.total > 0
+      ? [{ ...s, data: q.data, isDimmed: q.isPlaceholderData }]
+      : []
+  })
+
+  const visibleCount = sections.reduce((sum, s) => sum + s.data.total, 0)
+
+  // Jika item terakhir di halaman terakhir dinonaktifkan, halaman jadi kosong → mundur.
+  useEffect(() => {
+    sectionQueries.forEach((q, i) => {
+      const d = q.data
+      if (d && !q.isPlaceholderData && d.items.length === 0 && d.page > 1) {
+        setPages((p) => ({ ...p, [activeSections[i].key]: Math.max(1, d.total_pages) }))
+      }
+    })
+  }, [sectionQueries]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Satu state menggantikan deactivating/activating.
+  const [pendingAction, setPendingAction] = useState<PendingDistributorAction | null>(null)
+
   const { data: areas = [] } = useAreas()
   const { mutate: create, isPending: isCreating } = useCreateDistributor()
   const { mutate: update, isPending: isUpdating } = useUpdateDistributor(editing?.id ?? '')
   const { mutate: deactivate, isPending: isDeactivating } = useDeactivateDistributor()
   const { mutate: activate, isPending: isActivating } = useActivateDistributor()
 
+  const ACTION_MUTATORS: Record<DistributorActionType, MutateById> = {
+    deactivate,
+    activate,
+  }
+
+  const ACTION_IS_PENDING: Record<DistributorActionType, boolean> = {
+    deactivate: isDeactivating,
+    activate: isActivating,
+  }
+
   const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateForm>({
     resolver: zodResolver(createSchema),
-  })
-
-  const filtered = distributors.filter((d) => {
-    if (!search) return true
-    const q = search.toLowerCase()
-    return (
-      d.nama_perusahaan.toLowerCase().includes(q) ||
-      d.kode_distributor.toLowerCase().includes(q) ||
-      d.pemilik.toLowerCase().includes(q)
-    )
   })
 
   const openCreate = () => {
@@ -84,6 +172,11 @@ export function DistributorPage() {
     setModalOpen(true)
   }
 
+  const closeModal = () => {
+    setModalOpen(false)
+    reset()
+  }
+
   const onSubmit = (data: CreateForm) => {
     const createPayload = {
       ...data,
@@ -102,152 +195,132 @@ export function DistributorPage() {
     }
 
     if (editing) {
-      update(updatePayload, { onSuccess: () => { setModalOpen(false); reset() } })
+      update(updatePayload, { onSuccess: closeModal })
     } else {
-      create(createPayload, { onSuccess: () => { setModalOpen(false); reset() } })
+      create(createPayload, { onSuccess: closeModal })
     }
   }
 
-  if (isLoading) return <PageLoader />
+  // Handler tunggal untuk tombol Konfirmasi di dialog.
+  const handleConfirmAction = () => {
+    if (!pendingAction) return
+    const mutate = ACTION_MUTATORS[pendingAction.type]
+    mutate(pendingAction.distributor.id, { onSuccess: () => setPendingAction(null) })
+  }
+
+  const renderCard = (d: Distributor) => {
+    const area = areas.find((a) => a.id === d.area_id)
+    return (
+      <EntityCard
+        key={d.id}
+        code={d.kode_distributor}
+        badge={<StatusToggleBadge status={d.status} />}
+        title={d.nama_perusahaan}
+        subtitle={d.pemilik}
+        meta={[
+          area && { text: area.kode_area },
+          d.no_telepon && { icon: Phone, text: d.no_telepon },
+          d.email_perusahaan && { icon: Mail, text: d.email_perusahaan },
+        ]}
+        actions={
+          canManage && (
+            <div className="flex gap-2">
+              <button onClick={() => openEdit(d)} className="btn-secondary btn-sm flex-1">
+                <Pencil className="w-3.5 h-3.5" /> Edit
+              </button>
+              {d.status === 'aktif' ? (
+                <EntityCardIconButton
+                  tone="danger" icon={Power} label="Nonaktifkan"
+                  onClick={() => setPendingAction({ type: 'deactivate', distributor: d })}
+                />
+              ) : (
+                <EntityCardIconButton
+                  tone="success" icon={PowerOff} label="Aktifkan"
+                  onClick={() => setPendingAction({ type: 'activate', distributor: d })}
+                />
+              )}
+            </div>
+          )
+        }
+      />
+    )
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
+
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Manajemen Distributor</h1>
-          <p className="text-gray-500 text-sm mt-0.5">{filtered.length} distributor</p>
-        </div>
-        {canManage && (
-          <button onClick={openCreate} className="btn-primary">
-            <Plus className="w-4 h-4" /> Tambah Distributor
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="Manajemen Distributor"
+        description={`${visibleCount} distributor`}
+        actions={
+          canManage && (
+            <Button onClick={openCreate} className="p-2 btn-primary">
+              <Plus className="w-4 h-4" /> Tambah Distributor
+            </Button>
+          )
+        }
+      />
 
-      {/* Filter bar */}
-      <div className="flex gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-50 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Cari nama, kode, pemilik..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="input-base pl-9 py-2"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-gray-400" />
-          <select
-            value={areaFilter}
-            onChange={(e) => setAreaFilter(e.target.value)}
-            className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
-                       focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400"
-          >
-            <option value="">Semua Area</option>
-            {areas.map((a) => (
-              <option key={a.id} value={a.id}>{a.nama_area}</option>
-            ))}
-          </select>
-        </div>
-      </div>
+      {/* Search + tombol filter (status, area) */}
+      <DistributorFilterBar
+        search={search}
+        onSearchChange={(v) => { setSearch(v); resetPages() }}
+        statusFilter={statusFilter}
+        onStatusChange={(v) => { setStatusFilter(v); resetPages() }}
+        areaFilter={areaFilter}
+        onAreaChange={(v) => { setAreaFilter(v); resetPages() }}
+      />
 
-      {/* Table */}
-      {filtered.length === 0 ? (
+      {/* Section distributor per status: Aktif → Nonaktif */}
+      {isLoading ? (
+        <PageLoader />
+      ) : sections.length === 0 ? (
         <div className="card card-body text-center py-16">
           <Building2 className="w-12 h-12 text-gray-200 mx-auto mb-3" />
           <p className="text-gray-500">Tidak ada distributor ditemukan.</p>
         </div>
       ) : (
-        <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className="text-left px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Kode</th>
-                  <th className="text-left px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Perusahaan</th>
-                  <th className="text-left px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Pemilik</th>
-                  <th className="text-left px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Area</th>
-                  <th className="text-left px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Kontak</th>
-                  <th className="text-left px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Status</th>
-                  {canManage && <th className="text-right px-5 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Aksi</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {filtered.map((d) => {
-                  const area = areas.find((a) => a.id === d.area_id)
-                  return (
-                    <tr key={d.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-5 py-4 font-mono text-xs text-gray-500">{d.kode_distributor}</td>
-                      <td className="px-5 py-4">
-                        <p className="font-semibold text-gray-900">{d.nama_perusahaan}</p>
-                        {d.alamat_lengkap && (
-                          <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[200px]">{d.alamat_lengkap}</p>
-                        )}
-                      </td>
-                      <td className="px-5 py-4 text-gray-700">{d.pemilik}</td>
-                      <td className="px-5 py-4">
-                        {area ? (
-                          <span className="text-xs bg-brand-50 text-brand-700 border border-brand-100 rounded-full px-2.5 py-1">
-                            {area.kode_area}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400 text-xs">—</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-4">
-                        <p className="text-gray-700">{d.no_telepon ?? '—'}</p>
-                        {d.email_perusahaan && (
-                          <p className="text-xs text-gray-400">{d.email_perusahaan}</p>
-                        )}
-                      </td>
-                      <td className="px-5 py-4">
-                        <StatusToggleBadge status={d.status} />
-                      </td>
-                      {canManage && (
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-1 justify-end">
-                            <button
-                              onClick={() => openEdit(d)}
-                              className="btn-ghost btn-sm p-2 text-gray-500"
-                              title="Edit"
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                            {d.status === 'aktif' ? (
-                              <button
-                                onClick={() => setDeactivating(d)}
-                                className="btn-ghost btn-sm p-2 text-red-400 hover:text-red-600 hover:bg-red-50"
-                                title="Nonaktifkan"
-                              >
-                                <PowerOff className="w-4 h-4" />
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => setActivating(d)}
-                                className="btn-ghost btn-sm p-2 text-green-500 hover:text-green-700 hover:bg-green-50"
-                                title="Aktifkan"
-                              >
-                                <Power className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+        <div className="space-y-10">
+          {sections.map((s) => (
+            <section key={s.key} className="space-y-3">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold">{s.title}</h2>
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                  {s.data.total}
+                </span>
+              </div>
+              <div
+                className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 transition-opacity ${s.isDimmed ? 'opacity-60' : ''
+                  }`}
+              >
+                {s.data.items.map(renderCard)}
+              </div>
+
+              {s.data.total_pages > 1 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                  <p className="text-xs text-gray-500">
+                    Menampilkan {(s.data.page - 1) * s.data.page_size + 1}–
+                    {Math.min(s.data.page * s.data.page_size, s.data.total)} dari {s.data.total}
+                  </p>
+                  <Pagination
+                    total={s.data.total_pages}
+                    value={pages[s.key] ?? 1}
+                    onChange={(p) => setPages((prev) => ({ ...prev, [s.key]: p }))}
+                    size="md"
+                    radius="md"
+                  />
+                </div>
+              )}
+            </section>
+          ))}
         </div>
       )}
 
       {/* Modal Form */}
       <Modal
         isOpen={modalOpen}
-        onClose={() => { setModalOpen(false); reset() }}
+        onClose={closeModal}
         title={editing ? 'Edit Distributor' : 'Tambah Distributor Baru'}
         size="lg"
       >
@@ -293,7 +366,7 @@ export function DistributorPage() {
           </div>
           <Input label="Alamat Lengkap" placeholder="Jl. ..." {...register('alamat_lengkap')} />
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => { setModalOpen(false); reset() }} className="btn-secondary">
+            <button type="button" onClick={closeModal} className="btn-secondary">
               Batal
             </button>
             <button type="submit" disabled={isCreating || isUpdating} className="btn-primary">
@@ -303,33 +376,20 @@ export function DistributorPage() {
         </form>
       </Modal>
 
-      {/* Confirm deactivate */}
       <ConfirmDialog
-        isOpen={!!deactivating}
-        onClose={() => setDeactivating(null)}
-        onConfirm={() => {
-          if (deactivating) {
-            deactivate(deactivating.id, { onSuccess: () => setDeactivating(null) })
-          }
-        }}
-        isPending={isDeactivating}
-        title="Nonaktifkan Distributor"
-        message={`Yakin ingin menonaktifkan "${deactivating?.nama_perusahaan}"? Distributor tidak bisa menerima FKP baru.`}
-        confirmLabel="Ya, Nonaktifkan"
-      />
-
-      <ConfirmDialog
-        isOpen={!!activating}
-        onClose={() => setActivating(null)}
-        onConfirm={() => {
-          if (activating) {
-            activate(activating.id, { onSuccess: () => setActivating(null) })
-          }
-        }}
-        isPending={isActivating}
-        title="Aktifkan Distributor"
-        message={`Yakin ingin mengaktifkan kembali "${activating?.nama_perusahaan}"? Distributor akan bisa menerima FKP baru lagi.`}
-        confirmLabel="Ya, Aktifkan"
+        isOpen={!!pendingAction}
+        onClose={() => setPendingAction(null)}
+        onConfirm={handleConfirmAction}
+        icon={false}
+        isPending={pendingAction ? ACTION_IS_PENDING[pendingAction.type] : false}
+        variant={pendingAction ? ACTION_CONFIG[pendingAction.type].variant : 'success'}
+        title={pendingAction ? ACTION_CONFIG[pendingAction.type].title : ''}
+        message={
+          pendingAction
+            ? ACTION_CONFIG[pendingAction.type].message(pendingAction.distributor.nama_perusahaan)
+            : ''
+        }
+        confirmLabel={pendingAction ? ACTION_CONFIG[pendingAction.type].confirmLabel : ''}
       />
     </div>
   )

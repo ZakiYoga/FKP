@@ -1,7 +1,9 @@
-import { Search, X } from 'lucide-react'
+import { FilterBar } from '@/components/ui/FilterBar'
+import type { FilterBarField, FilterOption } from '@/components/ui/FilterBar'
 import { FKP_STATUS_LABEL, JALUR_LABEL } from '@/types'
 import type { FkpStatusKey, JalurFkp } from '@/types'
 import { useAreas, useDistributors, useOutlets } from '@/hooks/useMasterData'
+import { useKodeRole } from '@/store/authStore'
 
 export interface AdvFilters {
   area_id: string
@@ -25,9 +27,24 @@ interface FkpFilterBarProps {
   totalCount: number
 }
 
-const selectClass =
-  'text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 ' +
-  'focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 cursor-pointer'
+const EMPTY_ADV_FILTERS: AdvFilters = {
+  area_id: '',
+  distributor_id: '',
+  outlet_id: '',
+  tanggal_dari: '',
+  tanggal_sampai: '',
+}
+
+// Status otomatis memuat 'Ditangani APSM' dari FKP_STATUS_LABEL
+const STATUS_OPTIONS: FilterOption[] = (Object.keys(FKP_STATUS_LABEL) as FkpStatusKey[]).map((key) => ({
+  value: key,
+  label: FKP_STATUS_LABEL[key],
+}))
+
+const JALUR_OPTIONS: FilterOption[] = (Object.keys(JALUR_LABEL) as JalurFkp[]).map((key) => ({
+  value: key,
+  label: JALUR_LABEL[key],
+}))
 
 export function FkpFilterBar({
   search,
@@ -38,152 +55,104 @@ export function FkpFilterBar({
   onJalurChange,
   advFilters,
   onAdvChange,
-  totalCount,
 }: FkpFilterBarProps) {
   const { data: areas = [] } = useAreas()
-  const { data: distributors = [] } = useDistributors({ area_id: advFilters.area_id || undefined })
-  const { data: outlets = [] } = useOutlets({ distributor_id: advFilters.distributor_id || undefined })
+  const { data: distributors = [], isLoading: loadingDistributors } = useDistributors({
+    area_id: advFilters.area_id || undefined,
+  })
+  const { data: outlets = [], isLoading: loadingOutlets } = useOutlets({
+    distributor_id: advFilters.distributor_id || undefined,
+  })
 
-  const hasFilter =
-    statusFilter ||
-    jalurFilter ||
-    search ||
-    Object.values(advFilters).some(Boolean)
+  const areaOptions: FilterOption[] = areas.map((a) => ({ value: a.id, label: a.nama_area }))
+  const distributorOptions: FilterOption[] = distributors.map((d) => ({
+    value: d.id,
+    label: d.nama_perusahaan,
+  }))
+  const outletOptions: FilterOption[] = outlets.map((o) => ({ value: o.id, label: o.nama_toko }))
 
-  const clearAll = () => {
-    onSearchChange('')
-    onStatusChange('')
-    onJalurChange('')
-    onAdvChange({
-      area_id: '',
-      distributor_id: '',
-      outlet_id: '',
-      tanggal_dari: '',
-      tanggal_sampai: '',
-    })
-  }
+  // Outlet: tidak perlu filter distributor & toko. Distributor: tidak perlu filter distributor.
+  // Hanya penyederhanaan UI; pembatasan data tetap ditegakkan di backend.
+  const kodeRole = useKodeRole()
+  const showArea = kodeRole !== 'outlet' && kodeRole !== 'distributor'
+  const showDistributor = kodeRole !== 'outlet' && kodeRole !== 'distributor'
+  const showOutlet = kodeRole !== 'outlet'
+
+  const fields: FilterBarField[] = [
+    {
+      key: 'status',
+      type: 'select',
+      label: 'Status',
+      value: statusFilter,
+      onChange: onStatusChange,
+      options: STATUS_OPTIONS,
+      placeholder: 'Semua Status',
+    },
+    {
+      key: 'jalur',
+      type: 'select',
+      label: 'Jalur',
+      value: jalurFilter,
+      onChange: onJalurChange,
+      options: JALUR_OPTIONS,
+      placeholder: 'Semua Jalur',
+    },
+    {
+      key: 'area',
+      type: 'select',
+      label: 'Area',
+      hidden: !showArea,
+      value: advFilters.area_id,
+      onChange: (v) => onAdvChange({ area_id: v }),
+      options: areaOptions,
+      placeholder: 'Semua Area',
+    },
+    {
+      key: 'distributor',
+      type: 'select',
+      label: 'Distributor',
+      hidden: !showDistributor,
+      searchable: true,
+      loading: loadingDistributors,
+      value: advFilters.distributor_id,
+      onChange: (v) => onAdvChange({ distributor_id: v }),
+      options: distributorOptions,
+      placeholder: 'Semua Distributor',
+    },
+    {
+      key: 'outlet',
+      type: 'select',
+      label: 'Outlet / Toko',
+      hidden: !showOutlet,
+      searchable: true,
+      loading: loadingOutlets,
+      value: advFilters.outlet_id,
+      onChange: (v) => onAdvChange({ outlet_id: v }),
+      options: outletOptions,
+      placeholder: 'Semua Toko',
+    },
+    {
+      key: 'tanggal',
+      type: 'date-range',
+      from: advFilters.tanggal_dari,
+      to: advFilters.tanggal_sampai,
+      onFromChange: (v) => onAdvChange({ tanggal_dari: v }),
+      onToChange: (v) => onAdvChange({ tanggal_sampai: v }),
+    },
+  ]
 
   return (
-    <div className="space-y-3">
-      {/* Search + count */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3 flex-1">
-          <div className="relative w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Cari nomor FKP atau jenis keluhan..."
-              value={search}
-              onChange={(e) => onSearchChange(e.target.value)}
-              className="input-base pl-9 py-2"
-            />
-          </div>
-
-          {/* Status filter — otomatis memuat 'Ditangani APSM' dari FKP_STATUS_LABEL */}
-          <select
-            value={statusFilter}
-            onChange={(e) => onStatusChange(e.target.value)}
-            className={selectClass}
-          >
-            <option value="">Semua Status</option>
-            {(Object.keys(FKP_STATUS_LABEL) as FkpStatusKey[]).map((key) => (
-              <option key={key} value={key}>
-                {FKP_STATUS_LABEL[key]}
-              </option>
-            ))}
-          </select>
-
-          {/* Jalur filter */}
-          <select
-            value={jalurFilter}
-            onChange={(e) => onJalurChange(e.target.value)}
-            className={selectClass}
-          >
-            <option value="">Semua Jalur</option>
-            {(Object.keys(JALUR_LABEL) as JalurFkp[]).map((key) => (
-              <option key={key} value={key}>
-                {JALUR_LABEL[key]}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Clear all */}
-        {hasFilter && (
-          <button
-            onClick={clearAll}
-            className="flex items-center gap-1 text-sm text-red-500 hover:text-red-700
-                       border border-red-200 rounded-lg px-3 py-1.5 hover:bg-red-50
-                       transition-colors"
-          >
-            <X className="w-3.5 h-3.5" />
-            Reset
-          </button>
-        )}
-      </div>
-
-      {/* Advanced filters row */}
-      <div className="flex flex-wrap items-center gap-3">
-        <select
-          value={advFilters.area_id}
-          onChange={(e) => onAdvChange({ area_id: e.target.value })}
-          className={selectClass}
-        >
-          <option value="">Semua Area</option>
-          {areas.map((area) => (
-            <option key={area.id} value={area.id}>
-              {area.nama_area}
-            </option>
-          ))}
-        </select>
-
-        <select
-          value={advFilters.distributor_id}
-          onChange={(e) => onAdvChange({ distributor_id: e.target.value })}
-          className={`${selectClass} pr-14`}
-        >
-          <option value="">Semua Distributor</option>
-          {distributors.map((distributor) => (
-            <option key={distributor.id} value={distributor.id}>
-              {distributor.nama_perusahaan}
-            </option>
-          ))}
-        </select>
-
-        <select
-          value={advFilters.outlet_id}
-          onChange={(e) => onAdvChange({ outlet_id: e.target.value })}
-          className={selectClass}
-        >
-          <option value="">Semua Toko</option>
-          {outlets.map((outlet) => (
-            <option key={outlet.id} value={outlet.id}>
-              {outlet.nama_toko}
-            </option>
-          ))}
-        </select>
-
-        <input
-          type="date"
-          value={advFilters.tanggal_dari}
-          max={advFilters.tanggal_sampai || undefined}
-          onChange={(e) => onAdvChange({ tanggal_dari: e.target.value })}
-          className={selectClass}
-        />
-        <input
-          type="date"
-          value={advFilters.tanggal_sampai}
-          min={advFilters.tanggal_dari || undefined}
-          onChange={(e) => onAdvChange({ tanggal_sampai: e.target.value })}
-          className={selectClass}
-        />
-      </div>
-
-      {/* <div className="flex items-center gap-2 flex-wrap">
-        <p className="text-xs text-gray-500 shrink-0">
-          <span className="font-semibold text-gray-900">Total : {totalCount}</span> FKP
-        </p>
-      </div> */}
-    </div>
+    <FilterBar
+      search={search}
+      onSearchChange={onSearchChange}
+      searchPlaceholder="Cari nomor FKP atau jenis keluhan..."
+      fields={fields}
+      // Satu kali onAdvChange(EMPTY) seperti sebelumnya, bukan per field
+      onReset={() => {
+        onStatusChange('')
+        onJalurChange('')
+        onAdvChange(EMPTY_ADV_FILTERS)
+      }}
+    />
   )
 }

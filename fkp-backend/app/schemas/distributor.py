@@ -1,5 +1,5 @@
 import uuid
-from typing import Optional, List
+from typing import Dict, Optional, List
 from datetime import datetime
 from pydantic import BaseModel, EmailStr
 
@@ -61,6 +61,26 @@ class DistributorResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ─── PAGINATION ───────────────────────────────────────────────────────────────
+
+class DistributorListPage(BaseModel):
+    """Response berpagination untuk GET /api/distributors/page."""
+    items: List[DistributorResponse]
+    total: int          # total baris yang cocok filter (bukan hanya halaman ini)
+    page: int           # halaman aktif, mulai dari 1
+    page_size: int
+    total_pages: int    # 0 jika tidak ada data
+
+
+class DistributorStatusSummary(BaseModel):
+    """
+    Jumlah distributor per status (mengikuti scope role + filter area).
+    Contoh: {"counts": {"aktif": 40, "nonaktif": 3}, "total": 43}
+    """
+    counts: Dict[str, int]
+    total: int
 
 
 # ─── DISTRIBUTOR USER (mapping user ke distributor) ───────────────────────────

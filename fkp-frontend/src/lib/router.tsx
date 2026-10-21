@@ -28,6 +28,8 @@ import { BaManualPage } from '@/pages/documents/BaManualPage'
 import { ROLE_PENANGAN_PCS } from '@/constants/fkpPcs'
 import { NotFoundPage, ForbiddenPage } from '@/pages/ErrorPages'
 import { FkpPcsPage } from '@/pages/apsm/FkpPcsPage'
+import LabQcPage from '@/pages/lab-qc/LabQcPage'
+import Profile from '@/pages/profile/Profile'
 
 // AuthProvider dibungkus di root layout agar punya akses ke router context
 function RootLayout() {
@@ -77,21 +79,28 @@ export const router = createBrowserRouter([
           {
             element: <AppLayout />,
             children: [
+              // Dashboard
               { path: '/dashboard', element: <DashboardPage /> },
-              { path: '/change-password', element: <ChangePasswordPage /> },
-              { path: '/outlet-registrations', element: <OutletRegistrationsPage /> },
 
+              // Profile
+              { path: '/me', element: <Profile /> },
+              { path: '/change-password', element: <ChangePasswordPage /> },
+              
               // FKP
               { path: '/fkp', element: <FkpListPage /> },
               { path: '/fkp/baru', element: <FkpCreatePage /> },
               { path: '/fkp/:id', element: <FkpDetailPage /> },
               { path: '/fkp/:id/edit', element: <FkpEditPage /> },
-
+              
               // Master Data
               { path: '/areas', element: <AreaPage /> },
               { path: '/distributors', element: <DistributorPage /> },
               { path: '/outlets', element: <OutletPage /> },
+              { path: '/outlet-registrations', element: <OutletRegistrationsPage /> },
               { path: '/products', element: <ProductPage /> },
+
+              // Lab Investigasi QC
+              { path: '/investigasi-qc', element: <LabQcPage /> },
 
               // Tim & Hierarki
               { path: '/hierarchy', element: <HierarchyPage /> },

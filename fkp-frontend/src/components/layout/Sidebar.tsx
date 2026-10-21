@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ShieldCheck, LogOut, ChevronLeft, ChevronRight, X, PanelLeftClose, PanelLeftOpen, PanelRightOpen } from 'lucide-react'
+import { LogOut, PanelLeftOpen, PanelRightOpen } from 'lucide-react'
 import {
   Stack,
   Text,
@@ -7,7 +7,6 @@ import {
   Avatar,
   UnstyledButton,
   ScrollArea,
-  ThemeIcon,
   Tooltip,
   ActionIcon,
 } from '@mantine/core'
@@ -121,7 +120,7 @@ export function Sidebar({ collapsed, onToggle, isMobile = false }: SidebarProps)
   // - mobile  → X (tutup drawer)
   // - desktop collapsed  → ChevronRight (expand)
   // - desktop expanded   → ChevronLeft  (collapse)
-  const ToggleIcon = isMobile ? X : collapsed ? ChevronRight : ChevronLeft
+  // const ToggleIcon = isMobile ? X : collapsed ? ChevronRight : ChevronLeft
   const toggleLabel = isMobile ? 'Tutup' : collapsed ? 'Perluas' : 'Ciutkan'
 
   return (

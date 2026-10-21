@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
+import { SearchableSelect } from '@/components/ui/SearchableSelect'
 import { useUpdateTahapPcs } from '@/hooks/useFkp'
 import {
   TAHAP_PCS_ORDER,
@@ -29,6 +30,13 @@ export function PcsTahapSelect({ fkp, canHandle }: Props) {
   const melompat = idxBaru - idxKini > 1
   const tutup = pending === 'selesai'
 
+  // Tahap yang sudah lewat (termasuk tahap kini) tidak bisa dipilih: tahap tidak dapat dimundurkan.
+  const tahapOptions = TAHAP_PCS_ORDER.map((t, i) => ({
+    value: t,
+    label: TAHAP_PCS_LABEL_APSM[t],
+    disabled: i <= idxKini,
+  }))
+
   const batal = () => {
     if (!mutation.isPending) setPending(null)
   }
@@ -41,25 +49,19 @@ export function PcsTahapSelect({ fkp, canHandle }: Props) {
   return (
     <>
       {/* Controlled dari server: tampilan baru berubah setelah refetch (tanpa optimistic update). */}
-      <select
-        value={fkp.pcs_tahap ?? ''}
+      <SearchableSelect
+        aria-label="Tahap penanganan"
+        searchable={false}
+        clearable={false}
+        className="w-full min-w-44"
+        placeholder="Pilih tahap"
+        options={tahapOptions}
+        value={fkp.pcs_tahap}
         disabled={!canHandle || !aktif || mutation.isPending}
-        onChange={(e) => {
-          const v = e.target.value as TahapPcs | ''
-          if (v) setPending(v)
+        onChange={(v) => {
+          if (v) setPending(v as TahapPcs)
         }}
-        className="w-full min-w-44 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-sm
-                   text-gray-700 disabled:bg-gray-50 disabled:text-gray-400"
-      >
-        <option value="" disabled>
-          Pilih tahap
-        </option>
-        {TAHAP_PCS_ORDER.map((t, i) => (
-          <option key={t} value={t} disabled={i <= idxKini}>
-            {TAHAP_PCS_LABEL_APSM[t]}
-          </option>
-        ))}
-      </select>
+      />
 
       <Modal
         isOpen={pending !== null}

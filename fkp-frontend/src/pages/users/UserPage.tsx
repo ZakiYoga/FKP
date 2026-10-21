@@ -1,19 +1,32 @@
-import { useState } from 'react'
-import { Plus, Users, Pencil, PowerOff, Search, Eye, EyeOff } from 'lucide-react'
-import { useForm } from 'react-hook-form'
+import { useEffect, useState } from 'react'
+import { Plus, Pencil, PowerOff, Eye, EyeOff } from 'lucide-react'
+import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useUsers, useRoles, useCreateUser, useUpdateUser, useDeactivateUser } from '@/hooks/useUsers'
+import { useRoles, useCreateUser, useUpdateUser, useDeactivateUser, useUsersPage } from '@/hooks/useUsers'
 import { Modal } from '@/components/ui/Modal'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Input } from '@/components/ui/Input'
-import { Select } from '@/components/ui/Select'
+import { FilterSelect } from '@/components/fkp/FilterSelect'
 import { PageLoader } from '@/components/ui/Spinner'
 import { StatusToggleBadge } from '@/components/ui/StatusToggle'
-import { formatDateTime, formatRelative } from '@/lib/utils'
+import { formatRelative } from '@/lib/utils'
 import { useCurrentUser } from '@/store/authStore'
 import type { UserDetail } from '@/api/users'
+import { FilterBar, FilterBarField } from '@/components/ui/FilterBar'
+import { Pagination } from '@/components/ui/Pagination' // sesuaikan path
+import PageHeader from '@/components/ui/PageHeader'
 
+const PAGE_SIZE = 10
+
+function useDebounced<T>(value: T, delay = 400) {
+  const [v, setV] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), delay)
+    return () => clearTimeout(t)
+  }, [value, delay])
+  return v
+}
 const createSchema = z.object({
   role_id: z.string().min(1, 'Role wajib dipilih'),
   nama: z.string().min(2, 'Nama minimal 2 karakter'),
@@ -36,12 +49,31 @@ export function UserPage() {
   const currentUser = useCurrentUser()
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
+  const [page, setPage] = useState(1)
   const [showPass, setShowPass] = useState(false)
   const [modalType, setModalType] = useState<'create' | 'edit' | null>(null)
   const [editing, setEditing] = useState<UserDetail | null>(null)
   const [deactivating, setDeactivating] = useState<UserDetail | null>(null)
 
-  const { data: users = [], isLoading } = useUsers()
+  const debouncedSearch = useDebounced(search)
+
+  const { data: pageData, isLoading } = useUsersPage({
+    page,
+    page_size: PAGE_SIZE,
+    search: debouncedSearch || undefined,
+    role: roleFilter || undefined,
+  })
+  const users = pageData?.items ?? []
+  const total = pageData?.total ?? 0
+  const totalPages = pageData?.total_pages ?? 0
+
+  // Kalau item terakhir di halaman terakhir dinonaktifkan, mundur satu halaman
+  useEffect(() => {
+    if (pageData && totalPages > 0 && page > totalPages) setPage(totalPages)
+  }, [pageData, totalPages, page])
+
+  const handleSearchChange = (v: string) => { setSearch(v); setPage(1) }
+
   const { data: roles = [] } = useRoles()
   const { mutate: create, isPending: isCreating } = useCreateUser()
   const { mutate: update, isPending: isUpdating } = useUpdateUser(editing?.id ?? '')
@@ -50,14 +82,23 @@ export function UserPage() {
   const createForm = useForm<CreateForm>({ resolver: zodResolver(createSchema) })
   const updateForm = useForm<UpdateForm>({ resolver: zodResolver(updateSchema) })
 
-  const filtered = users.filter((u) => {
-    const matchSearch = !search ||
-      u.nama.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase())
-    const role = roles.find((r) => r.id === u.role_id)
-    const matchRole = !roleFilter || role?.kode_role === roleFilter
-    return matchSearch && matchRole
-  })
+  // Opsi role untuk select di modal (value = id role)
+  const roleOptions = roles.map((r) => ({ value: r.id, label: r.nama_role }))
+
+  // Filter memakai kode_role (bukan id), sesuai logika `matchRole` di `filtered`
+  const roleFilterOptions = roles.map((r) => ({ value: r.kode_role, label: r.nama_role }))
+
+  const filterFields: FilterBarField[] = [
+    {
+      key: 'role',
+      type: 'select',
+      label: 'Role',
+      value: roleFilter,
+      onChange: setRoleFilter,
+      options: roleFilterOptions,
+      placeholder: 'Semua Role',
+    },
+  ]
 
   const openCreate = () => {
     createForm.reset()
@@ -66,7 +107,6 @@ export function UserPage() {
 
   const openEdit = (u: UserDetail) => {
     setEditing(u)
-    const role = roles.find((r) => r.id === u.role_id)
     updateForm.reset({
       nama: u.nama,
       no_telepon: u.no_telepon ?? '',
@@ -94,30 +134,25 @@ export function UserPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Manajemen Pengguna</h1>
-          <p className="text-gray-500 text-sm mt-0.5">{filtered.length} user terdaftar</p>
-        </div>
-        <button onClick={openCreate} className="btn-primary">
-          <Plus className="w-4 h-4" /> Tambah User
-        </button>
-      </div>
+
+      {/* Header */}
+      <PageHeader
+        title="Manajemen Pengguna"
+        description={`${total} user terdaftar`}
+        actions={
+          <button onClick={openCreate} className="btn-primary">
+            <Plus className="w-4 h-4" /> Tambah User
+          </button>
+        }
+      />
 
       {/* Filter */}
-      <div className="flex gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input type="text" placeholder="Cari nama atau email..."
-            value={search} onChange={(e) => setSearch(e.target.value)}
-            className="input-base pl-9 py-2" />
-        </div>
-        <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}
-          className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-hidden focus:ring-2 focus:ring-brand-500/20">
-          <option value="">Semua Role</option>
-          {roles.map((r) => <option key={r.id} value={r.kode_role}>{r.nama_role}</option>)}
-        </select>
-      </div>
+      <FilterBar
+        search={search}
+        onSearchChange={handleSearchChange}
+        searchPlaceholder="Cari nama atau email..."
+        fields={filterFields}
+      />
 
       {/* Table */}
       <div className="card overflow-hidden">
@@ -131,7 +166,7 @@ export function UserPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filtered.map((u) => {
+              {users.map((u) => {
                 const role = roles.find((r) => r.id === u.role_id)
                 const isSelf = u.id === currentUser?.id
                 return (
@@ -179,13 +214,37 @@ export function UserPage() {
         </div>
       </div>
 
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        pageSize={PAGE_SIZE}
+        onPageChange={setPage}
+      />
+
       {/* Modal Create */}
       <Modal isOpen={modalType === 'create'} onClose={() => setModalType(null)} title="Tambah User Baru" size="md">
         <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4">
-          <Select label="Role" required placeholder="— Pilih role —"
-            error={createForm.formState.errors.role_id?.message} {...createForm.register('role_id')}>
-            {roles.map((r) => <option key={r.id} value={r.id}>{r.nama_role}</option>)}
-          </Select>
+          <div>
+            <label className="block">
+              <span className="label label-required">Role</span>
+              <Controller
+                name="role_id"
+                control={createForm.control}
+                render={({ field }) => (
+                  <FilterSelect
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    placeholder="— Pilih role —"
+                    options={roleOptions}
+                  />
+                )}
+              />
+            </label>
+            {createForm.formState.errors.role_id && (
+              <p className="mt-1.5 text-xs text-red-600">{createForm.formState.errors.role_id.message}</p>
+            )}
+          </div>
           <Input label="Nama Lengkap" required error={createForm.formState.errors.nama?.message} {...createForm.register('nama')} />
           <Input label="Email" type="email" required error={createForm.formState.errors.email?.message} {...createForm.register('email')} />
           <div className="relative">
@@ -212,9 +271,28 @@ export function UserPage() {
       {/* Modal Edit */}
       <Modal isOpen={modalType === 'edit'} onClose={() => { setModalType(null); setEditing(null) }} title="Edit User" size="md">
         <form onSubmit={updateForm.handleSubmit(onUpdateSubmit)} className="space-y-4">
-          <Select label="Role" required {...updateForm.register('role_id')}>
-            {roles.map((r) => <option key={r.id} value={r.id}>{r.nama_role}</option>)}
-          </Select>
+          <div>
+            <label className="block">
+              <span className="label label-required">Role</span>
+              <Controller
+                name="role_id"
+                control={updateForm.control}
+                render={({ field }) => (
+                  <FilterSelect
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    placeholder="— Pilih role —"
+                    options={roleOptions}
+                  />
+                )}
+              />
+            </label>
+            {updateForm.formState.errors.role_id && (
+              <p className="mt-1.5 text-xs text-red-600">
+                {updateForm.formState.errors.role_id.message || 'Role wajib dipilih'}
+              </p>
+            )}
+          </div>
           <Input label="Nama Lengkap" required error={updateForm.formState.errors.nama?.message} {...updateForm.register('nama')} />
           <Input label="No. Telepon" {...updateForm.register('no_telepon')} />
           <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">

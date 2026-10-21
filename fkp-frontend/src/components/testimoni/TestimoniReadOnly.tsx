@@ -16,7 +16,6 @@ interface Props {
 
 export function TestimoniReadOnly({
   existing,
-  nomorFkp,
   onEdit,
   onDelete,
   showDeleteConfirm,

@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Search, CheckCircle, XCircle, Clock, RefreshCw, Eye, Building2, Store } from 'lucide-react'
+import { Search, CheckCircle, XCircle, Clock, RefreshCw, Eye, Store } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { formatDateTime } from '@/lib/utils'
 import { OutletRegistrationDetail } from '@/types/outletRegister'
 import { useApproveRegistration, usePendingRegistrations, useRejectRegistration } from '@/hooks/useOutletRegister'
+import PageHeader from '@/components/ui/PageHeader'
 
 // ─── Reject form schema ───────────────────────────────────────────────────────
 
@@ -173,12 +174,12 @@ function DetailModal({
 export function OutletRegistrationsPage() {
   const [search, setSearch] = useState('')
   const [approveTarget, setApproveTarget] = useState<OutletRegistrationDetail | null>(null)
-  const [rejectTarget, setRejectTarget]   = useState<OutletRegistrationDetail | null>(null)
-  const [detailTarget, setDetailTarget]   = useState<OutletRegistrationDetail | null>(null)
+  const [rejectTarget, setRejectTarget] = useState<OutletRegistrationDetail | null>(null)
+  const [detailTarget, setDetailTarget] = useState<OutletRegistrationDetail | null>(null)
 
   const { data, isLoading, isError, refetch } = usePendingRegistrations()
   const { mutate: approve, isPending: isApproving } = useApproveRegistration()
-  const { mutate: reject,  isPending: isRejecting  } = useRejectRegistration()
+  const { mutate: reject, isPending: isRejecting } = useRejectRegistration()
 
   const items = data?.items ?? []
 
@@ -233,31 +234,26 @@ export function OutletRegistrationsPage() {
 
       {/* ── Page ───────────────────────────────────────────────────────── */}
       <div className="space-y-6">
+
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-semibold text-gray-900">Registrasi Outlet</h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              Outlet yang mendaftar dan menunggu verifikasi
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            {/* Counter badge */}
-            {(data?.total ?? 0) > 0 && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-100 text-amber-700 text-sm font-medium">
-                <Clock className="w-3.5 h-3.5" />
-                {data?.total} menunggu
-              </span>
-            )}
-            <button
-              onClick={() => refetch()}
-              className="btn-secondary btn-md flex items-center gap-1.5"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              Refresh
-            </button>
-          </div>
-        </div>
+        <PageHeader
+          title="Registrasi Outlet"
+          description="Outlet yang mendaftar dan menunggu verifikasi"
+          actions={
+            <>
+              {(data?.total ?? 0) > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-100 text-amber-700 text-sm font-medium">
+                  <Clock className="w-3.5 h-3.5" />
+                  {data?.total} menunggu
+                </span>
+              )}
+              <button onClick={() => refetch()} className="btn-secondary btn-md flex items-center gap-1.5">
+                <RefreshCw className="w-3.5 h-3.5" />
+                Refresh
+              </button>
+            </>
+          }
+        />
 
         {/* Search */}
         <div className="relative max-w-sm">

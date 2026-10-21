@@ -6,20 +6,20 @@ import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 
 const PAGE_TITLES: Record<string, string> = {
-  '/dashboard':            'Dashboard',
-  '/fkp':                  'Formulir Keluhan Produk',
-  '/outlets':              'Manajemen Outlet',
+  '/dashboard': 'Dashboard',
+  '/fkp': 'Formulir Keluhan Produk',
+  '/outlets': 'Manajemen Outlet',
   '/outlet-registrations': 'Registrasi Outlet',
-  '/distributors':         'Manajemen Distributor',
-  '/areas':                'Manajemen Area',
-  '/products':             'Katalog Produk',
-  '/hierarchy':            'Hierarki Tim Sales',
-  '/users':                'Manajemen Pengguna',
-  '/notifications':        'Notifikasi',
-  '/change-password':      'Ubah Password',
+  '/distributors': 'Manajemen Distributor',
+  '/areas': 'Manajemen Area',
+  '/products': 'Katalog Produk',
+  '/hierarchy': 'Hierarki Tim',
+  '/users': 'Manajemen Pengguna',
+  '/notifications': 'Notifikasi',
+  '/change-password': 'Ubah Password',
 }
 
-const SIDEBAR_EXPANDED  = 240
+const SIDEBAR_EXPANDED = 240
 const SIDEBAR_COLLAPSED = 64
 const MOBILE_BREAKPOINT = '(min-width: 1024px)'
 
@@ -27,11 +27,11 @@ const MOBILE_BREAKPOINT = '(min-width: 1024px)'
 const SIDEBAR_BG = '#0f172a'
 
 export function AppLayout() {
-  const [collapsed,    { toggle: toggleCollapse }]                  = useDisclosure(false)
+  const [collapsed, { toggle: toggleCollapse }] = useDisclosure(false)
   const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] = useDisclosure(false)
 
-  const isDesktop  = useMediaQuery(MOBILE_BREAKPOINT)
-  const location   = useLocation()
+  const isDesktop = useMediaQuery(MOBILE_BREAKPOINT)
+  const location = useLocation()
   const currentTitle = PAGE_TITLES[location.pathname] ?? 'FKP SaktiFood'
 
   return (
@@ -107,15 +107,12 @@ export function AppLayout() {
       >
         {/* Header */}
         <Box
-          h={64}
-          bg="var(--mantine-color-body)"
-          style={{
-            flexShrink: 0,
-            borderBottom: '1px solid var(--mantine-color-gray-2)',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-            zIndex: 100,
-          }}
-        >
+          className="
+          h-16 shrink-0
+          border-b border-gray-200 dark:border-gray-800
+          bg-white dark:bg-gray-900
+          shadow-[0_1px_3px_rgba(0,0,0,0.05)]
+          z-100">
           <Header
             mobileOpened={mobileOpened}
             onToggleMobile={toggleMobile}
@@ -148,6 +145,6 @@ export function AppLayout() {
           </Center>
         </Box>
       </Flex>
-    </Flex>
+    </Flex >
   )
 }

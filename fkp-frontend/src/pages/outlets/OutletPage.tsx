@@ -1,12 +1,15 @@
-import { useState } from 'react'
-import { Plus, Store, Pencil, PowerOff, Search, MapPin, CheckCircle2, XCircle, Power } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { keepPreviousData, useQueries } from '@tanstack/react-query'
+import { useDebouncedValue } from '@mantine/hooks'
+import {
+  outletsPageQueryOptions,
+  useCreateOutlet, useUpdateOutlet,
+  useApproveOutlet, useRejectOutlet, useDeactivateOutlet, useActivateOutlet, useDistributors,
+} from '@/hooks/useMasterData'
+import { Plus, Store, Pencil, PowerOff, MapPin, CheckCircle2, XCircle, Power, Truck } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import {
-  useOutlets, useCreateOutlet, useUpdateOutlet,
-  useApproveOutlet, useRejectOutlet, useDeactivateOutlet, useActivateOutlet, useDistributors,
-} from '@/hooks/useMasterData'
 import { Modal } from '@/components/ui/Modal'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Input } from '@/components/ui/Input'
@@ -16,7 +19,10 @@ import { useKodeRole } from '@/store/authStore'
 import {
   getTipeTokoLabel, STATUS_OUTLET_OPTIONS, TIPE_TOKO_OPTIONS, type Outlet,
 } from '@/types/outlet'
-import { Button } from '@mantine/core'
+import { Button, Pagination } from '@mantine/core'
+import { OutletFilterBar } from '@/components/outlet/OutletFilterBar'
+import { EntityCard, EntityCardIconButton } from '@/components/ui/EntityCard'
+import PageHeader from '@/components/ui/PageHeader'
 
 // Koordinat diisi sebagai string (input type="number" menghasilkan string),
 // dikonversi ke number | null saat submit. String kosong = tidak diisi.
@@ -54,9 +60,16 @@ const CAN_MANAGE = ['superadmin', 'admin_ho', 'apsm', 'sc_spv', 'distributor']
 // Sama dengan permission `outlet_registration.approve` (+ superadmin via bypass)
 const CAN_APPROVE = ['superadmin', 'admin_ho', 'apsm', 'sc_spv', 'distributor']
 
+const PAGE_SIZE = 12
+
+// ── Section outlet per status ──
+const STATUS_SECTIONS = [
+  { status: 'pending', title: 'Menunggu Persetujuan' },
+  { status: 'aktif', title: 'Outlet Aktif' },
+  { status: 'nonaktif', title: 'Nonaktif' },
+] as const
+
 // ── Konfirmasi aksi outlet — SATU dialog untuk approve/reject/deactivate/activate ──
-// Menambah aksi baru di masa depan (mis. "hapus permanen") cukup tambah satu
-// entri di sini + satu entri di ACTION_MUTATORS, tanpa JSX ConfirmDialog baru.
 type OutletActionType = 'approve' | 'reject' | 'deactivate' | 'activate'
 
 type PendingOutletAction = {
@@ -119,18 +132,64 @@ export function OutletPage() {
   const canApprove = CAN_APPROVE.includes(kodeRole)
 
   const [search, setSearch] = useState('')
+  const [areaFilter, setAreaFilter] = useState('')
   const [distFilter, setDistFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Outlet | null>(null)
 
+  const [pages, setPages] = useState<Record<string, number>>({})
+  const resetPages = () => setPages({})
+  const [debouncedSearch] = useDebouncedValue(search, 400)
+
+  const activeSections = STATUS_SECTIONS.filter((s) => !statusFilter || s.status === statusFilter)
+
   // Satu state menggantikan approving/rejecting/deactivating/activating.
   const [pendingAction, setPendingAction] = useState<PendingOutletAction | null>(null)
 
-  const { data: outlets = [], isLoading } = useOutlets(
-    distFilter ? { distributor_id: distFilter } : undefined,
-  )
   const { data: distributors = [] } = useDistributors()
+
+  const sectionQueries = useQueries({
+    queries: activeSections.map((s) => ({
+      ...outletsPageQueryOptions({
+        page: pages[s.status] ?? 1,
+        page_size: PAGE_SIZE,
+        status: s.status,
+        search: debouncedSearch.trim() || undefined,
+        distributor_id: distFilter || undefined,
+        area_id: areaFilter || undefined,
+      }),
+      placeholderData: keepPreviousData,
+    })),
+  })
+
+  const isListLoading = sectionQueries.some((q) => q.isPending)
+
+  const sections = activeSections.flatMap((s, i) => {
+    const q = sectionQueries[i]
+    return q.data && q.data.total > 0
+      ? [{ ...s, data: q.data, isDimmed: q.isPlaceholderData }]
+      : []
+  })
+
+  const visibleCount = sections.reduce((sum, s) => sum + s.data.total, 0)
+
+  useEffect(() => {
+    sectionQueries.forEach((q, i) => {
+      const d = q.data
+      if (d && !q.isPlaceholderData && d.items.length === 0 && d.page > 1) {
+        setPages((p) => ({ ...p, [activeSections[i].status]: Math.max(1, d.total_pages) }))
+      }
+    })
+  }, [sectionQueries])
+
+  // Ganti area → distributor yang sedang dipilih bisa tidak relevan, jadi direset.
+  const handleAreaChange = (v: string) => {
+    setAreaFilter(v)
+    setDistFilter('')
+    resetPages()
+  }
+
   const { mutate: create, isPending: isCreating } = useCreateOutlet()
   const { mutate: update, isPending: isUpdating } = useUpdateOutlet(editing?.id ?? '')
   const { mutate: approve, isPending: isApproving } = useApproveOutlet()
@@ -158,21 +217,9 @@ export function OutletPage() {
     resolver: zodResolver(schema),
   })
 
-  // Jumlah outlet pending (sesuai filter distributor aktif), dipakai untuk shortcut di header
-  const pendingCount = outlets.filter((o) => o.status === 'pending').length
 
-  // Filter status dilakukan di sisi klien agar tidak memicu refetch / flash PageLoader
-  const filtered = outlets.filter((o) => {
-    if (statusFilter && o.status !== statusFilter) return false
-    if (!search) return true
-    const q = search.toLowerCase()
-    return (
-      o.nama_toko.toLowerCase().includes(q) ||
-      o.kode_outlet.toLowerCase().includes(q) ||
-      o.pemilik_toko.toLowerCase().includes(q)
-    )
-  })
-
+  // Kelompokkan hasil filter per status. Jika filter status dipilih, hanya
+  // section tersebut yang tampil; section tanpa outlet disembunyikan.
   const openCreate = () => {
     setEditing(null)
     reset({ distributor_id: distFilter || '' })
@@ -229,159 +276,130 @@ export function OutletPage() {
     mutate(pendingAction.outlet.id, { onSuccess: () => setPendingAction(null) })
   }
 
-  if (isLoading) return <PageLoader />
+  const renderCard = (o: Outlet) => {
+    const dist = distributors.find((d) => d.id === o.distributor_id)
+    return (
+      <EntityCard
+        key={o.id}
+        code={o.kode_outlet}
+        badge={<OutletStatusBadge status={o.status} />}
+        title={<>{o.nama_toko}&nbsp; ({getTipeTokoLabel(o.tipe_toko)})</>}
+        subtitle={o.pemilik_toko}
+        meta={[
+          o.alamat_lengkap && { icon: MapPin, text: o.alamat_lengkap, clamp: true },
+          dist && { icon: Truck, text: dist.nama_perusahaan, clamp: true },
+        ]}
+        actions={
+          canManage && (
+            <>
+              {o.status === 'pending' && canApprove && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setPendingAction({ type: 'approve', outlet: o })}
+                    className="btn-ghost border bg-green-600 text-white btn-sm flex-1"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Setujui
+                  </button>
+                  <button
+                    onClick={() => setPendingAction({ type: 'reject', outlet: o })}
+                    className="btn-secondary btn-sm flex-1 text-red-600 hover:bg-red-50"
+                  >
+                    <XCircle className="w-3.5 h-3.5" /> Tolak
+                  </button>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button onClick={() => openEdit(o)} className="btn-secondary btn-sm flex-1">
+                  <Pencil className="w-3.5 h-3.5" /> Edit
+                </button>
+                {isAdmin && o.status === 'aktif' && (
+                  <EntityCardIconButton
+                    tone="danger" icon={Power} label="Nonaktifkan"
+                    onClick={() => setPendingAction({ type: 'deactivate', outlet: o })}
+                  />
+                )}
+                {isAdmin && o.status === 'nonaktif' && (
+                  <EntityCardIconButton
+                    tone="success" icon={PowerOff} label="Aktifkan"
+                    onClick={() => setPendingAction({ type: 'activate', outlet: o })}
+                  />
+                )}
+              </div>
+            </>
+          )
+        }
+      />
+    )
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-start md:items-center flex-col md:flex-row justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Manajemen Outlet</h1>
-          <p className="text-gray-500 text-sm mt-0.5">
-            {filtered.length} outlet
-            {canApprove && pendingCount > 0 && statusFilter !== 'pending' && (
-              <button
-                type="button"
-                onClick={() => setStatusFilter('pending')}
-                className="ml-2 font-medium hover:underline"
-              >
-                · {pendingCount} menunggu persetujuan
-              </button>
-            )}
-          </p>
-        </div>
-        {canManage && (
-          <Button onClick={openCreate} className="p-2 btn-primary">
-            <Plus className="w-4 h-4" /> Tambah Outlet
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        title="Manajemen Outlet"
+        description={`${visibleCount} outlet`}
+        actions={
+          canManage && (
+            <Button onClick={openCreate} className="p-2 btn-primary">
+              <Plus className="w-4 h-4" /> Tambah Outlet
+            </Button>
+          )
+        }
+      />
 
-      {/* Filter */}
-      <div className="flex gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-50 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Cari nama toko, kode, pemilik..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="input-base pl-9 py-2"
-          />
-        </div>
-        <select
-          value={distFilter}
-          onChange={(e) => setDistFilter(e.target.value)}
-          className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
-                     focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400"
-        >
-          <option value="">Semua Distributor</option>
-          {distributors.map((d) => (
-            <option key={d.id} value={d.id}>[{d.kode_distributor}] {d.nama_perusahaan}</option>
-          ))}
-        </select>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="text-sm border border-gray-200 rounded-lg pr-8 px-3 py-2 bg-white
-                     focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400"
-        >
-          <option value="">Semua Status</option>
-          {STATUS_OUTLET_OPTIONS.map((s) => (
-            <option key={s.value} value={s.value}>{s.label}</option>
-          ))}
-        </select>
-      </div>
+      {/* Search + tombol filter (status, area, distributor) */}
+      <OutletFilterBar
+        search={search}
+        onSearchChange={(v) => { setSearch(v); resetPages() }}
+        statusFilter={statusFilter}
+        onStatusChange={(v) => { setStatusFilter(v); resetPages() }}
+        areaFilter={areaFilter}
+        onAreaChange={handleAreaChange}
+        distFilter={distFilter}
+        onDistChange={(v) => { setDistFilter(v); resetPages() }}
+      />
 
-      {/* Card grid outlet */}
-      {filtered.length === 0 ? (
+      {/* Section outlet per status: Menunggu Persetujuan → Aktif → Nonaktif */}
+      {isListLoading ? (
+        <PageLoader />
+      ) : sections.length === 0 ? (
         <div className="card card-body text-center py-16">
           <Store className="w-12 h-12 text-gray-200 mx-auto mb-3" />
           <p className="text-gray-500">Tidak ada outlet ditemukan.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filtered.map((o) => {
-            const dist = distributors.find((d) => d.id === o.distributor_id)
-            return (
-              <div
-                key={o.id}
-                className={`card p-5 ${isAdmin && o.status === 'aktif' ? '' : 'opacity-60 grayscale-50'}`}
-              >
-                {/* Info */}
-                <div className="w-full flex justify-between">
-                  <p className="text-xs font-mono text-gray-400">{o.kode_outlet}</p>
-                  <OutletStatusBadge status={o.status} />
-                </div>
-                <h3 className="font-semibold text-gray-900 mt-0.5 truncate">{o.nama_toko}</h3>
-                <p className="text-sm text-gray-500 mt-0.5">{o.pemilik_toko}</p>
-
-                <div className="mt-3 space-y-1">
-                  <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                    <span className="bg-gray-100 text-gray-600 rounded-sm px-1.5 py-0.5">
-                      {getTipeTokoLabel(o.tipe_toko)}
-                    </span>
-                  </div>
-                  {o.alamat_lengkap && (
-                    <div className="flex items-start gap-1.5 text-xs text-gray-400">
-                      <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                      <span className="line-clamp-2">{o.alamat_lengkap}</span>
-                    </div>
-                  )}
-                  {dist && (
-                    <p className="text-xs text-gray-400 truncate">
-                      {dist.nama_perusahaan}
-                    </p>
-                  )}
-                </div>
-
-                {/* Actions */}
-                {canManage && (
-                  <div className="mt-4 pt-3 border-t border-gray-50 space-y-2">
-                    {o.status === 'pending' && canApprove && (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setPendingAction({ type: 'approve', outlet: o })}
-                          className="btn btn-sm flex-1 text-white"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Setujui
-                        </button>
-                        <button
-                          onClick={() => setPendingAction({ type: 'reject', outlet: o })}
-                          className="btn-secondary btn-sm flex-1 text-red-600 hover:bg-red-50"
-                        >
-                          <XCircle className="w-3.5 h-3.5" /> Tolak
-                        </button>
-                      </div>
-                    )}
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => openEdit(o)}
-                        className="btn-secondary btn-sm flex-1"
-                      >
-                        <Pencil className="w-3.5 h-3.5" /> Edit
-                      </button>
-                      {isAdmin && o.status === 'aktif' && (
-                        <button
-                          onClick={() => setPendingAction({ type: 'deactivate', outlet: o })}
-                          className="border border-gray-300 btn-sm rounded-lg hover:bg-red-100 text-red-600"
-                        >
-                          <Power className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                      {isAdmin && o.status === 'nonaktif' && (
-                        <button
-                          onClick={() => setPendingAction({ type: 'activate', outlet: o })}
-                          className="border border-gray-300 btn-sm rounded-lg hover:bg-green-100 text-green-600"
-                        >
-                          <PowerOff className="w-3.5 h-3.5 " />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
+        <div className="space-y-10">
+          {sections.map((s) => (
+            <section key={s.status} className="space-y-3">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold">{s.title}</h2>
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                  {s.data.total}
+                </span>
               </div>
-            )
-          })}
+              <div
+                className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 transition-opacity ${s.isDimmed ? 'opacity-60' : ''
+                  }`}
+              >
+                {s.data.items.map(renderCard)}
+              </div>
+
+              {s.data.total_pages > 1 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                  <p className="text-xs text-gray-500">
+                    Menampilkan {(s.data.page - 1) * s.data.page_size + 1}–
+                    {Math.min(s.data.page * s.data.page_size, s.data.total)} dari {s.data.total}
+                  </p>
+                  <Pagination
+                    total={s.data.total_pages}
+                    value={pages[s.status] ?? 1}
+                    onChange={(p) => setPages((prev) => ({ ...prev, [s.status]: p }))}
+                    size="sm"
+                    radius="md"
+                  />
+                </div>
+              )}
+            </section>
+          ))}
         </div>
       )}
 

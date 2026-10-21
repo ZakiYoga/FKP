@@ -5,14 +5,12 @@ import {
   ChevronDown, X, ExternalLink, Loader2,
 } from 'lucide-react'
 import { useFkpPenerbitan } from '@/hooks/useFkp'
-import { StatusBadge, PrioritasBadge } from '@/components/ui/Badge'
+import { StatusBadge } from '@/components/ui/Badge'
 import { PageLoader } from '@/components/ui/Spinner'
 import { formatDateTime } from '@/lib/utils'
-import { FKP_STATUS_LABEL } from '@/types'
-import type { FkpStatusKey } from '@/types'
-import { fkpApi } from '@/api/fkp'
 import toast from 'react-hot-toast'
 import api from '@/lib/axios'
+import PageHeader from '@/components/ui/PageHeader'
 
 // Status yang valid untuk filter dropdown
 const PENERBITAN_STATUSES: { value: string; label: string }[] = [
@@ -70,8 +68,8 @@ export function PenerbitanFkpPage() {
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
       toast.success(`Formulir FKP ${nomorFkp} berhasil diunduh.`)
-    } catch (e: any) {
-      const detail = e?.response?.data?.detail
+    } catch (e: unknown) {
+      const detail = (e as { response?: { data?: { detail?: unknown } } } | null)?.response?.data?.detail
       toast.error(typeof detail === 'string' ? detail : 'Gagal mengunduh formulir.')
     } finally {
       setDownloadingId(null)
@@ -84,27 +82,25 @@ export function PenerbitanFkpPage() {
     <div className="space-y-5 animate-fade-in">
 
       {/* ── Header ── */}
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Penerbitan Formulir FKP</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Download Formulir Keluhan Pelanggan yang sudah disubmit
-          </p>
-        </div>
-        <button
-          onClick={() => setShowFilter(v => !v)}
-          className={`btn-secondary btn-sm flex items-center gap-1.5 ${hasFilter ? 'border-brand-400 text-brand-700' : ''}`}
-        >
-          <Filter className="w-4 h-4" />
-          Filter
-          {hasFilter && (
-            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-brand-100 text-brand-700 text-xs font-semibold">
-              aktif
-            </span>
-          )}
-          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showFilter ? 'rotate-180' : ''}`} />
-        </button>
-      </div>
+      <PageHeader
+        title="Penerbitan Formulir FKP"
+        description="Download Formulir Keluhan Pelanggan yang sudah disubmit"
+        actions={
+          <button
+            onClick={() => setShowFilter(v => !v)}
+            className={`btn-secondary btn-sm flex items-center gap-1.5 ${hasFilter ? 'border-brand-400 text-brand-700' : ''}`}
+          >
+            <Filter className="w-4 h-4" />
+            Filter
+            {hasFilter && (
+              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-brand-100 text-brand-700 text-xs font-semibold">
+                aktif
+              </span>
+            )}
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showFilter ? 'rotate-180' : ''}`} />
+          </button>
+        }
+      />
 
       {/* ── Filter Panel ── */}
       {showFilter && (

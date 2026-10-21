@@ -3,7 +3,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.models.product import JenisKemasan
+from app.models.product import JenisKemasan, tentukan_qty_per_kemasan
 
 
 def _strip(v):
@@ -40,7 +40,8 @@ class ProductCreate(BaseModel):
         default=None,
         description=(
             "Kemasan yang tersedia untuk SKU ini, mis. ['ball', 'pcs']. "
-            "Wajib minimal satu (kecuali memakai jenis_kemasan lama)."
+            "Wajib minimal satu (kecuali memakai jenis_kemasan lama). Maksimal SATU "
+            "kemasan besar (zak/ball/karton); pcs boleh menyertai."
         ),
     )
     jenis_kemasan: Optional[str] = Field(
@@ -48,10 +49,19 @@ class ProductCreate(BaseModel):
         description="DEPRECATED. Dipakai hanya bila 'kemasan' tidak diisi (setara kemasan=[nilai ini]).",
     )
 
-    berat_gr: Optional[int] = Field(default=None, gt=0)
+    berat_gr: int = Field(
+        gt=0,
+        description=(
+            "Berat per satuan terkecil dalam gram: per zak untuk zak, per pcs untuk "
+            "kemasan lain. Berat kemasan = qty_per_kemasan x berat_gr."
+        ),
+    )
     qty_per_kemasan: Optional[int] = Field(
         default=None, gt=0,
-        description="Isi per kemasan utama (mis. 20 pcs per ball). Kosongkan bila tidak relevan.",
+        description=(
+            "Isi kemasan besar dalam pcs. Zak dan produk pcs-saja = 1 (nilai kiriman "
+            "diabaikan). Ball/karton WAJIB diisi, minimal 2."
+        ),
     )
     foto_url: Optional[str] = Field(
         default=None,
@@ -81,20 +91,22 @@ class ProductCreate(BaseModel):
         urut = sorted(set(daftar), key=JenisKemasan.ALL.index)
         self.kemasan = urut
         self.jenis_kemasan = urut[0]  # kemasan utama (kolom lama ProductCatalog.jenis_kemasan)
+        # Aturan isi per kemasan; ValueError otomatis menjadi 422.
+        self.qty_per_kemasan = tentukan_qty_per_kemasan(urut, self.qty_per_kemasan)
         return self
 
 
 class ProductUpdate(BaseModel):
     """
     Update data dasar produk. Field yang tidak dikirim tidak berubah; null
-    mengosongkan field (kecuali nama_produk dan is_active). Kemasan TIDAK
-    diubah di sini (PUT /{id}/kemasan); field jenis_kemasan atau kemasan dari
-    klien diabaikan.
+    mengosongkan field (kecuali nama_produk, is_active, dan berat_gr yang tidak
+    boleh dikosongkan). Kemasan DAN isi per kemasan (qty_per_kemasan) TIDAK
+    diubah di sini — hanya lewat PUT /{id}/kemasan, karena keduanya satu kesatuan.
+    Field jenis_kemasan, kemasan, atau qty_per_kemasan dari klien diabaikan.
     """
     nama_produk: Optional[str] = Field(default=None, min_length=1, max_length=200)
     berat_gr: Optional[int] = Field(default=None, gt=0)
     is_active: Optional[bool] = None
-    qty_per_kemasan: Optional[int] = Field(default=None, gt=0)
     foto_url: Optional[str] = None
 
     @field_validator("nama_produk", mode="before")
@@ -112,6 +124,13 @@ class KemasanUpdate(BaseModel):
     kemasan: List[str] = Field(
         description="Daftar lengkap kemasan produk (menggantikan daftar lama), mis. ['ball', 'pcs']."
     )
+    qty_per_kemasan: Optional[int] = Field(
+        default=None, gt=0,
+        description=(
+            "Isi kemasan besar dalam pcs. Kemasan dan isi adalah satu kesatuan dan "
+            "diganti bersamaan. Zak/pcs-saja = 1 (diabaikan); ball/karton wajib, minimal 2."
+        ),
+    )
 
     @field_validator("kemasan")
     @classmethod
@@ -124,6 +143,12 @@ class KemasanUpdate(BaseModel):
                 f"Kemasan tidak dikenal: {tidak_dikenal}. Pilihan: {JenisKemasan.ALL}."
             )
         return list(dict.fromkeys(v))  # buang duplikat, urutan input dipertahankan
+
+    @model_validator(mode="after")
+    def _urutkan_dan_tentukan_qty(self):
+        self.kemasan = sorted(self.kemasan, key=JenisKemasan.ALL.index)
+        self.qty_per_kemasan = tentukan_qty_per_kemasan(self.kemasan, self.qty_per_kemasan)
+        return self
 
 
 class ProductResponse(BaseModel):

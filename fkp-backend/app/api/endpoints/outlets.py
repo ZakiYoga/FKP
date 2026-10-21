@@ -3,12 +3,19 @@ Outlet Endpoints — HTTP layer saja.
 Semua business logic ada di outlet_service.py.
 
 ── Endpoint ────────────────────────────────────────────────────────────────
-  GET    /api/outlets/                        → List outlet (scoped by role)
+  GET    /api/outlets/                        → List outlet (scoped by role, tanpa pagination)
+  GET    /api/outlets/page                    → List outlet berpagination + search
+  GET    /api/outlets/status-summary          → Jumlah outlet per status
   POST   /api/outlets/                        → Buat outlet baru
   GET    /api/outlets/assignable-users        → Dropdown PIC untuk assign
   GET    /api/outlets/{id}                    → Detail outlet
   PUT    /api/outlets/{id}                    → Update outlet
   DELETE /api/outlets/{id}                    → Nonaktifkan outlet
+  POST   /api/outlets/{id}/activate           → Aktifkan kembali outlet
+
+Catatan: route statis (/page, /status-summary, /assignable-users) HARUS
+dideklarasikan sebelum /{outlet_id}, kalau tidak akan tertangkap sebagai
+outlet_id dan memicu 422 (bukan UUID).
 """
 import uuid
 from typing import List, Optional
@@ -24,7 +31,10 @@ from app.core.dependencies import (
 )
 from app.models.outlet import Outlet
 from app.models.user import User
-from app.schemas.outlet import OutletCreate, OutletUpdate, OutletResponse
+from app.schemas.outlet import (
+    OutletCreate, OutletUpdate, OutletResponse,
+    OutletListPage, OutletStatusSummary,
+)
 from app.schemas.user import UserBriefResponse
 from app.services import outlet_service
 
@@ -45,6 +55,47 @@ async def list_outlets(
         kode_role=kode_role,
         distributor_id=distributor_id,
         status=status,
+    )
+
+
+@router.get("/page", response_model=OutletListPage)
+async def list_outlets_paginated(
+    page: int = Query(default=1, ge=1, description="Halaman, mulai dari 1"),
+    page_size: int = Query(default=10, ge=1, le=100, description="Jumlah item per halaman (maks 100)"),
+    area_id: Optional[uuid.UUID] = Query(default=None, description="Filter by area"),
+    distributor_id: Optional[uuid.UUID] = Query(default=None),
+    status: Optional[str] = Query(default=None, description="aktif | pending | nonaktif"),
+    search: Optional[str] = Query(
+        default=None, max_length=100,
+        description="Cari di nama_toko, kode_outlet, atau pemilik_toko",
+    ),
+    db: AsyncSession = Depends(get_db),
+    auth=Depends(get_current_user_with_role),
+):
+    """
+    List outlet berpagination. Scope role sama persis dengan GET /api/outlets/.
+    Untuk antrean persetujuan: ?status=pending&page=1&page_size=4
+    (diurutkan dari yang paling lama menunggu).
+    """
+    user, kode_role = auth
+    return await outlet_service.list_outlets_paginated(
+        db=db, user=user, kode_role=kode_role,
+        page=page, page_size=page_size,
+        distributor_id=distributor_id, area_id=area_id,
+        status=status, search=search,
+    )
+
+
+@router.get("/status-summary", response_model=OutletStatusSummary)
+async def get_outlet_status_summary(
+    distributor_id: Optional[uuid.UUID] = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+    auth=Depends(get_current_user_with_role),
+):
+    """Jumlah outlet per status dalam scope user — untuk badge/counter di header."""
+    user, kode_role = auth
+    return await outlet_service.get_outlet_status_summary(
+        db=db, user=user, kode_role=kode_role, distributor_id=distributor_id,
     )
 
 

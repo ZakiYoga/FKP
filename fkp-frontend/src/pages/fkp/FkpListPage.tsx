@@ -8,6 +8,7 @@ import type { AdvFilters } from '@/components/fkp/FkpFilterBar'
 import { PageLoader } from '@/components/ui/Spinner'
 import { useKodeRole } from '@/store/authStore'
 import type { JalurFkp } from '@/types'
+import PageHeader from '@/components/ui/PageHeader'
 
 // Role yang boleh membuat FKP baru
 const CAN_CREATE = ['outlet', 'distributor', 'sc_spv', 'apsm', 'superadmin']
@@ -30,7 +31,7 @@ export function FkpListPage() {
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
-  const [jalurFilter, setJalurFilter] = useState('')  
+  const [jalurFilter, setJalurFilter] = useState('')
   const [advFilters, setAdvFilters] = useState<AdvFilters>(EMPTY_ADV_FILTERS)
 
   const handleAdvChange = (patch: Partial<AdvFilters>) => {
@@ -76,36 +77,33 @@ export function FkpListPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+
       {/* Page header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Formulir Keluhan Produk</h1>
-          <p className="text-gray-500 text-sm mt-0.5">
-            Kelola dan pantau semua pengajuan keluhan produk
-          </p>
-        </div>
+        <PageHeader
+          title="Formulir Keluhan Produk"
+          description="Kelola dan pantau semua pengajuan keluhan produk"
+          actions={
+            <div className="flex items-center gap-2">
+              {CAN_EXPORT.includes(kodeRole) && (
+                <button
+                  onClick={() => exportMut.mutate(params)}
+                  disabled={exportMut.isPending}
+                  className="btn-secondary text-white p-2 px-4 gap-1 bg-green-600 hover:bg-green-700"
+                >
+                  <Download className="w-4 h-4" />
+                  {exportMut.isPending ? ('Menyiapkan...') : (<>Download<span className='hidden md:flex'>Excel</span></>)}
+                </button>
+              )}
 
-        {/* BARU — dibungkus flex gap-2 supaya 2 tombol berdampingan */}
-        <div className="flex items-center gap-2">
-          {CAN_EXPORT.includes(kodeRole) && (
-            <button
-              onClick={() => exportMut.mutate(params)}
-              disabled={exportMut.isPending}
-              className="btn-secondary text-white p-2 px-4 bg-green-600 hover:bg-green-700"
-            >
-              <Download className="w-4 h-4" />
-              {exportMut.isPending ? 'Menyiapkan...' : 'Download Excel'}
-            </button>
-          )}
-
-          {CAN_CREATE.includes(kodeRole) && (
-            <button onClick={() => navigate('/fkp/baru')} className="btn-primary">
-              <Plus className="w-4 h-4" />
-              Buat FKP
-            </button>
-          )}
-        </div>
-      </div>
+              {CAN_CREATE.includes(kodeRole) && (
+                <button onClick={() => navigate('/fkp/baru')} className="btn-primary">
+                  <Plus className="w-4 h-4" />
+                  Buat FKP
+                </button>
+              )}
+            </div>
+          }
+        />
 
       {/* Filter bar — TIDAK berubah dari sebelumnya */}
       <FkpFilterBar

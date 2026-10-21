@@ -217,7 +217,6 @@ export function FkpEditPage() {
       })
 
       queryClient.invalidateQueries({ queryKey: fkpKeys.detail(id!) })
-      notifications.show({ message: 'FKP berhasil disimpan.', color: 'green' })
       isNavigatingAfterSaveRef.current = true
       navigate(`/fkp/${id}`)
     } catch {
@@ -304,6 +303,7 @@ export function FkpEditPage() {
   // ── itemToFormData helper ─────────────────────────────────────────────────
   const itemToFormData = (item: FkpItem): ItemFormData => {
     const isCustomKeluhan = !Object.keys(JENIS_KELUHAN_LABEL).includes(item.jenis_keluhan)
+    console.log('kondisi dari API:', item.ada_sample_keluhan, item.kondisi_sample, item.kondisi_sample_lainnya)
     return {
       product_id: item.product_id ?? '',
       jenis_kemasan: (item.jenis_kemasan as ItemFormData['jenis_kemasan']) ?? undefined,
@@ -312,6 +312,8 @@ export function FkpEditPage() {
       expired_date: item.expired_date ?? '',
       ada_sample_keluhan: item.ada_sample_keluhan as ItemFormData['ada_sample_keluhan'],
       ada_foto_sample: item.ada_foto_sample,
+      kondisi_sample: (item.kondisi_sample ?? undefined) as ItemFormData['kondisi_sample'],
+      kondisi_sample_lainnya: item.kondisi_sample_lainnya ?? '',
       tanggal_pembelian: item.tanggal_pembelian ?? '',
       tanggal_dikonsumsi: item.tanggal_dikonsumsi ?? '',
       jenis_keluhan: isCustomKeluhan ? 'lainnya' : item.jenis_keluhan,

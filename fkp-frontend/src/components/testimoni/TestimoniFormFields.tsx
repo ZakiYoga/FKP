@@ -1,5 +1,5 @@
 import { Controller } from 'react-hook-form'
-import { Star, Pencil, Loader2, MessageSquare, Users, Smartphone } from 'lucide-react'
+import { Star, Pencil, Loader2, MessageSquare } from 'lucide-react'
 import type { UseFormReturn } from 'react-hook-form'
 import { RatingSliderField } from './RatingSliderField'
 import type { TestimoniFormValues } from '@/schemas/testimoniSchema'

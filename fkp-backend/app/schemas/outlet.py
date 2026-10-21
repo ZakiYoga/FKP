@@ -1,5 +1,5 @@
 import uuid
-from typing import Optional, Literal
+from typing import Dict, List, Optional, Literal
 from datetime import datetime
 from pydantic import BaseModel, EmailStr
 
@@ -73,3 +73,24 @@ class OutletResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ─── PAGINATION ───────────────────────────────────────────────────────────────
+
+class OutletListPage(BaseModel):
+    """Response berpagination untuk GET /api/outlets/page."""
+    items: List[OutletResponse]
+    total: int          # total baris yang cocok filter (bukan hanya halaman ini)
+    page: int           # halaman aktif, mulai dari 1
+    page_size: int
+    total_pages: int    # 0 jika tidak ada data
+
+
+class OutletStatusSummary(BaseModel):
+    """
+    Jumlah outlet per status (mengikuti scope role + filter distributor).
+    Dipakai FE untuk badge "N menunggu persetujuan" tanpa memuat seluruh list.
+    Contoh: {"counts": {"aktif": 120, "pending": 7, "nonaktif": 3}, "total": 130}
+    """
+    counts: Dict[str, int]
+    total: int

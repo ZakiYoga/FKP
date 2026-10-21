@@ -6,7 +6,7 @@ import { Eye, EyeOff, Loader2, CheckCircle2, ChevronLeft } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useRegisterOutlet } from '@/hooks/useOutletRegister'
 import { Input } from '@/components/ui/Input'
-import { Select } from '@/components/ui/Select'
+import { SearchableSelect } from '@/components/ui/SearchableSelect'
 import { cn } from '@/lib/utils'
 import axios from 'axios'
 import { DistributorOption } from '@/types'
@@ -48,6 +48,8 @@ function PasswordStrengthBar({ password }: { password: string }) {
     </div>
   )
 }
+
+const TIPE_TOKO_SELECT_OPTIONS = TIPE_TOKO_OPTIONS.map((t) => ({ value: t.value, label: t.label }))
 
 // ─── Steps ────────────────────────────────────────────────────────────────────
 
@@ -117,6 +119,11 @@ export function RegisterOutletPage() {
   const selectedDistributorId = watch('distributor_id')
   const passwordValue = watch('password') ?? ''
   const selectedDistributor = distributors.find((d) => d.id === selectedDistributorId) ?? null
+  // Label memuat nama dan kode, jadi pencarian cocok untuk keduanya
+  const distributorOptions = distributors.map((d) => ({
+    value: d.id,
+    label: `${d.nama_perusahaan}${d.kode_distributor ? ` (${d.kode_distributor})` : ''}`,
+  }))
 
   const stepFields: (keyof RegisterOutletFormValues)[][] = [
     ['nama_toko', 'pemilik_toko', 'tipe_toko', 'no_hp', 'alamat_lengkap'],
@@ -234,9 +241,26 @@ export function RegisterOutletPage() {
           <motion.div key="step0" variants={stepContentVariants} initial="initial" animate="animate" exit="exit" className="space-y-4">
             <Input label="Nama Toko" required placeholder="Toko Sumber Jaya" error={errors.nama_toko?.message} {...reg('nama_toko')} />
             <Input label="Nama Pemilik" required placeholder="Budi Santoso" error={errors.pemilik_toko?.message} {...reg('pemilik_toko')} />
-            <Select label="Tipe Toko" required placeholder="-- Pilih tipe toko --" error={errors.tipe_toko?.message} {...reg('tipe_toko')}>
-              {TIPE_TOKO_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </Select>
+            <div>
+              <label htmlFor="tipe_toko" className="label label-required">Tipe Toko</label>
+              <Controller
+                name="tipe_toko"
+                control={control}
+                render={({ field }) => (
+                  <SearchableSelect
+                    id="tipe_toko"
+                    placeholder="Cari atau pilih tipe toko"
+                    options={TIPE_TOKO_SELECT_OPTIONS}
+                    value={field.value ?? null}
+                    // Dikosongkan jadi undefined (bukan '') agar pesan "Pilih tipe toko" yang tampil
+                    onChange={(v) => field.onChange(v ?? undefined)}
+                    onBlur={field.onBlur}
+                    ref={field.ref}
+                    error={errors.tipe_toko?.message}
+                  />
+                )}
+              />
+            </div>
 
             <Controller
               name="no_hp"
@@ -290,36 +314,31 @@ export function RegisterOutletPage() {
         {step === 1 && (
           <motion.div key="step1" variants={stepContentVariants} initial="initial" animate="animate" exit="exit" className="space-y-4">
             <div>
-              <label className="label">Distributor <span className="text-red-500">*</span></label>
-              {loadingDist && (
-                <div className="input-base flex items-center gap-2 text-gray-400">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span className="text-sm">Memuat daftar distributor...</span>
-                </div>
-              )}
-              {distError && !loadingDist && (
+              <label htmlFor="distributor_id" className="label label-required">Distributor</label>
+              {distError && !loadingDist ? (
                 <div className="input-base text-sm text-red-500 bg-red-50 border-red-200">{distError}</div>
-              )}
-              {!loadingDist && !distError && (
-                <select
-                  className={cn('input-base', errors.distributor_id && 'input-error', !selectedDistributorId && 'text-gray-400')}
-                  {...reg('distributor_id')}
-                  onChange={(e) => {
-                    const picked = distributors.find((d) => d.id === e.target.value)
-                    setValue('distributor_id', e.target.value, { shouldValidate: true })
-                    setPreviewAlamatDistributor(picked?.alamat_lengkap ?? '')  // ← local state, BUKAN setValue form
-                  }}
-                >
-                  <option value="">-- Pilih distributor --</option>
-                  {distributors.map((d) => (
-                    <option key={d.id} value={d.id} className="text-gray-900">
-                      {d.nama_perusahaan}{d.kode_distributor ? ` (${d.kode_distributor})` : ''}
-                    </option>
-                  ))}
-                </select>
-              )}
-              {errors.distributor_id && (
-                <p className="mt-1.5 text-xs text-red-600">{errors.distributor_id.message}</p>
+              ) : (
+                <Controller
+                  name="distributor_id"
+                  control={control}
+                  render={({ field }) => (
+                    <SearchableSelect
+                      id="distributor_id"
+                      placeholder="Cari atau pilih distributor"
+                      options={distributorOptions}
+                      value={field.value || null}
+                      onChange={(v) => {
+                        const picked = distributors.find((d) => d.id === v)
+                        setValue('distributor_id', v ?? '', { shouldValidate: true })
+                        setPreviewAlamatDistributor(picked?.alamat_lengkap ?? '')  // ← local state, BUKAN setValue form
+                      }}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                      loading={loadingDist}
+                      error={errors.distributor_id?.message}
+                    />
+                  )}
+                />
               )}
               <p className="mt-1 text-xs text-gray-400">Pilih distributor yang akan mengelola outlet Anda.</p>
             </div>

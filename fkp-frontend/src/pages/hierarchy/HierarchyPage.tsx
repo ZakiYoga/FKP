@@ -12,9 +12,11 @@ import {
   useRemoveDistFromScSpv,
 } from '@/hooks/useHierarchy'
 import { Modal } from '@/components/ui/Modal'
-import { Select } from '@/components/ui/Select'
+import { FilterSelect } from '@/components/fkp/FilterSelect'
+import { SearchableSelect } from '@/components/ui/SearchableSelect'
 import { PageLoader } from '@/components/ui/Spinner'
 import { useKodeRole } from '@/store/authStore'
+import PageHeader from '@/components/ui/PageHeader'
 
 const CAN_MANAGE = ['superadmin', 'admin_ho']
 
@@ -58,30 +60,43 @@ export function HierarchyPage() {
     }
   }
 
+  const rsmOptions = rsmList.map((u) => ({ value: u.id, label: u.nama }))
+
+  // Opsi select di modal mengikuti tipe assign yang sedang dibuka
+  const modalOptions =
+    modal?.type === 'rsm_apsm'
+      ? apsmList.map((u) => ({ value: u.id, label: `${u.nama} — ${u.email}` }))
+      : modal?.type === 'apsm_sc'
+        ? scList.map((u) => ({ value: u.id, label: `${u.nama} — ${u.email}` }))
+        : modal?.type === 'sc_dist'
+          ? distributors.map((d) => ({ value: d.id, label: `[${d.kode_distributor}] ${d.nama_perusahaan}` }))
+          : []
+
+  const modalSelectLabel =
+    modal?.type === 'rsm_apsm' ? 'Pilih APSM' : modal?.type === 'apsm_sc' ? 'Pilih SC/SPV' : 'Pilih Distributor'
+
   if (loadingUsers) return <PageLoader />
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <GitBranch className="w-6 h-6 text-brand-600" /> Hierarki Tim Sales
-        </h1>
-        <p className="text-gray-500 text-sm mt-0.5">RSM → APSM → SC/SPV → Distributor</p>
-      </div>
+
+      {/* Header */}
+      <PageHeader title="Hierarki Tim" description="RSM → APSM → SC/SPV → Distributor" />
 
       {/* Pilih RSM */}
       <div className="card card-body">
         <div className="flex items-center gap-4 flex-wrap">
-          <label className="text-sm font-medium text-gray-700">Tampilkan tim RSM:</label>
-          <select
-            value={selectedRsmId}
-            onChange={(e) => setSelectedRsmId(e.target.value)}
-            className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
-                       focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 min-w-[220px]"
-          >
-            <option value="">— Pilih RSM —</option>
-            {rsmList.map((u) => <option key={u.id} value={u.id}>{u.nama}</option>)}
-          </select>
+          {/* Label membungkus select agar klik pada teks memfokuskan select */}
+          <label className="flex items-center gap-4 flex-wrap">
+            <span className="text-sm font-medium text-gray-700">Tampilkan tim RSM:</span>
+            <FilterSelect
+              value={selectedRsmId}
+              onChange={setSelectedRsmId}
+              placeholder="— Pilih RSM —"
+              options={rsmOptions}
+              className="min-w-55"
+            />
+          </label>
           {rsmList.length === 0 && (
             <p className="text-sm text-amber-600">Belum ada user dengan role RSM.</p>
           )}
@@ -270,17 +285,14 @@ export function HierarchyPage() {
         size="sm"
       >
         <div className="space-y-4">
-          <Select
-            label={modal?.type === 'rsm_apsm' ? 'Pilih APSM' : modal?.type === 'apsm_sc' ? 'Pilih SC/SPV' : 'Pilih Distributor'}
+          <SearchableSelect
+            label={modalSelectLabel}
             required
-            value={selectValue}
-            onChange={(e) => setSelectValue(e.target.value)}
-            placeholder="— Pilih —"
-          >
-            {modal?.type === 'rsm_apsm' && apsmList.map((u) => <option key={u.id} value={u.id}>{u.nama} — {u.email}</option>)}
-            {modal?.type === 'apsm_sc' && scList.map((u) => <option key={u.id} value={u.id}>{u.nama} — {u.email}</option>)}
-            {modal?.type === 'sc_dist' && distributors.map((d) => <option key={d.id} value={d.id}>[{d.kode_distributor}] {d.nama_perusahaan}</option>)}
-          </Select>
+            value={selectValue || null}
+            onChange={(v) => setSelectValue(v ?? '')}
+            placeholder="Cari atau pilih"
+            options={modalOptions}
+          />
           <div className="flex justify-end gap-2">
             <button onClick={() => { setModal(null); setSelectValue('') }} className="btn-secondary">Batal</button>
             <button onClick={handleAssign} disabled={!selectValue} className="btn-primary">Assign</button>

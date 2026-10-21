@@ -1,4 +1,12 @@
 import api from '@/lib/axios'
+import { Paginated } from '@/types/pagination'
+
+export interface UserListParams {
+  page: number
+  page_size: number
+  search?: string
+  role?: string // kode_role
+}
 
 export interface UserDetail {
   id: string
@@ -21,6 +29,10 @@ export interface RoleItem {
 }
 
 export const usersApi = {
+  listPage: async (params: UserListParams): Promise<Paginated<UserDetail>> => {
+    const res = await api.get<Paginated<UserDetail>>('/users/page', { params })
+    return res.data
+  },
   list: async (): Promise<UserDetail[]> => {
     const res = await api.get<UserDetail[]>('/users/')
     return res.data
@@ -97,4 +109,5 @@ export const hierarchyApi = {
   removeDistFromScSpv: async (scId: string, distId: string) => {
     await api.delete(`/hierarchy/sc-spv/${scId}/distributors/${distId}`)
   },
+
 }

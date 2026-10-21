@@ -21,7 +21,7 @@ export const ADA_SAMPLE_KELUHAN_OPTIONS = [
 export const KONDISI_SAMPLE_OPTIONS = [
   { value: 'utuh', label: 'Kemasan Utuh (segel)' },
   { value: 'terbuka', label: 'Kemasan Sudah Dibuka' },
-  { value: 'kemasan_plastik', label: 'Kemasan Plastik (sample kecil untuk analisa QC)' },
+  { value: 'kemasan_plastik', label: 'Kemasan Plastik' },
   { value: 'lainnya', label: 'Lainnya' },
 ] as const
 

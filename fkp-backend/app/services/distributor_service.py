@@ -14,13 +14,17 @@ Fungsi list_distributors_by_role() menangani filtering berdasarkan role:
   - sc_spv  → hanya distributor yang dia handle (ScSpvDistributor)
   - distributor (user pemilik) → hanya distributor yang dia terdaftar (DistributorUser)
   - outlet  → hanya distributor tempat outlet-nya terdaftar (Outlet.distributor_id via pic_user_id)
+
+list_distributors_paginated() dan get_distributor_status_summary() memakai aturan
+scope yang sama lewat _build_scoped_distributor_query().
 """
+import math
 import uuid
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException
-from sqlalchemy import Case
+from sqlalchemy import Case, func, or_
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,6 +38,59 @@ from app.schemas.distributor import (
 from app.services.authz_helpers import get_scoped_distributor_ids
 
 
+# ─── HELPERS LIST ─────────────────────────────────────────────────────────────
+
+def _escape_like(value: str) -> str:
+    """Escape karakter wildcard LIKE agar input user dianggap teks biasa."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+async def _build_scoped_distributor_query(
+    db: AsyncSession,
+    current_user: User,
+    kode_role: str,
+    area_id: Optional[uuid.UUID] = None,
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+):
+    """
+    Query dasar distributor dengan scoping otomatis per role + filter opsional.
+    Mengembalikan None jika user tidak punya scope sama sekali (hasil pasti kosong).
+
+    Scope ditentukan oleh authz_helpers.get_scoped_distributor_ids() — satu
+    sumber kebenaran yang dipakai juga oleh service lain (outlet_register,
+    upload, dst) agar tidak ada lagi inkonsistensi scoping antar-modul.
+    """
+    scoped_ids = await get_scoped_distributor_ids(current_user, kode_role, db)
+
+    # [] = tidak ada distributor dalam scope user (mis. APSM belum punya area,
+    # SC_SPV belum di-assign distributor, outlet belum tercantum, dst)
+    if scoped_ids is not None and not scoped_ids:
+        return None
+
+    query = select(Distributor)
+
+    # None = akses global (superadmin/admin_ho/qc/rsm/direktur/finance)
+    if scoped_ids is not None:
+        query = query.where(Distributor.id.in_(scoped_ids))
+
+    if area_id:
+        query = query.where(Distributor.area_id == area_id)
+    if status:
+        query = query.where(Distributor.status == status)
+    if search and search.strip():
+        pattern = f"%{_escape_like(search.strip())}%"
+        query = query.where(
+            or_(
+                Distributor.nama_perusahaan.ilike(pattern, escape="\\"),
+                Distributor.kode_distributor.ilike(pattern, escape="\\"),
+                Distributor.pemilik.ilike(pattern, escape="\\"),
+            )
+        )
+
+    return query
+
+
 # ─── LIST (dengan filter role) ────────────────────────────────────────────────
 
 async def list_distributors_by_role(
@@ -44,35 +101,101 @@ async def list_distributors_by_role(
     status: Optional[str] = None,
 ) -> List[Distributor]:
     """
-    Mengembalikan list distributor yang bisa dilihat oleh user sesuai rolenya.
-    Scope ditentukan oleh authz_helpers.get_scoped_distributor_ids() — satu
-    sumber kebenaran yang dipakai juga oleh service lain (outlet_register,
-    upload, dst) agar tidak ada lagi inkonsistensi scoping antar-modul.
+    Mengembalikan list distributor yang bisa dilihat oleh user sesuai rolenya
+    (tanpa pagination). Untuk tampilan berpagination gunakan
+    list_distributors_paginated().
+
+    Urutan: aktif lebih dulu, lalu nama_perusahaan. (Sebelumnya order_by pada
+    cabang non-global tidak pernah dipakai karena hasilnya tidak di-assign.)
     """
-    scoped_ids = await get_scoped_distributor_ids(current_user, kode_role, db)
-
-    # None = akses global (superadmin/admin_ho/qc/rsm/direktur/finance)
-    if scoped_ids is None:
-        return await list_distributors(db, area_id=area_id, status=status)
-
-    # [] = tidak ada distributor dalam scope user (mis. APSM belum punya area,
-    # SC_SPV belum di-assign distributor, outlet belum tercantum, dst)
-    if not scoped_ids:
+    query = await _build_scoped_distributor_query(
+        db, current_user, kode_role, area_id=area_id, status=status,
+    )
+    if query is None:
         return []
 
-    query = select(Distributor).where(Distributor.id.in_(scoped_ids))
-    if area_id:
-        query = query.where(Distributor.area_id == area_id)
-    if status:
-        query = query.where(Distributor.status == status)
-
-        query.order_by(
-            Case((Distributor.status == "aktif", 0), else_=1),
-            Distributor.nama_perusahaan,
-        )
+    query = query.order_by(
+        Case((Distributor.status == "aktif", 0), else_=1),
+        Distributor.nama_perusahaan,
+    )
 
     result = await db.execute(query)
     return result.scalars().all()
+
+
+async def list_distributors_paginated(
+    db: AsyncSession,
+    current_user: User,
+    kode_role: str,
+    page: int = 1,
+    page_size: int = 10,
+    area_id: Optional[uuid.UUID] = None,
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    List distributor berpagination (offset/limit) dengan scoping per role.
+    Filter opsional: area_id, status, search (nama_perusahaan/kode_distributor/pemilik).
+
+    Urutan: aktif lebih dulu, lalu nama_perusahaan; id jadi tie-breaker agar
+    halaman stabil (tidak ada baris dobel/hilang antar halaman).
+    """
+    query = await _build_scoped_distributor_query(
+        db, current_user, kode_role,
+        area_id=area_id, status=status, search=search,
+    )
+    if query is None:
+        return {"items": [], "total": 0, "page": page,
+                "page_size": page_size, "total_pages": 0}
+
+    total = (
+        await db.execute(
+            select(func.count()).select_from(query.order_by(None).subquery())
+        )
+    ).scalar_one()
+
+    query = query.order_by(
+        Case((Distributor.status == "aktif", 0), else_=1),
+        Distributor.nama_perusahaan,
+        Distributor.id,
+    )
+    query = query.offset((page - 1) * page_size).limit(page_size)
+    result = await db.execute(query)
+
+    return {
+        "items": result.scalars().all(),
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": math.ceil(total / page_size) if total else 0,
+    }
+
+
+async def get_distributor_status_summary(
+    db: AsyncSession,
+    current_user: User,
+    kode_role: str,
+    area_id: Optional[uuid.UUID] = None,
+) -> Dict[str, Any]:
+    """
+    Jumlah distributor per status dalam scope user (+ filter area opsional).
+    Satu query GROUP BY — ringan, cocok untuk counter di header.
+    """
+    query = await _build_scoped_distributor_query(
+        db, current_user, kode_role, area_id=area_id,
+    )
+    if query is None:
+        return {"counts": {}, "total": 0}
+
+    sub = query.order_by(None).subquery()
+    rows = (
+        await db.execute(
+            select(sub.c.status, func.count()).group_by(sub.c.status)
+        )
+    ).all()
+
+    counts = {status: n for status, n in rows}
+    return {"counts": counts, "total": sum(counts.values())}
 
 
 # ─── LIST SEMUA (tanpa filter role) ──────────────────────────────────────────
@@ -93,7 +216,7 @@ async def list_distributors(
         Case((Distributor.status == "aktif", 0), else_=1),
         Distributor.nama_perusahaan,
     )
-    
+
     result = await db.execute(query)
     return result.scalars().all()
 

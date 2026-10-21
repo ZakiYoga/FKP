@@ -1,18 +1,27 @@
 """
 Distributor Endpoints:
-  GET    /api/distributors/                          → List (difilter otomatis by role)
+  GET    /api/distributors/                          → List (difilter otomatis by role, tanpa pagination)
+  GET    /api/distributors/page                      → List berpagination + search
+  GET    /api/distributors/status-summary            → Jumlah distributor per status
+  GET    /api/distributors/public                    → List distributor aktif (publik, tanpa token)
   POST   /api/distributors/                          → Buat baru (superadmin, admin_ho)
   GET    /api/distributors/{id}                      → Detail
   PUT    /api/distributors/{id}                      → Update (superadmin, admin_ho)
   DELETE /api/distributors/{id}                      → Nonaktifkan (superadmin)
+  POST   /api/distributors/{id}/activate             → Aktifkan kembali
   GET    /api/distributors/{id}/users                → List user di distributor
   POST   /api/distributors/{id}/users                → Tambah user ke distributor
   DELETE /api/distributors/{id}/users/{user_id}      → Lepas user dari distributor
 
-Akses GET /:
+Akses GET / , /page, /status-summary:
   Semua role yang butuh data distributor diizinkan masuk.
-  Filtering data dilakukan sepenuhnya di service layer (list_distributors_by_role),
-  bukan di route — agar route tetap bersih dan logika bisnis terpusat.
+  Filtering data dilakukan sepenuhnya di service layer (list_distributors_by_role,
+  list_distributors_paginated, get_distributor_status_summary), bukan di route —
+  agar route tetap bersih dan logika bisnis terpusat.
+
+Catatan: route statis (/page, /status-summary, /public) HARUS dideklarasikan
+sebelum /{distributor_id}, kalau tidak akan tertangkap sebagai distributor_id
+dan memicu 422 (bukan UUID).
 """
 import uuid
 from typing import List, Optional
@@ -29,6 +38,7 @@ from app.services.permission_service import require_permission
 from app.schemas.distributor import (
     DistributorCreate, DistributorUpdate, DistributorResponse,
     DistributorUserAdd, DistributorUserResponse,
+    DistributorListPage, DistributorStatusSummary,
 )
 from app.services import distributor_service
 
@@ -65,7 +75,59 @@ async def list_distributors(
         db, current_user=user, kode_role=kode_role,
         area_id=area_id, status=status,
     )
-    
+
+
+@router.get("/page", response_model=DistributorListPage, summary="List distributor berpagination")
+async def list_distributors_paginated(
+    page: int = Query(default=1, ge=1, description="Halaman, mulai dari 1"),
+    page_size: int = Query(default=10, ge=1, le=100, description="Jumlah item per halaman (maks 100)"),
+    area_id: Optional[uuid.UUID] = Query(default=None, description="Filter by area"),
+    status: Optional[str] = Query(default=None, description="Filter by status: aktif/nonaktif"),
+    search: Optional[str] = Query(
+        default=None, max_length=100,
+        description="Cari di nama_perusahaan, kode_distributor, atau pemilik",
+    ),
+    db: AsyncSession = Depends(get_db),
+    auth=Depends(get_current_user_with_role),
+):
+    """
+    List distributor berpagination. Scope role dan permission sama persis dengan
+    GET /api/distributors/. Urutan: aktif lebih dulu, lalu nama_perusahaan.
+    """
+    user, kode_role = auth
+    await require_permission(kode_role, "distributor.read", db)
+
+    return await distributor_service.list_distributors_paginated(
+        db,
+        current_user=user,
+        kode_role=kode_role,
+        page=page,
+        page_size=page_size,
+        area_id=area_id,
+        status=status,
+        search=search,
+    )
+
+
+@router.get(
+    "/status-summary",
+    response_model=DistributorStatusSummary,
+    summary="Jumlah distributor per status",
+)
+async def get_distributor_status_summary(
+    area_id: Optional[uuid.UUID] = Query(default=None, description="Filter by area"),
+    db: AsyncSession = Depends(get_db),
+    auth=Depends(get_current_user_with_role),
+):
+    """Jumlah distributor per status dalam scope user — untuk counter di header."""
+    user, kode_role = auth
+    await require_permission(kode_role, "distributor.read", db)
+
+    return await distributor_service.get_distributor_status_summary(
+        db, current_user=user, kode_role=kode_role, area_id=area_id,
+    )
+
+
 @router.get("/public", summary="List distributor aktif (publik)", description="Dipakai di form registrasi outlet — tidak butuh token.",)
 async def list_distributors_public(db: AsyncSession = Depends(get_db)):
     result = await db.execute(

@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
-import { Calendar, Package, Building2, ArrowRight, Paperclip } from 'lucide-react'
-import { StatusBadge, PrioritasBadge } from '@/components/ui/Badge'
+import { Calendar, Package, Building2, ArrowRight } from 'lucide-react'
+import { StatusBadge } from '@/components/ui/Badge'
 import { formatDate, formatRelative } from '@/lib/utils'
 import type { FkpListItem } from '@/types'
 
@@ -20,7 +20,7 @@ export function FkpCard({ fkp }: FkpCardProps) {
       {/* Top row: nomor + prioritas */}
       <div className="flex items-start flex-col">
         <div>
-          <p className="text-sm font-mono font-medium text-gray-800 mb-1">{fkp.nomor_fkp}</p>
+          <p className="text-sm font-mono font-medium mb-1">{fkp.nomor_fkp}</p>
           {/* <PrioritasBadge prioritas={fkp.prioritas} /> */}
         </div>
         <StatusBadge classname='rounded-sm' status={fkp.status} />

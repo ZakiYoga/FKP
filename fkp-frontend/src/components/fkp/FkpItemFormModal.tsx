@@ -72,7 +72,7 @@ function FotoWajibChip({ label, terpenuhi }: { label: string; terpenuhi: boolean
 
 export function FkpItemFormModal({
     isOpen, onClose, products, initialData, initialFiles,
-    existingAttachments, onDeleteAttachment, variant = 'add',
+    existingAttachments, variant = 'add',
     resetKey = 0, onSave, isSaving = false,
     existingItems = []
 }: Props) {
@@ -261,7 +261,7 @@ export function FkpItemFormModal({
     return (
         <Modal isOpen={isOpen} onClose={onClose}
             title={isEdit ? 'Edit Item Produk' : 'Tambah Item Produk'} size="lg">
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 max-h-[70vh] overflow-y-auto pr-1 py-2">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 pr-1">
 
                 {/* ── Identifikasi Produk ─────────────────────────────── */}
                 <div className="space-y-3">
@@ -635,7 +635,7 @@ export function FkpItemFormModal({
                 )}
 
                 {/* ── Footer ──────────────────────────────────────────── */}
-                <div className="flex gap-2 justify-end pt-2 border-t border-gray-100">
+                <div className="flex gap-2 justify-end pt-4 border-t border-gray-100">
                     <button type="button" onClick={onClose} className="btn-secondary" disabled={isSaving}>
                         Batal
                     </button>

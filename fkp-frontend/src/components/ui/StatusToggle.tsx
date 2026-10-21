@@ -7,7 +7,7 @@ interface StatusBadgeProps {
 export function StatusToggleBadge({ status }: StatusBadgeProps) {
   const isActive = status === 'aktif'
   const isInactive = status === 'nonaktif'
-  const isPending = status === 'pending'
+  // const isPending = status === 'pending'
   
   return (
     <span className={cn(

@@ -1,6 +1,6 @@
 // src/layouts/PublicLayout.tsx
-import { Outlet, useOutletContext } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { Outlet } from 'react-router-dom'
+import { useState } from 'react'
 import { PublicHeader } from '../PublicHeader'
 import { PublicFooter } from '../PublicFooter'
 
@@ -12,16 +12,6 @@ export interface PublicPageMeta {
     pageTitle: string
     pageSubtitle?: string
     pageIcon?: string
-}
-
-export function useSetPublicPage(meta: PublicPageMeta) {
-    // ✅ null guard — context bisa null jika dipakai di luar PublicLayout
-    const ctx = useOutletContext<PublicPageContext | null>()
-
-    useEffect(() => {
-        ctx?.setPage(meta)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
 }
 
 export function PublicLayout() {

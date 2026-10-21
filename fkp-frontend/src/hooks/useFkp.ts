@@ -546,30 +546,6 @@ export function useCloseFkp(fkpId: string) {
   })
 }
 
-// ── Confirm Resolusi (accepted → in_process, tipe SELAIN tukar_barang & potong_tagihan) ──
-// Untuk tukar_barang pakai useCreateSuratJalan (hooks/useWarehouse.ts).
-// Untuk potong_tagihan pakai useTerbitkanInvoice (hooks/useFinance.ts).
-export function useConfirmResolusi(fkpId: string) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (catatan?: string | null) => fkpApi.confirmResolusi(fkpId, catatan),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: fkpKeys.detail(fkpId) })
-      queryClient.invalidateQueries({ queryKey: fkpKeys.all })
-      notifications.show({
-        message: 'Resolusi dikonfirmasi, FKP masuk tahap diproses.',
-        color: 'green',
-      })
-    },
-    onError: (e) => {
-      notifications.show({
-        message: getErrorMessage(e),
-        color: 'red',
-      })
-    },
-  })
-}
-
 // ── Master Data ────────────────────────────────────────────────────────────
 export function useDistributors(params?: { area_id?: string }) {
   return useQuery({

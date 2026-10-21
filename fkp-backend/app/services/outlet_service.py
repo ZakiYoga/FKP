@@ -8,24 +8,26 @@ Berbeda dari outlet_register_service.py yang menangani:
 File ini menangani operasi internal oleh admin_ho, distributor, sc_spv, apsm:
   - Buat outlet langsung (tanpa registrasi publik)
   - Update outlet
-  - List outlet dengan scoping per role
+  - List outlet dengan scoping per role (biasa, berpagination, ringkasan status)
   - Assign/validasi PIC
 
 Semua pengecekan scope role (siapa boleh akses distributor mana) tetap
 di authz_helpers.py — service ini hanya memanggil helper tersebut,
 tidak menduplikasi logikanya.
 """
+import math
 import uuid
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException
-from sqlalchemy import Case
+from sqlalchemy import Case, func, or_
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.outlet import Outlet
 from app.models.user import User
+from app.models.distributor import Distributor
 from app.schemas.outlet import OutletCreate, OutletUpdate
 from app.services.authz_helpers import (
     has_global_access,
@@ -83,6 +85,67 @@ async def validate_pic_distributor_consistency(
         )
 
 
+def _escape_like(value: str) -> str:
+    """Escape karakter wildcard LIKE agar input user dianggap teks biasa."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+async def _build_scoped_outlet_query(
+    db: AsyncSession,
+    user: User,
+    kode_role: str,
+    distributor_id: Optional[uuid.UUID] = None,
+    area_id: Optional[uuid.UUID] = None,
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+):
+    """
+    Query dasar outlet dengan scoping otomatis per role + filter opsional.
+    Mengembalikan None jika user tidak punya scope sama sekali (hasil pasti kosong).
+
+    Dipakai bersama oleh list_outlets, list_outlets_paginated, dan
+    get_outlet_status_summary — satu sumber kebenaran untuk aturan scope,
+    mengikuti get_scoped_distributor_ids() dari authz_helpers.
+    """
+    scoped_ids = await get_scoped_distributor_ids(user, kode_role, db)
+
+    if scoped_ids is not None and not scoped_ids:
+        return None
+
+    query = select(Outlet)
+
+    if scoped_ids is None:
+        # Akses global — tidak ada filter scope
+        pass
+    elif kode_role == "outlet":
+        # Role outlet: filter by pic_user_id, bukan distributor_id
+        query = query.where(Outlet.pic_user_id == user.id)
+    else:
+        query = query.where(Outlet.distributor_id.in_(scoped_ids))
+
+    if distributor_id:
+        query = query.where(Outlet.distributor_id == distributor_id)
+    if area_id:
+        query = query.where(
+            Outlet.distributor_id.in_(
+                select(Distributor.id).where(Distributor.area_id == area_id)
+            )
+        )
+    if status:
+        query = query.where(Outlet.status == status)
+    if search and search.strip():
+        pattern = f"%{_escape_like(search.strip())}%"
+        query = query.where(
+            or_(
+                Outlet.nama_toko.ilike(pattern, escape="\\"),
+                Outlet.kode_outlet.ilike(pattern, escape="\\"),
+                Outlet.pemilik_toko.ilike(pattern, escape="\\"),
+            )
+        )
+
+    return query
+
+
 # ─── LIST ─────────────────────────────────────────────────────────────────────
 
 async def list_outlets(
@@ -93,39 +156,112 @@ async def list_outlets(
     status: Optional[str] = None,
 ) -> List[Outlet]:
     """
-    List outlet dengan scoping otomatis per role.
+    List outlet dengan scoping otomatis per role (tanpa pagination).
     Filter opsional: distributor_id, status.
 
-    Scoping mengikuti get_scoped_distributor_ids() dari authz_helpers —
-    satu sumber kebenaran, tidak ada duplikasi logika scope di sini.
+    Dipertahankan agar konsumen lama tidak rusak. Untuk tampilan yang
+    berpagination gunakan list_outlets_paginated().
     """
-    query = select(Outlet)
-
-    scoped_ids = await get_scoped_distributor_ids(user, kode_role, db)
-
-    if scoped_ids is None:
-        # Akses global — tidak ada filter scope
-        pass
-    elif not scoped_ids:
+    query = await _build_scoped_outlet_query(
+        db, user, kode_role, distributor_id=distributor_id, status=status,
+    )
+    if query is None:
         return []
-    elif kode_role == "outlet":
-        # Role outlet: filter by pic_user_id, bukan distributor_id
-        query = query.where(Outlet.pic_user_id == user.id)
-    else:
-        query = query.where(Outlet.distributor_id.in_(scoped_ids))
-
-    if distributor_id:
-        query = query.where(Outlet.distributor_id == distributor_id)
-    if status:
-        query = query.where(Outlet.status == status)
 
     query = query.order_by(
         Case((Outlet.status == "aktif", 0), else_=1),
         Outlet.nama_toko,
     )
-    
+
     result = await db.execute(query)
     return result.scalars().all()
+
+
+async def list_outlets_paginated(
+    db: AsyncSession,
+    user: User,
+    kode_role: str,
+    page: int = 1,
+    page_size: int = 10,
+    distributor_id: Optional[uuid.UUID] = None,
+    area_id: Optional[uuid.UUID] = None,      # ← baru
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+) -> Dict[str, Any]:
+    query = await _build_scoped_outlet_query(
+        db, user, kode_role,
+        distributor_id=distributor_id, area_id=area_id,   # ← area_id diteruskan
+        status=status, search=search,
+    )
+    """
+    List outlet berpagination (offset/limit) dengan scoping per role.
+    Filter opsional: distributor_id, status, search (nama_toko/kode_outlet/pemilik_toko).
+
+    Urutan:
+    - status == "pending": paling lama menunggu dulu (created_at ASC) — antrean FIFO
+    - lainnya: aktif lebih dulu, lalu nama_toko
+    - id selalu jadi tie-breaker agar halaman stabil (tidak ada baris dobel/hilang)
+    """
+    query = await _build_scoped_outlet_query(
+        db, user, kode_role,
+        distributor_id=distributor_id, area_id=area_id, status=status, search=search,
+    )
+    if query is None:
+        return {"items": [], "total": 0, "page": page,
+                "page_size": page_size, "total_pages": 0}
+
+    total = (
+        await db.execute(
+            select(func.count()).select_from(query.order_by(None).subquery())
+        )
+    ).scalar_one()
+
+    if status == "pending":
+        query = query.order_by(Outlet.created_at.asc(), Outlet.id)
+    else:
+        query = query.order_by(
+            Case((Outlet.status == "aktif", 0), else_=1),
+            Outlet.nama_toko,
+            Outlet.id,
+        )
+
+    query = query.offset((page - 1) * page_size).limit(page_size)
+    result = await db.execute(query)
+
+    return {
+        "items": result.scalars().all(),
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": math.ceil(total / page_size) if total else 0,
+    }
+
+
+async def get_outlet_status_summary(
+    db: AsyncSession,
+    user: User,
+    kode_role: str,
+    distributor_id: Optional[uuid.UUID] = None,
+) -> Dict[str, Any]:
+    """
+    Jumlah outlet per status dalam scope user (+ filter distributor opsional).
+    Satu query GROUP BY — ringan, cocok untuk badge/counter di header.
+    """
+    query = await _build_scoped_outlet_query(
+        db, user, kode_role, distributor_id=distributor_id,
+    )
+    if query is None:
+        return {"counts": {}, "total": 0}
+
+    sub = query.order_by(None).subquery()
+    rows = (
+        await db.execute(
+            select(sub.c.status, func.count()).group_by(sub.c.status)
+        )
+    ).all()
+
+    counts = {status: n for status, n in rows}
+    return {"counts": counts, "total": sum(counts.values())}
 
 
 # ─── CREATE ───────────────────────────────────────────────────────────────────

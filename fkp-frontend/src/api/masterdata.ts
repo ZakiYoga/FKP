@@ -114,6 +114,11 @@ export const outletApi = {
 }
 
 // ─── PRODUCT ──────────────────────────────────────────────────────────────────
+// Aturan kemasan & isi (cermin backend, lihat src/lib/kemasan.ts):
+//  - berat_gr = berat per SATUAN TERKECIL (per zak untuk zak, per pcs untuk kemasan lain)
+//  - maksimal satu kemasan besar (zak/ball/karton); pcs boleh menyertai
+//  - qty_per_kemasan = isi kemasan besar (pcs): zak/pcs-saja = 1 (backend memaksa),
+//    ball/karton WAJIB >= 2. Kemasan dan isi adalah satu kesatuan (PUT /kemasan).
 export interface ProductCreatePayload {
   kode_produk: string
   nama_produk: string
@@ -122,11 +127,11 @@ export interface ProductCreatePayload {
   qty_per_kemasan?: number | null
 }
 
+// qty_per_kemasan TIDAK ada di sini: isi hanya berubah lewat setKemasan().
 export interface ProductUpdatePayload {
   nama_produk?: string
-  berat_gr?: number | null
+  berat_gr?: number
   is_active?: boolean
-  qty_per_kemasan?: number | null
   foto_url?: string | null
 }
 
@@ -147,8 +152,16 @@ export const productApi = {
     const res = await api.put<Product>(`/products/${id}`, data)
     return res.data
   },
-  setKemasan: async (id: string, kemasan: string[]): Promise<Product> => {
-    const res = await api.put<Product>(`/products/${id}/kemasan`, { kemasan })
+  // Kemasan + isi per kemasan diganti bersamaan (satu kesatuan).
+  setKemasan: async (
+    id: string,
+    kemasan: string[],
+    qty_per_kemasan?: number | null,
+  ): Promise<Product> => {
+    const res = await api.put<Product>(`/products/${id}/kemasan`, {
+      kemasan,
+      qty_per_kemasan: qty_per_kemasan ?? null,
+    })
     return res.data
   },
 }

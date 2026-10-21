@@ -6,6 +6,7 @@ import { PcsTahapSelect } from '@/components/fkp-pcs/PcsTahapSelect'
 import { RejectPcsModal } from '@/components/fkp-pcs/RejectPcsModal'
 import { StatusBadge } from '@/components/ui/Badge'
 import { JENIS_KELUHAN_LABEL, type FkpListItem } from '@/types'
+import PageHeader from '@/components/ui/PageHeader'
 
 type Tab = 'aktif' | 'selesai' | 'ditolak'
 
@@ -79,13 +80,10 @@ export function FkpPcsPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-lg font-semibold text-gray-900">FKP Pcs</h1>
-        <p className="text-sm text-gray-500">
-          FKP kemasan pcs yang ditangani langsung oleh APSM. Periksa produk, qty, dan foto bukti di
-          halaman detail sebelum menentukan tahap.
-        </p>
-      </div>
+      <PageHeader
+        title="FKP Pcs"
+        description="FKP kemasan pcs yang ditangani langsung oleh APSM. Periksa produk, qty, dan foto bukti di halaman detail sebelum menentukan tahap."
+      />
 
       <div className="flex gap-1 border-b border-gray-200">
         {TABS.map((t) => (
@@ -93,11 +91,10 @@ export function FkpPcsPage() {
             key={t.key}
             type="button"
             onClick={() => setTab(t.key)}
-            className={`px-3 py-2 text-sm -mb-px border-b-2 ${
-              tab === t.key
+            className={`px-3 py-2 text-sm -mb-px border-b-2 ${tab === t.key
                 ? 'border-brand-500 font-medium text-brand-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
+              }`}
           >
             {t.label} ({data.filter(t.cocok).length})
           </button>

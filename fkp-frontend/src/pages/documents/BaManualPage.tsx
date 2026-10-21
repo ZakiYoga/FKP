@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Flame, ClipboardCheck } from 'lucide-react'
 import { PemusnahanTukarBarangTab } from '@/pages/documents/PemusnahanTukarBarangTab'
 import { BapkpTab } from '@/pages/documents/BapkpTab'
+import PageHeader from '@/components/ui/PageHeader'
 
 type BaTabKey = 'pemusnahan' | 'bapkp'
 
@@ -17,14 +18,7 @@ export function BaManualPage() {
     <div className="mx-auto space-y-6 animate-fade-in">
 
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Buat Berita Acara</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Pilih jenis Berita Acara yang ingin diterbitkan
-          </p>
-        </div>
-      </div>
+      <PageHeader title="Buat Berita Acara" description="Pilih jenis Berita Acara yang ingin diterbitkan" />
 
       {/* Tab switcher */}
       <div className="flex gap-2 border-b border-gray-200">
@@ -36,8 +30,8 @@ export function BaManualPage() {
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${active
-                  ? 'border-brand-500 text-brand-700'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'border-brand-500 text-brand-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
                 }`}
             >
               <Icon className="w-4 h-4" />

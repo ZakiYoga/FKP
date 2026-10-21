@@ -1,6 +1,8 @@
 /* ============================================================
    BASE IMPORTS
    ============================================================ */
+@layer theme, base, mantine, components, utilities;
+
 @import 'tailwindcss';
 @plugin '@tailwindcss/forms';
 

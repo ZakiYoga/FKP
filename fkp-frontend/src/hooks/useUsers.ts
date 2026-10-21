@@ -1,10 +1,19 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { usersApi, hierarchyApi } from '@/api/users'
+import { usersApi, hierarchyApi, type UserListParams } from '@/api/users'
 import { getErrorMessage } from '@/lib/utils'
 
 export function useUsers() {
   return useQuery({ queryKey: ['users'], queryFn: usersApi.list })
+}
+
+export function useUsersPage(params: UserListParams) {
+  return useQuery({
+    // diawali 'users' supaya invalidateQueries(['users']) di mutation tetap kena
+    queryKey: ['users', 'page', params],
+    queryFn: () => usersApi.listPage(params),
+    placeholderData: keepPreviousData, // v4: keepPreviousData: true
+  })
 }
 
 export function useRoles() {

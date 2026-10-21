@@ -9,7 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.core.uploads import FOTO_PRODUK_DIR, FOTO_PRODUK_URL_PREFIX
-from app.models.product import JenisKemasan, ProductCatalog, ProductKemasan
+from app.models.product import (
+    JenisKemasan, ProductCatalog, ProductKemasan, tentukan_qty_per_kemasan,
+)
 from app.schemas.product import ProductCreate, ProductUpdate
 
 
@@ -64,13 +66,16 @@ async def get_kemasan(
 
 
 async def _terapkan_kemasan(
-    product: ProductCatalog, kemasan: List[str], db: AsyncSession
+    product: ProductCatalog, kemasan: List[str], qty: Optional[int], db: AsyncSession
 ) -> List[str]:
     """
-    Sinkronkan ProductKemasan dengan daftar `kemasan` dan isi kolom lama
+    Sinkronkan ProductKemasan dengan daftar `kemasan`, isi kolom lama
     ProductCatalog.jenis_kemasan dengan kemasan utama (yang pertama menurut
-    JenisKemasan.ALL). TIDAK commit; pemanggil yang commit supaya bisa digabung
-    dalam satu transaksi. Produk harus sudah punya id dan sudah di-flush bila baru.
+    JenisKemasan.ALL), dan tetapkan ProductCatalog.qty_per_kemasan lewat
+    tentukan_qty_per_kemasan() (zak/pcs-saja = 1, ball/karton wajib >= 2, maksimal
+    satu kemasan besar). Kemasan dan isi adalah satu kesatuan. TIDAK commit;
+    pemanggil yang commit supaya bisa digabung dalam satu transaksi. Produk harus
+    sudah punya id dan sudah di-flush bila baru.
     """
     baru = set(kemasan)
     if not baru:
@@ -81,6 +86,13 @@ async def _terapkan_kemasan(
     for k in baru:
         _validasi_jenis_kemasan(k)
     urut = sorted(baru, key=_urutan)
+
+    # Hitung isi SEBELUM menyentuh ProductKemasan, supaya input yang ditolak tidak
+    # meninggalkan perubahan setengah jalan di session.
+    try:
+        qty_final = tentukan_qty_per_kemasan(urut, qty)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     r = await db.execute(
         select(ProductKemasan).where(ProductKemasan.product_id == product.id)
@@ -95,21 +107,24 @@ async def _terapkan_kemasan(
             db.add(ProductKemasan(product_id=product.id, jenis_kemasan=k))
 
     product.jenis_kemasan = urut[0]
+    product.qty_per_kemasan = qty_final
     db.add(product)
     return urut
 
 
 async def set_kemasan(
-    product_id: uuid.UUID, kemasan: List[str], db: AsyncSession
+    product_id: uuid.UUID, kemasan: List[str], qty: Optional[int], db: AsyncSession
 ) -> List[str]:
     """
-    Menetapkan daftar kemasan sebuah produk (dipakai layar admin produk).
-    Daftar lama diganti seluruhnya. Item FKP lama tidak terpengaruh karena
-    jenis_kemasan di FkpItem adalah snapshot, tetapi draft FKP yang memakai
-    kemasan yang dihapus akan ditolak saat disubmit (revalidasi di submit_fkp).
+    Menetapkan daftar kemasan sebuah produk beserta isi per kemasannya (dipakai
+    layar admin produk). Daftar lama diganti seluruhnya; qty_per_kemasan ikut
+    diganti bersamaan (aturan di tentukan_qty_per_kemasan()). Item FKP lama tidak
+    terpengaruh karena jenis_kemasan di FkpItem adalah snapshot, tetapi draft FKP
+    yang memakai kemasan yang dihapus akan ditolak saat disubmit (revalidasi di
+    submit_fkp).
     """
     product = await get_product(product_id, db)
-    urut = await _terapkan_kemasan(product, kemasan, db)
+    urut = await _terapkan_kemasan(product, kemasan, qty, db)
     await db.commit()
     return urut
 
@@ -191,13 +206,14 @@ async def create_product(data: ProductCreate, db: AsyncSession) -> ProductCatalo
             detail=f"Kode produk '{data.kode_produk}' sudah digunakan.",
         )
 
-    # `kemasan` dan `jenis_kemasan` sudah dinormalisasi oleh ProductCreate
-    # (jenis_kemasan = kemasan utama). `kemasan` bukan kolom ProductCatalog.
+    # `kemasan`, `jenis_kemasan`, dan `qty_per_kemasan` sudah dinormalisasi oleh
+    # ProductCreate (jenis_kemasan = kemasan utama; qty mengikuti aturan kemasan
+    # besar). `kemasan` bukan kolom ProductCatalog.
     product = ProductCatalog(**data.model_dump(exclude={"kemasan"}))
     db.add(product)
     try:
         await db.flush()  # product.id tersedia; unique constraint bisa gagal di sini
-        await _terapkan_kemasan(product, data.kemasan or [], db)
+        await _terapkan_kemasan(product, data.kemasan or [], data.qty_per_kemasan, db)
         await db.commit()
     except IntegrityError:
         await db.rollback()
@@ -213,13 +229,15 @@ async def update_product(
     product_id: uuid.UUID, data: ProductUpdate, db: AsyncSession
 ) -> ProductCatalog:
     """
-    Update data dasar produk. Field jenis_kemasan dari klien diabaikan oleh
-    ProductUpdate; kemasan hanya berubah lewat set_kemasan. Bila foto_url
-    berubah atau dikosongkan, file foto lama dihapus jika tidak dipakai produk lain.
+    Update data dasar produk. Field jenis_kemasan, kemasan, dan qty_per_kemasan dari
+    klien diabaikan oleh ProductUpdate; kemasan beserta isinya hanya berubah lewat
+    set_kemasan. nama_produk, is_active, dan berat_gr tidak bisa dikosongkan (null
+    diabaikan). Bila foto_url berubah atau dikosongkan, file foto lama dihapus jika
+    tidak dipakai produk lain.
     """
     product = await get_product(product_id, db)
     foto_lama = product.foto_url
-    NON_NULLABLE = {"nama_produk", "is_active"}
+    NON_NULLABLE = {"nama_produk", "is_active", "berat_gr"}
 
     for key, value in data.model_dump(exclude_unset=True).items():
         if value is None and key in NON_NULLABLE:

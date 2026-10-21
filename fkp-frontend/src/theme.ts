@@ -68,15 +68,23 @@ export const theme = createTheme({
     // ===== Button: ukuran mengikuti btn-sm / btn-md / btn-lg =====
     Button: Button.extend({
       defaultProps: { size: 'md' },
-      vars: (_theme, props) => {
+      vars: (t, props) => {
         const s = CONTROL[getSize(props.size)]
-        return {
-          root: {
-            '--button-height': s.height,
-            '--button-padding-x': s.px,
-            '--button-fz': s.fz,
-          },
+        const root: Record<string, string> = {
+          '--button-height': s.height,
+          '--button-padding-x': s.px,
+          '--button-fz': s.fz,
         }
+
+        // Variant kustom: merah solid untuk aksi berbahaya
+        if (props.variant === 'destructive') {
+          root['--button-bg'] = t.colors.red[6]       // #e03131 (Mantine red-6)
+          root['--button-hover'] = t.colors.red[7]
+          root['--button-color'] = t.white
+          root['--button-bd'] = 'calc(0.0625rem * var(--mantine-scale)) solid transparent'
+        }
+
+        return { root }
       },
       styles: {
         root: { fontWeight: 600 },

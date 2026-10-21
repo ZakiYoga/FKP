@@ -1,6 +1,6 @@
 // src/layouts/Header.tsx
 
-import { Group, Burger, Text, Box, Divider } from '@mantine/core'
+import { Group, Burger, Text } from '@mantine/core'
 import { NotificationDropdown } from '@/components/NotificationDropdown'
 import { UserProfileDropdown } from '@/components/UserProfileDropdown'
 import { ThemeToggle } from '../ThemeToggle'
@@ -20,20 +20,13 @@ export function Header({ mobileOpened, onToggleMobile, pageTitle }: HeaderProps)
         <Burger
           opened={mobileOpened}
           onClick={onToggleMobile}
-          hiddenFrom="md"
+          className="lg:hidden text-gray-700 dark:text-gray-300"
           size="sm"
-          color="var(--mantine-color-gray-7)"
           aria-label="Toggle navigation"
         />
 
         {pageTitle && (
-          <Text
-            fw={600}
-            size="sm"
-            c="gray.8"
-            style={{ letterSpacing: '-0.01em' }}
-            pl={20}
-          >
+          <Text className="pl-5 text-sm font-semibold text-gray-800 dark:text-gray-100">
             {pageTitle}
           </Text>
         )}

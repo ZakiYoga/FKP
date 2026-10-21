@@ -11,13 +11,6 @@ const leftVariants = {
   },
 }
 
-const floatVariants = {
-  animate: {
-    y: [0, -10, 0],
-    transition: { duration: 5, repeat: Infinity },
-  }, 
-}
-
 const staggerContainer = {
   animate: {
     transition: { staggerChildren: 0.12, delayChildren: 0.2 },
@@ -31,28 +24,6 @@ const fadeUp = {
     y: 0,
     transition: { duration: 0.5 },
   },
-}
-
-// ─── Feature Item ─────────────────────────────────────────────────────────────
-
-interface FeatureItemProps {
-  icon: string
-  title: string
-  description: string
-}
-
-function FeatureItem({ icon, title, description }: FeatureItemProps) {
-  return (
-    <motion.div variants={fadeUp} className="flex items-start gap-3">
-      <div className="shrink-0 w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-lg">
-        {icon}
-      </div>
-      <div>
-        <p className="text-white text-sm font-medium leading-snug">{title}</p>
-        <p className="text-white/55 text-xs mt-0.5 leading-relaxed">{description}</p>
-      </div>
-    </motion.div>
-  )
 }
 
 // ─── Decorative Background ────────────────────────────────────────────────────

@@ -7,7 +7,6 @@ import { motion } from 'framer-motion'
 import { useLogin } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
 import { Link } from 'react-router-dom'
-import { easeOut } from 'framer-motion'
 
 const loginSchema = z.object({
   email: z.string().email('Format email tidak valid'),

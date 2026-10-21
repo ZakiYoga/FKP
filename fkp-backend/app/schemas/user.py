@@ -1,8 +1,7 @@
 import uuid
-from typing import Optional
+from typing import List, Optional
 from pydantic import BaseModel, EmailStr
 from datetime import datetime
-
 
 class UserCreate(BaseModel):
     """Schema untuk membuat user baru (oleh SuperAdmin)"""
@@ -63,6 +62,17 @@ class UserResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ─── PAGINATION ───────────────────────────────────────────────────────────────
+
+class UserListPage(BaseModel):
+    """Response berpagination untuk GET /api/users/page."""
+    items: List[UserResponse]
+    total: int          
+    page: int           
+    page_size: int
+    total_pages: int    
         
 class UserBriefResponse(BaseModel):
     id: uuid.UUID

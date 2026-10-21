@@ -211,7 +211,9 @@ export interface Product {
   jenis_kemasan: JenisKemasan
   /** Semua kemasan produk (dari backend, sudah terurut). */
   kemasan_tersedia: string[]
+  /** Isi kemasan besar dalam pcs. Zak dan produk pcs-saja = 1; ball/karton >= 2. */
   qty_per_kemasan?: number | null
+  /** Berat per SATUAN TERKECIL (gram): per zak untuk zak, per pcs untuk kemasan lain. */
   berat_gr: number | null
   foto_url: string | null
   is_active: boolean

@@ -13,7 +13,7 @@ interface AuthProviderProps {
  * Jika token invalid/expired → clearAuth otomatis via axios interceptor.
  */
 export function AuthProvider({ children }: AuthProviderProps) {
-  const { isAuthenticated, token, clearAuth, updateUser } = useAuthStore()
+  const { token, clearAuth, updateUser } = useAuthStore()
   const [isChecking, setIsChecking] = useState(true)
 
   useEffect(() => {

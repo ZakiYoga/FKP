@@ -10,23 +10,22 @@ import {
 } from 'lucide-react'
 import { useState, useRef, useCallback } from 'react'
 import { QRCodeCanvas } from 'qrcode.react'
-import { useFkpDetail, useSubmitFkp, useProducts, useAddFkpItem, useDeleteFkpItem } from '@/hooks/useFkp'
+import { useFkpDetail, useSubmitFkp, useProducts } from '@/hooks/useFkp'
 import { useSuratJalanList } from '@/hooks/useWarehouse'
 import { useSampleList } from '@/hooks/useSample'
-import { StatusBadge, PrioritasBadge } from '@/components/ui/Badge'
+import { StatusBadge } from '@/components/ui/Badge'
 import { PageLoader } from '@/components/ui/Spinner'
 import { Modal } from '@/components/ui/Modal'
 import { Textarea } from '@/components/ui/Textarea'
 import { Select } from '@/components/ui/Select'
 import { Input } from '@/components/ui/Input'
-import { FkpItemFormModal, type FileWithMeta } from '@/components/fkp/FkpItemFormModal'
 import { FkpItemReviewForm, type ApsmReviewState, APSM_REVIEW_BLANK } from '@/components/fkp/FkpItemReviewForm'
 import { formatDateTime, formatRupiah } from '@/lib/utils'
 import { hitungTotalQtyJalur, BATAS_QTY_DIREKTUR } from '@/lib/fkpUtils'
 import { useAuthStore, useKodeRole } from '@/store/authStore'
 import { FKP_STATUS_LABEL, JALUR_LABEL, METODE_PENANGANAN_LABEL, TIPE_RESOLUSI_LABEL, SURAT_JALAN_STATUS_LABEL, SAMPLE_STATUS_LABEL, SAMPLE_STATUS_TERMINAL } from '@/types'
 import type {
-  FkpStatusKey, FkpItem, FkpItemCreatePayload, TipeResolusi, MetodePenangananFisik,
+  FkpStatusKey, FkpItem, TipeResolusi, MetodePenangananFisik,
   RekomendasiPenanganan, RekomendasiKompensasi,
 } from '@/types'
 import { fkpApi } from '@/api/fkp'

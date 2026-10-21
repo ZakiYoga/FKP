@@ -7,10 +7,10 @@ User Management Endpoints (hanya SuperAdmin):
   DELETE /api/users/{id}      → Nonaktifkan user (soft delete)
 """
 import uuid
-from typing import List
+from typing import List, Optional
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,7 +19,9 @@ from app.core.dependencies import require_permission_dep
 from app.core.security import hash_password
 from app.models.user import User
 from app.models.role import Role
-from app.schemas.user import UserCreate, UserUpdate, UserResponse
+from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserListPage
+
+from app.services import user_service
 
 router = APIRouter()
 
@@ -76,6 +78,22 @@ async def create_user(
     await db.refresh(user)
     return user
 
+@router.get("/page", response_model=UserListPage, summary="List user berpagination")
+async def list_users_paginated(
+    page: int = Query(default=1, ge=1, description="Halaman, mulai dari 1"),
+    page_size: int = Query(default=10, ge=1, le=100, description="Jumlah item per halaman (maks 100)"),
+    role: Optional[str] = Query(default=None, description="Filter by kode_role"),
+    is_active: Optional[bool] = Query(default=None, description="Filter status aktif"),
+    search: Optional[str] = Query(
+        default=None, max_length=100, description="Cari di nama atau email",
+    ),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission_dep("user.manage")),
+):
+    return await user_service.list_users_paginated(
+        db, page=page, page_size=page_size,
+        role=role, is_active=is_active, search=search,
+    )
 
 @router.get(
     "/{user_id}",

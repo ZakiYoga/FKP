@@ -226,24 +226,34 @@ async def list_tipe_dokumen():
 
 @router.get("", response_model=List[FkpListResponse])
 async def get_list_fkp(
-    status:    Optional[str] = Query(None, description="Filter berdasarkan status FKP"),
-    prioritas: Optional[str] = Query(None, description="Filter berdasarkan prioritas (deprecated)"),
-    jalur:     Optional[str] = Query(None, description="Filter jalur: pcs | approval_rsm | approval_direktur"),
+    status:         Optional[str]       = Query(None, description="Filter berdasarkan status FKP"),
+    prioritas:      Optional[str]       = Query(None, description="Filter berdasarkan prioritas (deprecated)"),
+    jalur:          Optional[str]       = Query(None, description="Filter jalur: pcs | approval_rsm | approval_direktur"),
+    outlet_id:      Optional[uuid.UUID] = Query(None, description="Filter berdasarkan outlet"),
+    distributor_id: Optional[uuid.UUID] = Query(None, description="Filter berdasarkan distributor"),
+    area_id:        Optional[uuid.UUID] = Query(None, description="Filter berdasarkan area"),
+    tanggal_dari:   Optional[date]      = Query(None, description="Tanggal dibuat, dari (inklusif)"),
+    tanggal_sampai: Optional[date]      = Query(None, description="Tanggal dibuat, sampai (inklusif)"),
     db:        AsyncSession = Depends(get_db),
     user:      User = Depends(get_current_user),
     kode_role: str  = Depends(get_kode_role),
 ):
     """
-    Ambil daftar FKP. Otomatis difilter berdasarkan role (data-scope):
-    - outlet/distributor/sc_spv/apsm → hanya FKP dalam cakupan/area mereka
-    - finance → FKP potong_tagihan pada status yang relevan
-    - rsm/admin_ho/qc/direktur/warehouse/superadmin → semua FKP
-
-    Filter opsional: status, jalur (pcs | approval_rsm | approval_direktur;
-    jalur=pcs dipakai halaman FKP pcs APSM), prioritas (deprecated — prioritas
-    sudah dihapus dari UI).
+    Ambil daftar FKP. Otomatis difilter berdasarkan role (data-scope), lalu
+    filter opsional: status, jalur, prioritas (deprecated), outlet, distributor,
+    area, dan rentang tanggal dibuat.
     """
-    return await list_fkp(db, user, kode_role, status, prioritas, jalur_filter=jalur)
+    return await list_fkp(
+        db, user, kode_role,
+        status_filter=status,
+        prioritas_filter=prioritas,
+        jalur_filter=jalur,
+        outlet_id=outlet_id,
+        distributor_id=distributor_id,
+        area_id=area_id,
+        tanggal_dari=tanggal_dari,
+        tanggal_sampai=tanggal_sampai,
+    )
 
 @router.post("", response_model=FkpDetailResponse, status_code=201)
 async def buat_fkp(

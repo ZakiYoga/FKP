@@ -1,11 +1,10 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Bell, CheckCheck, ExternalLink } from 'lucide-react'
 import { useNotifications, useMarkRead, useMarkAllRead } from '@/hooks/useNotifications'
 import { PageLoader } from '@/components/ui/Spinner'
 import { formatRelative } from '@/lib/utils'
 import { cn } from '@/lib/utils'
-import toast from 'react-hot-toast'
+import PageHeader from '@/components/ui/PageHeader'
 
 export function NotificationPage() {
   const navigate = useNavigate()
@@ -23,8 +22,8 @@ export function NotificationPage() {
   }
 
   const TIPE_COLOR: Record<string, string> = {
-    status_change: 'bg-brand-100 text-brand-700',
-    need_action: 'bg-amber-100 text-amber-700',
+    status_change: 'bg-green-100 text-green-700',
+    need_action: 'bg-orange-100 text-orange-700',
     info: 'bg-gray-100 text-gray-600',
   }
 
@@ -32,21 +31,17 @@ export function NotificationPage() {
 
   return (
     <div className="mx-auto animate-fade-in space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Bell className="w-6 h-6 text-brand-600" /> Notifikasi
-          </h1>
-          {unreadCount > 0 && (
-            <p className="text-sm text-gray-500 mt-0.5">{unreadCount} belum dibaca</p>
-          )}
-        </div>
-        {unreadCount > 0 && (
-          <button onClick={() => markAllRead()} disabled={isPending} className="btn-secondary btn-sm">
-            <CheckCheck className="w-4 h-4" /> Tandai semua dibaca
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="Notifikasi"
+        description={unreadCount > 0 ? `${unreadCount} belum dibaca` : undefined}
+        actions={
+          unreadCount > 0 && (
+            <button onClick={() => markAllRead()} disabled={isPending} className="btn-secondary btn-sm">
+              <CheckCheck className="w-4 h-4" /> Tandai semua dibaca
+            </button>
+          )
+        }
+      />
 
       {notifications.length === 0 ? (
         <div className="card card-body text-center py-16">
@@ -83,14 +78,14 @@ export function NotificationPage() {
                 )} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-gray-900 text-sm">{n.judul}</p>
-                    <span className={cn('badge text-xs', TIPE_COLOR[n.tipe] ?? 'bg-gray-100 text-gray-600')}>
+                    <p className="font-semibold text-sm">{n.judul}</p>
+                    <span className={cn('badge text-xs', TIPE_COLOR[n.tipe] ?? 'bg-gray-100 text-gray-600 dark:text-gray-500')}>
                       {n.tipe === 'status_change' ? 'Perubahan Status'
                         : n.tipe === 'need_action' ? 'Perlu Tindakan'
                           : 'Info'}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-600 mt-0.5 leading-relaxed">{n.pesan}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-500 mt-0.5 leading-relaxed">{n.pesan}</p>
                   <div className="flex items-center justify-between mt-2">
                     <p className="text-xs text-gray-400">{formatRelative(n.created_at)}</p>
                     {n.fkp_id && (

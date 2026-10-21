@@ -1,10 +1,9 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Settings, LogOut, ChevronDown, User, Route } from 'lucide-react'
+import { LayoutDashboard, LogOut, ChevronDown, User, Route } from 'lucide-react'
 import {
   Menu,
   Avatar,
-  Group,
   Text,
   Box,
   Divider,

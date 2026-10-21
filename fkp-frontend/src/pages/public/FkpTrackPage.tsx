@@ -9,10 +9,8 @@ import {
 } from 'lucide-react'
 
 import { isUuid, extractUuid, formatDate } from '@/lib/fkpUtils'
-import { PrioritasBadge } from '@/components/ui/PrioritasBadge'
 import { CameraScanner } from '@/components/track/CamScanner'
 import { PhaseTimeline } from '@/components/track/Timeline'
-import { useSetPublicPage } from '@/components/layout/PublicLayout'
 import type { TrackingData } from '@/types/trackFkp'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '/api'
@@ -26,13 +24,6 @@ export function FkpTrackPage() {
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [showCamera, setShowCamera] = useState(false)
-
-    // ✅ Set meta header — cukup satu baris
-    useSetPublicPage({
-        pageTitle: 'Track FKP',
-        pageSubtitle: 'Formulir Keluhan Pelanggan',
-        pageIcon: '/icon/track.svg',
-    })
 
     useEffect(() => {
         if (fkpIdParam && isUuid(fkpIdParam)) {

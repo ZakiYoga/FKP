@@ -9,11 +9,20 @@ from app.models.fkp import FkpItem
 class JenisKemasan:
     """
     Daftar nilai jenis kemasan yang dikenal sistem. Sumber tunggal untuk model,
-    schema, dan validator. Urutan di ALL = urutan tampil di dropdown.
+    schema, dan validator. Urutan di ALL = urutan tampil di dropdown DAN
+    penentu kemasan utama (yang pertama menurut ALL).
 
-    KEMASAN_DIHITUNG_JALUR dan KEMASAN_PCS di models/fkp.py harus MEMBAGI ALL tanpa
-    irisan: zak/ball/karton dihitung ke jalur approval, pcs ditangani langsung APSM.
+    KEMASAN_BESAR = kemasan yang isinya "banyak pcs": zak, ball, karton. Satu SKU
+    boleh punya MAKSIMAL SATU kemasan besar; pcs boleh menyertai.
+    ISI_TETAP = kemasan besar yang isinya pasti (zak = 1). Kemasan besar lain
+    (ball, karton) wajib diisi qty_per_kemasan-nya oleh admin.
+
+    KEMASAN_BESAR harus SAMA dengan KEMASAN_DIHITUNG_JALUR di models/fkp.py, dan
+    KEMASAN_DIHITUNG_JALUR + KEMASAN_PCS di sana harus MEMBAGI ALL tanpa irisan:
+    zak/ball/karton dihitung ke jalur approval, pcs ditangani langsung APSM.
     Jaga sinkron lewat test (juga dengan JenisKemasan di models/fkp.py).
+    Menambah kemasan baru (mis. renceng kelak) cukup menambah ke ALL, LABELS,
+    dan KEMASAN_BESAR; logika di tentukan_qty_per_kemasan() digerakkan konstanta.
     """
     ZAK     = "zak"
     BALL    = "ball"
@@ -29,6 +38,36 @@ class JenisKemasan:
         PCS:     "Pcs",
     }
 
+    KEMASAN_BESAR = [ZAK, BALL, KARTON]
+    ISI_TETAP = {ZAK: 1}
+
+
+def tentukan_qty_per_kemasan(kemasan_urut: list[str], qty: int | None) -> int:
+    """
+    Menentukan nilai qty_per_kemasan (isi kemasan besar, dalam pcs) dari daftar
+    kemasan SKU dan qty kiriman klien. Fungsi murni, dipakai schema, service, dan
+    seeder supaya aturannya satu tempat.
+
+      - Lebih dari satu kemasan besar      -> ValueError
+      - Tidak ada kemasan besar (pcs saja) -> 1
+      - Kemasan besar berisi tetap (zak)   -> nilai tetap (qty kiriman diabaikan)
+      - Kemasan besar lain (ball/karton)   -> qty wajib bilangan bulat >= 2
+
+    ValueError dibiarkan lolos; pemanggil mengubahnya menjadi 422 (schema) atau
+    400 (service).
+    """
+    besar = list(dict.fromkeys(k for k in kemasan_urut if k in JenisKemasan.KEMASAN_BESAR))
+    if len(besar) > 1:
+        raise ValueError("Satu SKU hanya boleh punya satu kemasan besar (zak/ball/karton).")
+    if not besar:
+        return 1
+    if besar[0] in JenisKemasan.ISI_TETAP:
+        return JenisKemasan.ISI_TETAP[besar[0]]
+    if qty is None or qty < 2:
+        label = JenisKemasan.LABELS.get(besar[0], besar[0]).lower()
+        raise ValueError(f"Isi per {label} wajib diisi (minimal 2 pcs).")
+    return qty
+
 
 class ProductCatalog(SQLModel, table=True):
     """
@@ -37,7 +76,18 @@ class ProductCatalog(SQLModel, table=True):
     kode_produk mengacu pada kode SKU resmi yang ditetapkan perusahaan. Jangan
     menambah baris katalog hanya untuk membedakan kemasan (ball / pcs / karton).
     Kemasan berbeda dari SKU yang sama didaftarkan di ProductKemasan, dan itulah
-    sumber dropdown jenis kemasan di form FKP.
+    sumber dropdown jenis kemasan di form FKP. Varian gramasi berbeda
+    (mis. Laskar MIX 12 kg vs 10 kg) = SKU baru dengan kode_produk baru.
+
+    Semantik berat dan isi:
+      - berat_gr         = berat per SATUAN TERKECIL: per zak untuk kemasan zak,
+                           per pcs untuk ball/karton/pcs.
+      - qty_per_kemasan  = isi kemasan besar dalam pcs. Zak dan produk pcs-saja = 1.
+      - Berat kemasan    = qty_per_kemasan x berat_gr (dihitung, TIDAK disimpan).
+
+    Rumus analitik FKP per produk (belum diimplementasi, dokumentasi):
+        berat_item_gr = jumlah_item x isi x berat_gr
+        isi = qty_per_kemasan bila jenis item adalah kemasan besar, 1 bila pcs.
     """
     __tablename__ = "product_catalog"
 
@@ -60,10 +110,19 @@ class ProductCatalog(SQLModel, table=True):
             "sampai kolom ini dihapus."
         ),
     )
-    berat_gr: Optional[int] = Field(default=None)
+    berat_gr: Optional[int] = Field(
+        default=None,
+        description=(
+            "Berat per satuan terkecil: per zak untuk zak, per pcs untuk kemasan "
+            "lain, dalam gram."
+        ),
+    )
     foto_url: Optional[str] = Field(default=None)
     is_active: bool = Field(default=True)
-    qty_per_kemasan: Optional[int] = Field(default=None)
+    qty_per_kemasan: Optional[int] = Field(
+        default=None,
+        description="Isi kemasan besar dalam pcs. Zak dan produk pcs-saja = 1.",
+    )
 
     fkp_items: List["FkpItem"] = Relationship(back_populates="product")
     # Jangan diakses langsung di kode async tanpa selectinload (lazy load =
@@ -82,6 +141,8 @@ class ProductKemasan(SQLModel, table=True):
       - 0 kemasan                       → produk belum bisa dipakai di FKP.
     jenis_kemasan yang dipilih user di FKP divalidasi terhadap tabel ini
     (set_jenis_kemasan di fkp_service), karena menentukan jalur approval.
+    Satu SKU maksimal punya satu kemasan besar (zak/ball/karton), lihat
+    tentukan_qty_per_kemasan().
     """
     __tablename__ = "product_kemasan"
     __table_args__ = (

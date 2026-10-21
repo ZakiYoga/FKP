@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   Send, CheckCircle2, XCircle, RotateCcw, Search,
-  Loader2, ClipboardCheck, ThumbsUp, ThumbsDown, Lock,
+  Loader2, ClipboardCheck, ThumbsUp, Lock,
 } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Textarea } from '@/components/ui/Textarea'

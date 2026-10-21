@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, MapPin, Pencil, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Pencil, ChevronDown, ChevronUp } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useAreas, useProvinsi, useCreateArea, useUpdateArea } from '@/hooks/useMasterData'
@@ -10,6 +10,7 @@ import { StatusToggleBadge } from '@/components/ui/StatusToggle'
 import { useKodeRole } from '@/store/authStore'
 import type { Area } from '@/types'
 import { AreaFormData, areaSchema } from '@/schemas/areaSchema'
+import PageHeader from '@/components/ui/PageHeader'
 
 const CAN_MANAGE = ['superadmin', 'admin_ho']
 
@@ -79,18 +80,19 @@ export function AreaPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Manajemen Area</h1>
-          <p className="text-gray-500 text-sm mt-0.5">{areas.length} area terdaftar</p>
-        </div>
-        {canManage && (
-          <button onClick={openCreate} className="btn-primary">
-            <Plus className="w-4 h-4" /> Tambah Area
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="Manajemen Area"
+        description={`${areas.length} area terdaftar`}
+        actions={
+          canManage && (
+            <button onClick={openCreate} className="btn-primary">
+              <Plus className="w-4 h-4" /> Tambah Area
+            </button>
+          )
+        }
+      />
 
       {/* List */}
       <div className="space-y-3">
@@ -101,9 +103,6 @@ export function AreaPage() {
               onClick={() => setExpandedId(expandedId === area.id ? null : area.id)}
             >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center shrink-0">
-                  <MapPin className="w-5 h-5 text-brand-600" />
-                </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <p className="font-semibold text-gray-900">{area.nama_area}</p>
