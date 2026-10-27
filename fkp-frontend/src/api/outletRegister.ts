@@ -24,7 +24,7 @@ export const outletRegisterApi = {
 
   /** Daftarkan outlet baru — tidak butuh login */
   register: async (data: OutletRegisterRequest): Promise<OutletRegisterResponse> => {
-    const res = await publicApi.post<OutletRegisterResponse>('/auth/register/outlet/', data)
+    const res = await publicApi.post<OutletRegisterResponse>('/auth/register/outlet', data)
     return res.data
   },
 
