@@ -1,7 +1,7 @@
 import uuid
 from typing import TYPE_CHECKING, Optional, List
 from datetime import datetime, timezone
-from sqlalchemy import DateTime, Column
+from sqlalchemy import DateTime, Column, Index, text
 from sqlmodel import SQLModel, Field, Relationship
 
 if TYPE_CHECKING:
@@ -15,14 +15,32 @@ if TYPE_CHECKING:
     
 class User(SQLModel, table=True):
     __tablename__ = "users"
+    __table_args__ = (
+        Index("uq_users_email_lower", text("lower(email)"), unique=True),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     role_id: uuid.UUID = Field(foreign_key="roles.id", index=True)
-    nama: str = Field(max_length=150)
+    first_name: str = Field(max_length=100)
+    last_name: Optional[str] = Field(default=None, max_length=100)
+    gender: Optional[str] = Field(default=None, max_length=10)
+    avatar_path: Optional[str] = Field(default=None, max_length=255)
     email: str = Field(max_length=150, unique=True, index=True)
     password_hash: str = Field(max_length=255)
     no_telepon: Optional[str] = Field(default=None, max_length=20)
     is_active: bool = Field(default=True)
+
+    # Verifikasi email: NULL = belum terverifikasi
+    email_verified_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+    )
+    # Dipakai untuk mencabut JWT lama setelah reset password (dibandingkan dengan claim iat)
+    password_changed_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+    )
+
     last_login: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True)
@@ -35,6 +53,14 @@ class User(SQLModel, table=True):
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True))
     )
+
+    @property
+    def full_name(self) -> str:
+        return f"{self.first_name} {self.last_name or ''}".strip()
+
+    @property
+    def is_email_verified(self) -> bool:
+        return self.email_verified_at is not None
 
     # Relasi
     role: Optional["Role"] = Relationship(back_populates="users")

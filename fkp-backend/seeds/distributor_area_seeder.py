@@ -325,7 +325,7 @@ async def seed_area_pic_users(session):
         if not user:
             user = User(
                 role_id=role.id,
-                nama=nama,
+                first_name=nama,
                 email=email,
                 password_hash=hash_password(DEFAULT_PASSWORD),
                 no_telepon=no_telepon,

@@ -74,7 +74,7 @@ async def tambah_testimoni(
     - Satu user hanya bisa memberi satu testimoni per FKP.
     """
     result = await buat_testimoni(fkp_id, data, user, kode_role, db)
-    return {**result.__dict__, "nama_pemberi": user.nama}
+    return {**result.__dict__, "nama_pemberi": user.full_name}
 
 
 @router.get(
@@ -120,7 +120,7 @@ async def testimoni_saya(
     testimoni = await get_testimoni_milik_saya(fkp_id, user, db)
     if not testimoni:
         return JSONResponse(content=None)
-    return {**testimoni.__dict__, "nama_pemberi": user.nama}
+    return {**testimoni.__dict__, "nama_pemberi": user.full_name}
 
 
 @router.get(
@@ -161,7 +161,7 @@ async def edit_testimoni(
     Hanya pembuat testimoni atau superadmin yang bisa mengubah.
     """
     result = await update_testimoni(fkp_id, testimoni_id, data, user, kode_role, db)
-    return {**result.__dict__, "nama_pemberi": user.nama}
+    return {**result.__dict__, "nama_pemberi": user.full_name}
 
 
 @router.delete(

@@ -25,21 +25,81 @@ Dipisah dari endpoint agar mudah di-test dan dipakai ulang.
 """
 from datetime import datetime, timezone, timedelta
 from fastapi import HTTPException, status
+from sqlalchemy import func
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.security import verify_password, create_access_token, hash_password
+from app.core.security import (
+    verify_password,
+    create_access_token,
+    hash_password,
+    normalize_email,
+)
 from app.models.user import User
 from app.models.role import Role
 from app.models.outlet import Outlet
 from app.schemas.auth import LoginRequest, LoginResponse, UserResponse, RoleInfo
+from app.services.auth_token_service import get_pending_email
+
+
+def build_user_response(
+    user: User, role: Role | None, pending_email: str | None = None
+) -> UserResponse:
+    """
+    Satu-satunya tempat yang menyusun UserResponse dari model User
+    (dipakai login dan get_me, supaya field tidak pernah tidak sinkron).
+    """
+    role_info = RoleInfo(
+        id=role.id,
+        kode_role=role.kode_role,
+        nama_role=role.nama_role,
+    ) if role else None
+
+    return UserResponse(
+        id=user.id,
+        first_name=user.first_name,
+        last_name=user.last_name,
+        full_name=user.full_name,
+        gender=user.gender,
+        avatar_path=user.avatar_path,
+        email=user.email,
+        no_telepon=user.no_telepon,
+        is_active=user.is_active,
+        last_login=user.last_login,
+        created_at=user.created_at,
+        email_verified_at=user.email_verified_at,
+        pending_email=pending_email,
+        role=role_info,
+    )
+
+
+def validate_password_baru(password_baru: str, konfirmasi: str) -> None:
+    """
+    Aturan password baru, dipakai change_password DAN reset_password:
+    konfirmasi cocok, minimal 8 karakter, maksimal 72 byte (batas bcrypt).
+    """
+    if password_baru != konfirmasi:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Konfirmasi password baru tidak cocok.",
+        )
+    if len(password_baru) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password baru minimal 8 karakter.",
+        )
+    if len(password_baru.encode("utf-8")) > 72:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password baru terlalu panjang (maksimal 72 byte).",
+        )
 
 
 async def login(request: LoginRequest, db: AsyncSession) -> LoginResponse:
     """
     Proses login:
-    1. Cari user by email
+    1. Cari user by email (case-insensitive)
     2. Verifikasi password
     3. Cek user aktif (is_active) — murni status administratif akun
     4. Ambil info role
@@ -50,9 +110,10 @@ async def login(request: LoginRequest, db: AsyncSession) -> LoginResponse:
     8. Return token + data user
     """
 
-    # 1. Cari user by email
+    # 1. Cari user by email. Email di DB sudah lowercase; request.email juga
+    #    sudah dinormalisasi schema, normalize_email() hanya pengaman tambahan.
     result = await db.execute(
-        select(User).where(User.email == request.email)
+        select(User).where(func.lower(User.email) == normalize_email(request.email))
     )
     user = result.scalar_one_or_none()
 
@@ -119,7 +180,12 @@ async def login(request: LoginRequest, db: AsyncSession) -> LoginResponse:
         "sub": str(user.id),          # subject = user id
         "email": user.email,
         "role": role.kode_role if role else "",
-        "nama": user.nama,
+        "nama": user.full_name,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "full_name": user.full_name,
+        "gender": user.gender,
+        "avatar_path": user.avatar_path,
     }
     expires_in_seconds = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
     access_token = create_access_token(
@@ -133,56 +199,24 @@ async def login(request: LoginRequest, db: AsyncSession) -> LoginResponse:
     await db.commit()
 
     # 8. Susun response
-    role_info = RoleInfo(
-        id=role.id,
-        kode_role=role.kode_role,
-        nama_role=role.nama_role,
-    ) if role else None
-
-    user_response = UserResponse(
-        id=user.id,
-        nama=user.nama,
-        email=user.email,
-        no_telepon=user.no_telepon,
-        is_active=user.is_active,
-        last_login=user.last_login,
-        created_at=user.created_at,
-        role=role_info,
-    )
-
     return LoginResponse(
         access_token=access_token,
         token_type="bearer",
         expires_in=expires_in_seconds,
-        user=user_response,
+        user=build_user_response(user, role),
     )
 
 
 async def get_me(user: User, db: AsyncSession) -> dict:
     """
     Ambil data user yang sedang login beserta info role-nya.
+    pending_email = email baru yang masih menunggu verifikasi (jika ada).
     """
     result = await db.execute(select(Role).where(Role.id == user.role_id))
     role = result.scalar_one_or_none()
 
-    role_info = RoleInfo(
-        id=role.id,
-        kode_role=role.kode_role,
-        nama_role=role.nama_role,
-    ) if role else None
-
-    return {
-        "user": UserResponse(
-            id=user.id,
-            nama=user.nama,
-            email=user.email,
-            no_telepon=user.no_telepon,
-            is_active=user.is_active,
-            last_login=user.last_login,
-            created_at=user.created_at,
-            role=role_info,
-        )
-    }
+    pending = await get_pending_email(db, user)
+    return {"user": build_user_response(user, role, pending)}
 
 
 async def change_password(
@@ -201,19 +235,8 @@ async def change_password(
             detail="Password lama tidak sesuai.",
         )
 
-    # Validasi konfirmasi password baru
-    if password_baru != password_baru_konfirmasi:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Konfirmasi password baru tidak cocok.",
-        )
-
-    # Minimal 8 karakter
-    if len(password_baru) < 8:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password baru minimal 8 karakter.",
-        )
+    # Konfirmasi cocok, minimal 8 karakter, maksimal 72 byte
+    validate_password_baru(password_baru, password_baru_konfirmasi)
 
     user.password_hash = hash_password(password_baru)
     user.updated_at = datetime.now(timezone.utc)

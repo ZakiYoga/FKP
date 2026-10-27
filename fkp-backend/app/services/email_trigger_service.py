@@ -30,7 +30,6 @@ def _nama(user: Optional[User]) -> str:
     # Sesuaikan nama field dengan model User Anda
     return (
         getattr(user, "nama_lengkap", None)
-        or getattr(user, "nama", None)
         or getattr(user, "full_name", None)
         or user.email.split("@")[0]
     )

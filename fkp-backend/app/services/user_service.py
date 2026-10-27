@@ -29,7 +29,9 @@ async def list_users_paginated(
         like = f"%{_escape_like(search.strip())}%"
         filters.append(
             or_(
-                User.nama.ilike(like, escape="\\"),
+                User.first_name.ilike(like, escape="\\"),
+                User.last_name.ilike(like, escape="\\"),
+                func.concat_ws(" ", User.first_name, User.last_name).ilike(like, escape="\\"),
                 User.email.ilike(like, escape="\\"),
             )
         )

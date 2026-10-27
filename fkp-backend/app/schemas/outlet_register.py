@@ -1,18 +1,20 @@
 import uuid
 from typing import Optional, List
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.schemas.types import NormalizedEmail
 
 class OutletRegisterRequest(BaseModel):
     # === Akun ===
-    email: EmailStr
+    email: NormalizedEmail
     password: str
     retype_password: str
 
     # === Data Outlet ===
     nama_toko: str
-    pemilik_toko: str
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: Optional[str] = Field(default=None, max_length=100)
     tipe_toko: str          # "retail" | "grosir" | "horeka"
     no_hp: str
 
@@ -23,11 +25,34 @@ class OutletRegisterRequest(BaseModel):
     alamat_lengkap: Optional[str] = None
     kelurahan_id: Optional[int] = None
 
+    @field_validator("first_name")
+    @classmethod
+    def first_name_tidak_kosong(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Nama depan tidak boleh kosong")
+        return v
+
+    @field_validator("last_name")
+    @classmethod
+    def last_name_rapikan(cls, v: Optional[str]) -> Optional[str]:
+        return (v.strip() or None) if v else None
+
+    @model_validator(mode="after")
+    def check_panjang_nama_pemilik(self):
+        gabungan = f"{self.first_name.strip()} {(self.last_name or '').strip()}".strip()
+        if len(gabungan) > 150:
+            raise ValueError("Gabungan nama depan dan belakang maksimal 150 karakter")
+        return self
+
     @field_validator("password")
     @classmethod
     def password_strength(cls, v: str) -> str:
         if len(v) < 8:
             raise ValueError("Password minimal 8 karakter")
+        # batas bcrypt: 72 byte UTF-8 (sama dengan validasi di frontend)
+        if len(v.encode("utf-8")) > 72:
+            raise ValueError("Password terlalu panjang (maksimal 72 byte)")
         return v
 
     @field_validator("tipe_toko")

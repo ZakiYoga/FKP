@@ -173,7 +173,7 @@ def render_html_to_pdf(html_str: str) -> bytes:
 
 async def get_user_nama(db, user_id) -> str:
     """
-    Ambil User.nama dari DB berdasarkan UUID.
+    Ambil User.full_name dari DB berdasarkan UUID.
     Return string kosong jika user_id None atau tidak ditemukan.
     Dipakai oleh kedua service untuk resolve nama TTD.
     """
@@ -184,4 +184,4 @@ async def get_user_nama(db, user_id) -> str:
 
     result = await db.execute(sql_select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
-    return user.nama if user else ""
+    return user.full_name if user else ""

@@ -19,11 +19,15 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dotenv import load_dotenv
 load_dotenv()
 
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.core.database import AsyncSessionLocal
-from app.core.security import hash_password
+from app.core.security import hash_password, normalize_email
+
+from app.core.database import AsyncSessionLocal
+from app.core.security import hash_password, normalize_email
 from app.models.role import Role
 from app.models.user import User
 from app.models.sc_spv import ApsmScSpv, RsmApsm
@@ -117,7 +121,9 @@ async def get_role(session: AsyncSession, kode: str) -> Role | None:
 
 
 async def get_user_by_email(session: AsyncSession, email: str) -> User | None:
-    result = await session.execute(select(User).where(User.email == email))
+    result = await session.execute(
+        select(User).where(func.lower(User.email) == normalize_email(email))
+    )
     return result.scalar_one_or_none()
 
 
@@ -162,8 +168,8 @@ async def seed_test_users(session: AsyncSession) -> dict[str, User]:
 
         user = User(
             role_id=role.id,
-            nama=nama,
-            email=email,
+            first_name=nama,        # kolom 'nama' sudah di-rename jadi first_name (migrasi 0d6f806b9281)
+            email=normalize_email(email),
             password_hash=hash_password(DEFAULT_PASSWORD),
             no_telepon=no_telepon,
             is_active=True,

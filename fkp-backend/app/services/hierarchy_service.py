@@ -244,7 +244,7 @@ async def get_hierarchy_by_rsm(rsm_user_id: uuid.UUID, db: AsyncSession) -> RsmW
         raise HTTPException(status_code=404, detail="RSM tidak ditemukan.")
 
     rsm_info = UserBasicInfo(
-        id=rsm_user.id, nama=rsm_user.nama,
+        id=rsm_user.id, nama=rsm_user.full_name,
         email=rsm_user.email, no_telepon=rsm_user.no_telepon
     )
 
@@ -261,7 +261,7 @@ async def get_hierarchy_by_rsm(rsm_user_id: uuid.UUID, db: AsyncSession) -> RsmW
             continue
 
         apsm_info = UserBasicInfo(
-            id=apsm_user.id, nama=apsm_user.nama,
+            id=apsm_user.id, nama=apsm_user.full_name,
             email=apsm_user.email, no_telepon=apsm_user.no_telepon
         )
 
@@ -278,7 +278,7 @@ async def get_hierarchy_by_rsm(rsm_user_id: uuid.UUID, db: AsyncSession) -> RsmW
                 continue
 
             sc_info = UserBasicInfo(
-                id=sc_user.id, nama=sc_user.nama,
+                id=sc_user.id, nama=sc_user.full_name,
                 email=sc_user.email, no_telepon=sc_user.no_telepon
             )
 

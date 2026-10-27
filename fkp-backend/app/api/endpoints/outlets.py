@@ -32,11 +32,13 @@ from app.core.dependencies import (
 from app.models.outlet import Outlet
 from app.models.user import User
 from app.schemas.outlet import (
-    OutletCreate, OutletUpdate, OutletResponse,
+    OutletCreate, OutletDetailResponse, OutletSelfUpdate, OutletUpdate, OutletResponse,
     OutletListPage, OutletStatusSummary,
 )
 from app.schemas.user import UserBriefResponse
 from app.services import outlet_service
+from app.services.wilayah_service import attach_wilayah
+
 
 router = APIRouter()
 
@@ -49,14 +51,13 @@ async def list_outlets(
     auth=Depends(get_current_user_with_role),
 ):
     user, kode_role = auth
-    return await outlet_service.list_outlets(
-        db=db,
-        user=user,
-        kode_role=kode_role,
-        distributor_id=distributor_id,
-        status=status,
+    rows = await outlet_service.list_outlets(
+        db=db, user=user, kode_role=kode_role,
+        distributor_id=distributor_id, status=status,
     )
-
+    items = [OutletResponse.model_validate(o) for o in rows]
+    await attach_wilayah(db, items)
+    return items
 
 @router.get("/page", response_model=OutletListPage)
 async def list_outlets_paginated(
@@ -78,12 +79,15 @@ async def list_outlets_paginated(
     (diurutkan dari yang paling lama menunggu).
     """
     user, kode_role = auth
-    return await outlet_service.list_outlets_paginated(
+    page_data = await outlet_service.list_outlets_paginated(
         db=db, user=user, kode_role=kode_role,
         page=page, page_size=page_size,
         distributor_id=distributor_id, area_id=area_id,
         status=status, search=search,
     )
+    page_data["items"] = [OutletResponse.model_validate(o) for o in page_data["items"]]
+    await attach_wilayah(db, page_data["items"])
+    return page_data
 
 
 @router.get("/status-summary", response_model=OutletStatusSummary)
@@ -127,15 +131,22 @@ async def list_assignable_pic_users(
         distributor_id=distributor_id, db=db,
     )
 
+@router.get("/mine", response_model=List[OutletDetailResponse])
+async def list_my_outlets(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Outlet yang di-handle user login (tab Outlet di halaman profile)."""
+    return await outlet_service.list_my_outlets(user=user, db=db)
 
-@router.get("/{outlet_id}", response_model=OutletResponse)
+@router.get("/{outlet_id}", response_model=OutletDetailResponse)
 async def get_outlet(
     outlet_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    auth=Depends(get_current_user_with_role),
 ):
-    return await outlet_service.get_outlet_or_404(outlet_id, db)
-
+    user, kode_role = auth
+    return await outlet_service.get_outlet_detail(outlet_id, user, kode_role, db)
 
 @router.put("/{outlet_id}", response_model=OutletResponse)
 async def update_outlet(
@@ -149,6 +160,17 @@ async def update_outlet(
     return await outlet_service.update_outlet(
         outlet_id=outlet_id, data=data, user=user, kode_role=kode_role, db=db,
     )
+
+@router.patch("/{outlet_id}/profile", response_model=OutletDetailResponse)
+async def update_my_outlet(
+    outlet_id: uuid.UUID,
+    data: OutletSelfUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Edit mandiri oleh PIC. Tidak butuh permission outlet.manage —
+    otorisasinya adalah kepemilikan (pic_user_id == user.id)."""
+    return await outlet_service.update_my_outlet(outlet_id, data, user, db)
 
 @router.delete("/{outlet_id}")
 async def deactivate_outlet(

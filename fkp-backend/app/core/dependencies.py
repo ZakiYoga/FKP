@@ -13,6 +13,31 @@ from app.models.user import User
 bearer_scheme = HTTPBearer()
 
 
+def _ensure_token_not_revoked(user: User, payload: dict) -> None:
+    """
+    Tolak token yang diterbitkan SEBELUM password terakhir direset
+    (User.password_changed_at, diisi oleh reset password).
+
+    - User yang belum pernah reset password (password_changed_at NULL):
+      semua token lama tetap valid, perilaku tidak berubah.
+    - User yang pernah reset: token tanpa claim iat (token lama dari sebelum
+      fitur ini) juga ditolak, karena tidak bisa dibuktikan terbit setelah reset.
+    - Perbandingan per detik, karena claim iat JWT berupa detik utuh. Token
+      yang diterbitkan pada detik yang sama dengan reset dianggap valid,
+      supaya user yang langsung login setelah reset tidak ditolak.
+    """
+    changed_at = user.password_changed_at
+    if changed_at is None:
+        return
+    iat = payload.get("iat")
+    if iat is None or int(iat) < int(changed_at.timestamp()):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sesi Anda tidak berlaku lagi karena password telah diubah. Silakan login ulang.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db),
@@ -47,6 +72,7 @@ async def get_current_user(
             detail="User tidak ditemukan atau sudah dinonaktifkan.",
         )
 
+    _ensure_token_not_revoked(user, payload)
     return user
 
 
@@ -107,6 +133,7 @@ def require_roles(*allowed_roles: str):
                 detail="User tidak ditemukan atau sudah dinonaktifkan.",
             )
 
+        _ensure_token_not_revoked(user, payload)
         return user
 
     return _check_role
@@ -174,6 +201,7 @@ def require_permission_dep(permission_code: str):
                 detail="User tidak ditemukan atau sudah dinonaktifkan.",
             )
 
+        _ensure_token_not_revoked(user, payload)
         return user
 
     return _check_permission
@@ -243,4 +271,31 @@ async def get_current_user_with_role(
             detail="User tidak ditemukan atau sudah dinonaktifkan.",
         )
 
+    _ensure_token_not_revoked(user, payload)
     return user, kode_role
+
+def _ensure_token_not_revoked(user: User, payload: dict) -> None:
+    """
+    Tolak token yang diterbitkan pada atau SEBELUM password terakhir direset
+    (User.password_changed_at, diisi oleh reset password).
+
+    - User yang belum pernah reset password (password_changed_at NULL):
+      semua token lama tetap valid, perilaku tidak berubah.
+    - User yang pernah reset: token tanpa claim iat (token lama dari sebelum
+      fitur ini) juga ditolak, karena tidak bisa dibuktikan terbit setelah reset.
+    - Perbandingan per detik, karena claim iat JWT berupa detik utuh. Token yang
+      terbit pada detik yang SAMA dengan reset ikut ditolak (fail closed): tidak
+      bisa dibuktikan terbit sesudah reset. Akibatnya hanya login yang terjadi
+      dalam detik yang sama dengan reset mendapat 401 sekali dan perlu login
+      ulang; untuk user nyata ini praktis tidak pernah terjadi.
+    """
+    changed_at = user.password_changed_at
+    if changed_at is None:
+        return
+    iat = payload.get("iat")
+    if iat is None or int(iat) <= int(changed_at.timestamp()):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sesi Anda tidak berlaku lagi karena password telah diubah. Silakan login ulang.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )

@@ -55,7 +55,7 @@ async def list_users_by_role(
         select(User)
         .join(Role, User.role_id == Role.id)
         .where(Role.kode_role == kode_role, User.is_active == True)
-        .order_by(User.nama)
+        .order_by(User.first_name, User.last_name)
     )
     return result.scalars().all()
 

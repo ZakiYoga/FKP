@@ -213,7 +213,7 @@ async def kirim_notifikasi_transisi(
             await _buat_notif(db, uid, fkp_id,
                 judul=f"FKP Baru Menunggu Review: {nomor}",
                 pesan=(
-                    f"FKP {nomor} telah disubmit oleh {aktor.nama} dan menunggu "
+                    f"FKP {nomor} telah disubmit oleh {aktor.full_name} dan menunggu "
                     f"review APSM sebelum diteruskan ke Admin HO."
                 ),
                 tipe=TipeNotifikasi.NEED_ACTION,
@@ -223,7 +223,7 @@ async def kirim_notifikasi_transisi(
             await _buat_notif(db, u.id, fkp_id,
                 judul=f"FKP Baru Masuk: {nomor}",
                 pesan=(
-                    f"FKP {nomor} telah disubmit oleh {aktor.nama} "
+                    f"FKP {nomor} telah disubmit oleh {aktor.full_name} "
                     f"dan sedang menunggu review APSM."
                 ),
                 tipe=TipeNotifikasi.INFO,
@@ -238,7 +238,7 @@ async def kirim_notifikasi_transisi(
             await _buat_notif(db, uid, fkp_id,
                 judul=f"FKP Pcs Menunggu Penanganan Anda: {nomor}",
                 pesan=(
-                    f"FKP {nomor} (kemasan pcs) telah disubmit oleh {aktor.nama}. "
+                    f"FKP {nomor} (kemasan pcs) telah disubmit oleh {aktor.full_name}. "
                     f"FKP ini ditangani langsung oleh APSM, tanpa approval Admin HO/RSM."
                 ),
                 tipe=TipeNotifikasi.NEED_ACTION,
@@ -259,7 +259,7 @@ async def kirim_notifikasi_transisi(
                 await _buat_notif(db, uid, fkp_id,
                     judul=f"FKP Dikembalikan RSM untuk Revisi: {nomor}",
                     pesan=(
-                        f"RSM {aktor.nama} meminta revisi pada FKP {nomor}. "
+                        f"RSM {aktor.full_name} meminta revisi pada FKP {nomor}. "
                         f"Silakan perbaiki dan teruskan kembali ke Admin HO."
                     ),
                     tipe=TipeNotifikasi.NEED_ACTION,
@@ -269,7 +269,7 @@ async def kirim_notifikasi_transisi(
             await _buat_notif(db, fkp.submitted_by, fkp_id,
                 judul=f"FKP Anda Sedang Direview APSM: {nomor}",
                 pesan=(
-                    f"FKP {nomor} telah direview oleh APSM ({aktor.nama}) "
+                    f"FKP {nomor} telah direview oleh APSM ({aktor.full_name}) "
                     f"dan diteruskan ke Admin HO."
                 ),
                 tipe=TipeNotifikasi.STATUS_CHANGE,
@@ -278,7 +278,7 @@ async def kirim_notifikasi_transisi(
                 await _buat_notif(db, u.id, fkp_id,
                     judul=f"FKP Siap Direview Admin HO: {nomor}",
                     pesan=(
-                        f"APSM {aktor.nama} telah meneruskan FKP {nomor} "
+                        f"APSM {aktor.full_name} telah meneruskan FKP {nomor} "
                         f"untuk review Admin HO."
                     ),
                     tipe=TipeNotifikasi.NEED_ACTION,
@@ -290,7 +290,7 @@ async def kirim_notifikasi_transisi(
         await _buat_notif(db, fkp.submitted_by, fkp_id,
             judul=f"FKP Menunggu Persetujuan RSM: {nomor}",
             pesan=(
-                f"FKP {nomor} telah disetujui Admin HO ({aktor.nama}) "
+                f"FKP {nomor} telah disetujui Admin HO ({aktor.full_name}) "
                 f"dan menunggu persetujuan RSM untuk investigasi."
             ),
             tipe=TipeNotifikasi.STATUS_CHANGE,
@@ -317,7 +317,7 @@ async def kirim_notifikasi_transisi(
         await _buat_notif(db, fkp.submitted_by, fkp_id,
             judul=f"FKP Menunggu Persetujuan RSM: {nomor}",
             pesan=(
-                f"FKP {nomor} telah disetujui Admin HO ({aktor.nama}) "
+                f"FKP {nomor} telah disetujui Admin HO ({aktor.full_name}) "
                 f"dan menunggu persetujuan akhir RSM."
             ),
             tipe=TipeNotifikasi.STATUS_CHANGE,
@@ -341,7 +341,7 @@ async def kirim_notifikasi_transisi(
         await _buat_notif(db, fkp.submitted_by, fkp_id,
             judul=f"FKP Sedang Diinvestigasi: {nomor}",
             pesan=(
-                f"FKP {nomor} telah disetujui RSM ({aktor.nama}) "
+                f"FKP {nomor} telah disetujui RSM ({aktor.full_name}) "
                 f"dan sedang dalam proses investigasi oleh tim QC."
             ),
             tipe=TipeNotifikasi.STATUS_CHANGE,
@@ -365,7 +365,7 @@ async def kirim_notifikasi_transisi(
                 await _buat_notif(db, u.id, fkp_id,
                     judul=f"FKP Dikembalikan RSM — Perlu Perbaikan Resolusi: {nomor}",
                     pesan=(
-                        f"RSM {aktor.nama} meminta revisi pada FKP {nomor}. "
+                        f"RSM {aktor.full_name} meminta revisi pada FKP {nomor}. "
                         f"Silakan perbaiki dan teruskan kembali untuk persetujuan RSM."
                     ),
                     tipe=TipeNotifikasi.NEED_ACTION,
@@ -376,7 +376,7 @@ async def kirim_notifikasi_transisi(
                 await _buat_notif(db, u.id, fkp_id,
                     judul=f"Investigasi Selesai: {nomor}",
                     pesan=(
-                        f"QC {aktor.nama} telah menyelesaikan investigasi FKP {nomor}. "
+                        f"QC {aktor.full_name} telah menyelesaikan investigasi FKP {nomor}. "
                         f"Menunggu proses persetujuan resolusi RSM."
                     ),
                     tipe=TipeNotifikasi.INFO,
@@ -424,7 +424,7 @@ async def kirim_notifikasi_transisi(
             await _buat_notif(db, u.id, fkp_id,
                 judul=f"FKP Menunggu Keputusan Anda: {nomor}",
                 pesan=(
-                    f"RSM {aktor.nama} telah menyetujui FKP {nomor} "
+                    f"RSM {aktor.full_name} telah menyetujui FKP {nomor} "
                     f"dan meneruskan untuk keputusan final Direktur."
                 ),
                 tipe=TipeNotifikasi.NEED_ACTION,
@@ -510,7 +510,7 @@ async def kirim_notifikasi_transisi(
         await _buat_notif(db, fkp.submitted_by, fkp_id,
             judul=f"FKP Perlu Revisi: {nomor}",
             pesan=(
-                f"FKP {nomor} dikembalikan oleh {aktor.nama} untuk diperbaiki. "
+                f"FKP {nomor} dikembalikan oleh {aktor.full_name} untuk diperbaiki. "
                 f"Silakan periksa catatan dan lengkapi data yang dibutuhkan."
             ),
             tipe=TipeNotifikasi.NEED_ACTION,
@@ -520,11 +520,11 @@ async def kirim_notifikasi_transisi(
     elif status_baru == FkpStatus.REJECTED:
         is_pcs = status_lama == FkpStatus.PCS_DITANGANI_APSM
         pesan_tolak = (
-            f"FKP {nomor} ditolak oleh {aktor.nama}. Alasan: {catatan or '-'}. "
+            f"FKP {nomor} ditolak oleh {aktor.full_name}. Alasan: {catatan or '-'}. "
             f"FKP yang ditolak tidak dapat direvisi; silakan buat FKP baru "
             f"dengan data yang sudah diperbaiki."
         ) if is_pcs else (
-            f"FKP {nomor} ditolak oleh {aktor.nama}. "
+            f"FKP {nomor} ditolak oleh {aktor.full_name}. "
             f"Silakan periksa catatan untuk alasan penolakan."
         )
         # Notify submitter
@@ -538,7 +538,7 @@ async def kirim_notifikasi_transisi(
             await _buat_notif(db, u.id, fkp_id,
                 judul=f"FKP Ditolak: {nomor}",
                 pesan=(
-                    f"FKP {nomor} telah ditolak oleh {aktor.nama} "
+                    f"FKP {nomor} telah ditolak oleh {aktor.full_name} "
                     f"(dari status: {status_lama})."
                 ),
                 tipe=TipeNotifikasi.INFO,
@@ -558,7 +558,7 @@ async def kirim_notifikasi_transisi(
             await _buat_notif(db, uid, fkp_id,
                 judul=f"FKP Ditutup: {nomor}",
                 pesan=(
-                    f"FKP {nomor} telah resmi ditutup oleh {aktor.nama}. "
+                    f"FKP {nomor} telah resmi ditutup oleh {aktor.full_name}. "
                     f"Proses selesai."
                 ),
                 tipe=TipeNotifikasi.INFO,
@@ -568,7 +568,7 @@ async def kirim_notifikasi_transisi(
             if u.id not in recipients:
                 await _buat_notif(db, u.id, fkp_id,
                     judul=f"FKP Ditutup: {nomor}",
-                    pesan=f"FKP {nomor} telah resmi ditutup oleh {aktor.nama}.",
+                    pesan=f"FKP {nomor} telah resmi ditutup oleh {aktor.full_name}.",
                     tipe=TipeNotifikasi.INFO,
                 )
 
@@ -767,6 +767,6 @@ async def kirim_notifikasi_pcs_tahap(db: AsyncSession, fkp, tahap: str, aktor: U
     nomor = fkp.nomor_fkp
     await _buat_notif(db, fkp.submitted_by, fkp.id,
         judul=f"{judul_dasar}: {nomor}",
-        pesan=f"FKP {nomor} {keterangan} (ditangani oleh APSM {aktor.nama}).",
+        pesan=f"FKP {nomor} {keterangan} (ditangani oleh APSM {aktor.full_name}).",
         tipe=TipeNotifikasi.INFO if tahap == TahapPcs.SELESAI else TipeNotifikasi.STATUS_CHANGE,
     )

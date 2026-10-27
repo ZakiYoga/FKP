@@ -221,6 +221,18 @@ PERMISSION_CATALOG: List[Dict] = [
         "roles": [],
     },
 
+    {
+        "code": "user.reset_password",
+        "module": "user", "action": "reset_password",
+        "label": "Reset Password User (oleh Admin)",
+        "deskripsi": (
+            "Admin menetapkan password baru untuk user lain dan mencabut semua "
+            "sesi login-nya. Default hanya superadmin; role lain bisa diberi "
+            "lewat dashboard RBAC."
+        ),
+        "roles": [],
+    },
+
     # ── 4.4 Module area — Kelola wilayah (Kategori A audit RBAC) ───────────
     {
         "code": "area.manage",

@@ -31,16 +31,18 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.distributor import Distributor
+from app.models.user import User
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user_with_role, require_permission_dep
+from app.core.dependencies import get_current_user, get_current_user_with_role, require_permission_dep
 from app.services.permission_service import require_permission
 from app.schemas.distributor import (
-    DistributorCreate, DistributorUpdate, DistributorResponse,
+    DistributorCreate, DistributorDetailResponse, DistributorSelfUpdate, DistributorUpdate, DistributorResponse,
     DistributorUserAdd, DistributorUserResponse,
     DistributorListPage, DistributorStatusSummary,
 )
 from app.services import distributor_service
+from app.services.wilayah_service import attach_wilayah
 
 router = APIRouter()
 
@@ -66,15 +68,14 @@ async def list_distributors(
     """
     user, kode_role = auth
 
-    # PERBAIKAN RBAC (Kategori B): sebelumnya cek tuple hardcode _READ_ROLES
-    # di badan fungsi, tidak terhubung ke dashboard RBAC. Sekarang via
-    # require_permission() — DB-driven, superadmin bypass via is_superadmin.
     await require_permission(kode_role, "distributor.read", db)
 
-    return await distributor_service.list_distributors_by_role(
-        db, current_user=user, kode_role=kode_role,
-        area_id=area_id, status=status,
-    )
+    rows = await distributor_service.list_distributors_by_role(
+            db, current_user=user, kode_role=kode_role, area_id=area_id, status=status,
+        )
+    items = [DistributorResponse.model_validate(d) for d in rows]
+    await attach_wilayah(db, items)
+    return items
 
 
 @router.get("/page", response_model=DistributorListPage, summary="List distributor berpagination")
@@ -97,23 +98,16 @@ async def list_distributors_paginated(
     user, kode_role = auth
     await require_permission(kode_role, "distributor.read", db)
 
-    return await distributor_service.list_distributors_paginated(
-        db,
-        current_user=user,
-        kode_role=kode_role,
-        page=page,
-        page_size=page_size,
-        area_id=area_id,
-        status=status,
-        search=search,
-    )
+    page_data = await distributor_service.list_distributors_paginated(
+            db, current_user=user, kode_role=kode_role, page=page, page_size=page_size,
+            area_id=area_id, status=status, search=search,
+        )
+    page_data["items"] = [DistributorResponse.model_validate(d) for d in page_data["items"]]
+    await attach_wilayah(db, page_data["items"])
+    return page_data
 
 
-@router.get(
-    "/status-summary",
-    response_model=DistributorStatusSummary,
-    summary="Jumlah distributor per status",
-)
+@router.get("/status-summary", response_model=DistributorStatusSummary, summary="Jumlah distributor per status")
 async def get_distributor_status_summary(
     area_id: Optional[uuid.UUID] = Query(default=None, description="Filter by area"),
     db: AsyncSession = Depends(get_db),
@@ -138,6 +132,10 @@ async def list_distributors_public(db: AsyncSession = Depends(get_db)):
     rows = result.all()
     return [{"id": str(r.id), "nama_perusahaan": r.nama_perusahaan, "kode_distributor": r.kode_distributor, "alamat_lengkap": r.alamat_lengkap} for r in rows]
 
+@router.get("/mine", response_model=List[DistributorDetailResponse], summary="Distributor milik saya (profile)")
+async def list_my_distributors(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    """Distributor tempat user login terdaftar. can_edit true hanya jika is_primary."""
+    return await distributor_service.list_my_distributors(user=user, db=db)
 
 @router.post("/", response_model=DistributorResponse, status_code=201, summary="Buat distributor baru")
 async def create_distributor(
@@ -148,13 +146,15 @@ async def create_distributor(
     return await distributor_service.create_distributor(data, db)
 
 
-@router.get("/{distributor_id}", response_model=DistributorResponse, summary="Detail distributor")
+@router.get("/{distributor_id}", response_model=DistributorDetailResponse, summary="Detail distributor")
 async def get_distributor(
     distributor_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_permission_dep("distributor.read")),
+    auth=Depends(get_current_user_with_role),
 ):
-    return await distributor_service.get_distributor(distributor_id, db)
+    user, kode_role = auth
+    await require_permission(kode_role, "distributor.read", db)
+    return await distributor_service.get_distributor_detail(distributor_id, user, kode_role, db)
 
 
 @router.put("/{distributor_id}", response_model=DistributorResponse, summary="Update distributor")
@@ -165,6 +165,17 @@ async def update_distributor(
     current_user=Depends(require_permission_dep("distributor.manage")),
 ):
     return await distributor_service.update_distributor(distributor_id, data, db)
+
+
+@router.patch("/{distributor_id}/profile", response_model=DistributorDetailResponse, summary="Edit distributor oleh user primary")
+async def update_my_distributor(
+    distributor_id: uuid.UUID,
+    data: DistributorSelfUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Otorisasi = kepemilikan (DistributorUser.is_primary), bukan permission distributor.manage."""
+    return await distributor_service.update_my_distributor(distributor_id, data, user, db)
 
 
 @router.delete("/{distributor_id}", summary="Nonaktifkan distributor")
@@ -185,25 +196,18 @@ async def activate_distributor_endpoint(
 
 # ─── DISTRIBUTOR USERS ────────────────────────────────────────────────────────
 
-@router.get(
-    "/{distributor_id}/users",
-    response_model=List[DistributorUserResponse],
-    summary="List user di distributor",
-)
+@router.get("/{distributor_id}/users", response_model=List[DistributorUserResponse], summary="List user di distributor")
 async def list_distributor_users(
     distributor_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_permission_dep("distributor.user.read")),
+    auth=Depends(get_current_user_with_role),
 ):
-    return await distributor_service.list_distributor_users(distributor_id, db)
+    user, kode_role = auth
+    await require_permission(kode_role, "distributor.user.read", db)
+    return await distributor_service.list_distributor_users(distributor_id, user, kode_role, db)
 
 
-@router.post(
-    "/{distributor_id}/users",
-    response_model=DistributorUserResponse,
-    status_code=201,
-    summary="Tambah user ke distributor",
-)
+@router.post("/{distributor_id}/users", response_model=DistributorUserResponse, status_code=201, summary="Tambah user ke distributor")
 async def add_distributor_user(
     distributor_id: uuid.UUID,
     data: DistributorUserAdd,
@@ -213,10 +217,7 @@ async def add_distributor_user(
     return await distributor_service.add_distributor_user(distributor_id, data, db)
 
 
-@router.delete(
-    "/{distributor_id}/users/{user_id}",
-    summary="Lepas user dari distributor",
-)
+@router.delete("/{distributor_id}/users/{user_id}", summary="Lepas user dari distributor")
 async def remove_distributor_user(
     distributor_id: uuid.UUID,
     user_id: uuid.UUID,

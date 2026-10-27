@@ -2,6 +2,8 @@
 Email Service — aiosmtplib tanpa fastapi-mail.
 Kirim notifikasi HTML ke submitter FKP pada 4 event:
   submitted / need_revision / rejected / closed
+Ditambah email akun: verifikasi email, reset password, password diubah,
+dan notifikasi permintaan ganti email.
 """
 import io
 import logging
@@ -13,6 +15,7 @@ from pathlib import Path
 from typing import Optional
 
 import aiosmtplib
+import certifi
 import qrcode
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -46,9 +49,11 @@ def _render(template_name: str, ctx: dict) -> str:
 
 
 async def _send(to: str, subject: str, html: str, qr_png_bytes: Optional[bytes] = None) -> None:
+    from_email = settings.SMTP_FROM_EMAIL or settings.SMTP_USERNAME
+
     msg = MIMEMultipart("related")
     msg["Subject"] = subject
-    msg["From"]    = f"{settings.SMTP_FROM_NAME} <{settings.SMTP_FROM_EMAIL}>"
+    msg["From"]    = f"{settings.SMTP_FROM_NAME} <{from_email}>"
     msg["To"]      = to
 
     # HTML dibungkus dalam alternative, lalu alternative di-attach ke related
@@ -63,9 +68,11 @@ async def _send(to: str, subject: str, html: str, qr_png_bytes: Optional[bytes] 
         img_part.add_header("Content-Disposition", "inline", filename="qr.png")
         msg.attach(img_part)
 
-    ssl_context = ssl.create_default_context()
-    ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE
+    # Verifikasi sertifikat TLS AKTIF (hostname + rantai sertifikat). Email ini
+    # membawa tautan reset password/verifikasi, jadi koneksi ke server SMTP
+    # tidak boleh bisa disadap/dipalsukan. certifi menjamin bundle CA tersedia
+    # (macOS dan image Docker slim sering tidak punya CA sistem).
+    ssl_context = ssl.create_default_context(cafile=certifi.where())
 
     try:
         await aiosmtplib.send(
@@ -143,3 +150,52 @@ async def kirim_email_fkp_closed(
         "tracking_url": url, "app_name": settings.SMTP_FROM_NAME,
     })
     await _send(to_email, f"[FKP] {nomor_fkp} Telah Selesai Diproses ✅", html, qr_bytes)
+
+
+# ─── Email akun: verifikasi, reset password ──────────────────────────────────
+# Fungsi di bawah dijadwalkan lewat BackgroundTasks, jadi HANYA menerima nilai
+# biasa (string/angka). Jangan pernah meneruskan sesi DB atau objek model.
+
+async def kirim_email_verifikasi(
+    to_email: str, nama_penerima: str, link: str,
+    expire_hours: int, is_change: bool = False,
+) -> None:
+    html = _render("verify_email.html", {
+        "nama_penerima": nama_penerima, "link": link,
+        "expire_hours": expire_hours, "is_change": is_change,
+        "app_name": settings.SMTP_FROM_NAME,
+    })
+    subject = (
+        "[FKP] Konfirmasi Email Baru Anda" if is_change
+        else "[FKP] Verifikasi Email Akun Anda"
+    )
+    await _send(to_email, subject, html)
+
+
+async def kirim_email_reset_password(
+    to_email: str, nama_penerima: str, link: str, expire_minutes: int,
+) -> None:
+    html = _render("reset_password.html", {
+        "nama_penerima": nama_penerima, "link": link,
+        "expire_minutes": expire_minutes,
+        "app_name": settings.SMTP_FROM_NAME,
+    })
+    await _send(to_email, "[FKP] Reset Password Akun Anda", html)
+
+
+async def kirim_email_password_diubah(to_email: str, nama_penerima: str) -> None:
+    html = _render("password_changed.html", {
+        "nama_penerima": nama_penerima,
+        "app_name": settings.SMTP_FROM_NAME,
+    })
+    await _send(to_email, "[FKP] Password Akun Anda Telah Diubah", html)
+
+
+async def kirim_email_notifikasi_ganti_email(
+    to_email: str, nama_penerima: str, email_baru: str,
+) -> None:
+    html = _render("email_change_notice.html", {
+        "nama_penerima": nama_penerima, "email_baru": email_baru,
+        "app_name": settings.SMTP_FROM_NAME,
+    })
+    await _send(to_email, "[FKP] Permintaan Penggantian Email Akun", html)

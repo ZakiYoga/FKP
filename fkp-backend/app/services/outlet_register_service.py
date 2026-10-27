@@ -25,13 +25,17 @@ tabel Outlet langsung, bukan dari User.is_active.
   bisa approve/reject outlet milik distributor manapun, di luar scope
   mereka — sekarang dibatasi via authz_helpers.assert_distributor_in_scope().
 """
+import logging
 import uuid
 from datetime import datetime, timezone
 
+from fastapi import BackgroundTasks
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from passlib.context import CryptContext
 
+from app.core.security import normalize_email
 from app.models.user import User
 from app.models.outlet import Outlet
 from app.models.role import Role
@@ -46,12 +50,15 @@ from app.schemas.outlet_register import (
     OutletRejectRequest,
     OutletRejectResponse,
 )
+from app.services.account_security_service import request_email_verification
 from app.services.authz_helpers import (
     is_superadmin,
     has_global_access,
     get_scoped_distributor_ids,
     assert_distributor_in_scope,
 )
+
+logger = logging.getLogger(__name__)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -85,11 +92,20 @@ async def _get_outlet_or_404(outlet_id: uuid.UUID, session: AsyncSession) -> Out
 async def register_outlet(
     payload: OutletRegisterRequest,
     session: AsyncSession,
+    background_tasks: BackgroundTasks | None = None,
 ) -> OutletRegisterResponse:
+    """
+    Registrasi outlet publik.
+    - Email dinormalisasi (strip + lowercase) dan dicek duplikat tanpa
+      membedakan huruf besar/kecil.
+    - Setelah registrasi ter-commit, email verifikasi dijadwalkan lewat
+      background_tasks. Kegagalan di tahap itu TIDAK menggagalkan registrasi.
+    """
+    email = normalize_email(payload.email)
 
-    # 1. Cek email sudah terdaftar
+    # 1. Cek email sudah terdaftar (case-insensitive)
     result = await session.execute(
-        select(User).where(User.email == payload.email)
+        select(User).where(func.lower(User.email) == email)
     )
     if result.scalar_one_or_none():
         raise ValueError("Email sudah terdaftar")
@@ -116,8 +132,9 @@ async def register_outlet(
     #    bukan di sini.
     new_user = User(
         role_id=role_outlet.id,
-        nama=payload.pemilik_toko,
-        email=payload.email,
+        first_name=payload.first_name,
+        last_name=payload.last_name,
+        email=email,
         password_hash=pwd_context.hash(payload.password),
         no_telepon=payload.no_hp,
         is_active=True,
@@ -131,10 +148,10 @@ async def register_outlet(
         distributor_id=payload.distributor_id,
         kode_outlet=kode_outlet,
         nama_toko=payload.nama_toko,
-        pemilik_toko=payload.pemilik_toko,
+        pemilik_toko=new_user.full_name,
         tipe_toko=payload.tipe_toko,
         no_hp=payload.no_hp,
-        email=payload.email,
+        email=email,
         alamat_lengkap=payload.alamat_lengkap,
         kelurahan_id=payload.kelurahan_id,
         pic_user_id=new_user.id,
@@ -144,12 +161,30 @@ async def register_outlet(
     await session.commit()
     await session.refresh(new_outlet)
 
-    return OutletRegisterResponse(
+    # Susun response SEBELUM hook email: setelah rollback (jika email gagal),
+    # semua objek ORM ter-expire dan tidak boleh diakses lagi.
+    response = OutletRegisterResponse(
         message="Registrasi berhasil. Menunggu verifikasi dari admin.",
         outlet_id=new_outlet.id,
         user_id=new_user.id,
         kode_outlet=new_outlet.kode_outlet,
     )
+
+    # 6. Kirim verifikasi email. Registrasi sudah ter-commit, jadi kegagalan
+    #    di sini hanya dicatat di log. User tetap bisa meminta kirim ulang
+    #    lewat POST /auth/email/resend-verification (publik).
+    if background_tasks is not None:
+        try:
+            await request_email_verification(
+                new_user, session, background_tasks, enforce_cooldown=False
+            )
+        except Exception:
+            await session.rollback()
+            logger.exception(
+                "Gagal menjadwalkan email verifikasi untuk user %s", response.user_id
+            )
+
+    return response
     
 # ─── LIST PENDING REGISTRATIONS ──────────────────────────────────────────────
  

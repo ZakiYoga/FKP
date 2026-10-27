@@ -27,15 +27,16 @@ from fastapi import HTTPException
 from sqlalchemy import Case, func, or_
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.services.wilayah_service import attach_wilayah, ensure_kelurahan
 
 from app.models.distributor import Distributor, DistributorUser
 from app.models.area import Area
 from app.models.user import User
 from app.schemas.distributor import (
-    DistributorCreate, DistributorUpdate, DistributorResponse,
+    DistributorCreate, DistributorSelfUpdate, DistributorUpdate, DistributorResponse,
     DistributorUserAdd, DistributorUserResponse,
 )
-from app.services.authz_helpers import get_scoped_distributor_ids
+from app.services.authz_helpers import assert_distributor_in_scope, get_scoped_distributor_ids
 
 
 # ─── HELPERS LIST ─────────────────────────────────────────────────────────────
@@ -232,6 +233,132 @@ async def get_distributor(distributor_id: uuid.UUID, db: AsyncSession) -> Distri
         raise HTTPException(status_code=404, detail="Distributor tidak ditemukan.")
     return distributor
 
+# ─── PROFILE (self-service) ───────────────────────────────────────────────────
+
+async def _assert_readable(
+    distributor_id: uuid.UUID, user: User, kode_role: str, db: AsyncSession
+) -> None:
+    """Scope baca. PermissionError dari authz_helpers diubah jadi 403."""
+    try:
+        await assert_distributor_in_scope(
+            distributor_id, user, kode_role, db,
+            forbidden_message="Anda tidak berhak melihat distributor ini.",
+        )
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+
+async def _get_membership(
+    user_id: uuid.UUID, distributor_id: uuid.UUID, db: AsyncSession
+) -> Optional[DistributorUser]:
+    result = await db.execute(
+        select(DistributorUser).where(
+            DistributorUser.user_id == user_id,
+            DistributorUser.distributor_id == distributor_id,
+        )
+    )
+    return result.scalars().first()
+
+
+def _to_detail(distributor: Distributor, membership: Optional[DistributorUser]) -> Dict[str, Any]:
+    is_primary = bool(membership and membership.is_primary)
+    can_edit = is_primary and distributor.status == "aktif"
+
+    reason = None
+    if not can_edit:
+        if not is_primary:
+            reason = "Hanya user utama (primary) distributor yang dapat mengubah data."
+        else:
+            reason = "Distributor nonaktif tidak dapat diubah."
+
+    data = DistributorResponse.model_validate(distributor).model_dump()
+    data["can_edit"] = can_edit
+    data["edit_blocked_reason"] = reason
+    data["is_primary"] = is_primary
+    data["jabatan"] = membership.jabatan if membership else None
+    return data
+
+
+async def get_distributor_detail(
+    distributor_id: uuid.UUID, user: User, kode_role: str, db: AsyncSession
+) -> Dict[str, Any]:
+    distributor = await get_distributor(distributor_id, db)
+    await _assert_readable(distributor_id, user, kode_role, db)
+    membership = await _get_membership(user.id, distributor_id, db)
+    data = _to_detail(distributor, membership)
+    await attach_wilayah(db, [data])
+    return data
+
+
+async def list_my_distributors(user: User, db: AsyncSession) -> List[Dict[str, Any]]:
+    """Distributor tempat user terdaftar (distributor_users) — untuk tab profile."""
+    result = await db.execute(
+        select(Distributor, DistributorUser)
+        .join(DistributorUser, DistributorUser.distributor_id == Distributor.id)
+        .where(DistributorUser.user_id == user.id)
+        .order_by(
+            Case((DistributorUser.is_primary == True, 0), else_=1),
+            Case((Distributor.status == "aktif", 0), else_=1),
+            Distributor.nama_perusahaan,
+            Distributor.id,
+        )
+    )
+    items = [_to_detail(d, du) for d, du in result.all()]
+    await attach_wilayah(db, items)
+    return items
+
+
+_REQUIRED_SELF_FIELDS = {"nama_perusahaan", "pemilik"}
+
+
+async def update_my_distributor(
+    distributor_id: uuid.UUID, data: DistributorSelfUpdate, user: User, db: AsyncSession
+) -> Dict[str, Any]:
+    distributor = await get_distributor(distributor_id, db)
+    membership = await _get_membership(user.id, distributor_id, db)
+
+    if not membership or not membership.is_primary:
+        raise HTTPException(
+            status_code=403,
+            detail="Hanya user utama (primary) distributor yang dapat mengubah data ini.",
+        )
+    if distributor.status != "aktif":
+        raise HTTPException(
+            status_code=400,
+            detail="Hanya distributor berstatus aktif yang dapat diubah.",
+        )
+
+    changes = data.model_dump(exclude_unset=True)
+    print("SELF-UPDATE CHANGES:", changes, flush=True)
+    if "kelurahan_id" in changes:
+        await ensure_kelurahan(db, changes["kelurahan_id"])
+
+    if "npwp" in changes and changes["npwp"] is None and distributor.npwp:
+        raise HTTPException(
+            status_code=400,
+            detail="NPWP tidak boleh dikosongkan. Hubungi admin jika perlu menghapusnya.",
+        )
+
+    for f in _REQUIRED_SELF_FIELDS & changes.keys():
+        v = changes[f]
+        if v is None or (isinstance(v, str) and not v.strip()):
+            raise HTTPException(status_code=400, detail=f"Field '{f}' tidak boleh kosong.")
+
+    for k, v in changes.items():
+        if isinstance(v, str):
+            v = v.strip()
+            if not v and k not in _REQUIRED_SELF_FIELDS:
+                v = None          # string kosong di field opsional → NULL
+        
+        setattr(distributor, k, v)
+
+    distributor.updated_at = datetime.now(timezone.utc)
+    db.add(distributor)
+    await db.commit()
+    await db.refresh(distributor)
+    detail = _to_detail(distributor, membership)
+    await attach_wilayah(db, [detail])
+    return detail
 
 # ─── CREATE ───────────────────────────────────────────────────────────────────
 
@@ -239,6 +366,8 @@ async def create_distributor(data: DistributorCreate, db: AsyncSession) -> Distr
     area_result = await db.execute(select(Area).where(Area.id == data.area_id))
     if not area_result.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Area tidak ditemukan.")
+
+    await ensure_kelurahan(db, data.kelurahan_id)
 
     kode_check = await db.execute(
         select(Distributor).where(Distributor.kode_distributor == data.kode_distributor)
@@ -267,6 +396,9 @@ async def update_distributor(
         area_result = await db.execute(select(Area).where(Area.id == data.area_id))
         if not area_result.scalar_one_or_none():
             raise HTTPException(status_code=400, detail="Area tidak ditemukan.")
+
+    if data.kelurahan_id is not None:
+        await ensure_kelurahan(db, data.kelurahan_id)
 
     update_data = data.model_dump(exclude_none=True)
     for key, value in update_data.items():
@@ -304,9 +436,10 @@ async def activate_distributor(distributor_id: uuid.UUID, db: AsyncSession) -> d
 # ─── DISTRIBUTOR USER (mapping) ───────────────────────────────────────────────
 
 async def list_distributor_users(
-    distributor_id: uuid.UUID, db: AsyncSession
+    distributor_id: uuid.UUID, user: User, kode_role: str, db: AsyncSession
 ) -> List[DistributorUser]:
     await get_distributor(distributor_id, db)
+    await _assert_readable(distributor_id, user, kode_role, db)
     result = await db.execute(
         select(DistributorUser).where(DistributorUser.distributor_id == distributor_id)
     )
