@@ -3,7 +3,8 @@ import { z } from 'zod'
 export const registerOutletSchema = z
     .object({
         nama_toko: z.string().min(3, 'Nama toko minimal 3 karakter'),
-        pemilik_toko: z.string().min(3, 'Nama pemilik minimal 3 karakter'),
+        first_name: z.string().trim().min(1, 'Nama depan wajib diisi').max(100, 'Maksimal 100 karakter'),
+        last_name: z.string().trim().max(100, 'Maksimal 100 karakter').optional(),
         tipe_toko: z.enum([
             'retail_tradisional',
             'retail_modern',

@@ -1,5 +1,6 @@
 import api from '@/lib/axios'
 import { Paginated } from '@/types/pagination'
+import type { Gender } from '@/types'
 
 export interface UserListParams {
   page: number
@@ -10,7 +11,11 @@ export interface UserListParams {
 
 export interface UserDetail {
   id: string
-  nama: string
+  first_name: string
+  last_name: string | null
+  full_name: string
+  gender: Gender | null
+  avatar_path: string | null
   email: string
   no_telepon: string | null
   is_active: boolean
@@ -18,6 +23,7 @@ export interface UserDetail {
   created_at: string
   updated_at: string
   role_id: string
+  email_verified_at: string | null
 }
 
 export interface RoleItem {
@@ -39,7 +45,9 @@ export const usersApi = {
   },
   create: async (data: {
     role_id: string
-    nama: string
+    first_name: string
+    last_name?: string | null
+    gender?: Gender | null
     email: string
     password: string
     no_telepon?: string | null
@@ -48,7 +56,9 @@ export const usersApi = {
     return res.data
   },
   update: async (id: string, data: {
-    nama?: string
+    first_name?: string
+    last_name?: string | null
+    gender?: Gender | null
     no_telepon?: string | null
     is_active?: boolean
     role_id?: string
@@ -62,6 +72,13 @@ export const usersApi = {
   },
   roles: async (): Promise<RoleItem[]> => {
     const res = await api.get<RoleItem[]>('/roles/')
+    return res.data
+  },
+  resetPassword: async (
+    id: string,
+    data: { password_baru: string; password_baru_konfirmasi: string },
+  ): Promise<{ message: string }> => {
+    const res = await api.post<{ message: string }>(`/users/${id}/reset-password`, data)
     return res.data
   },
 }

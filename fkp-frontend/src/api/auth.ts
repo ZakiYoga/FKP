@@ -24,4 +24,41 @@ export const authApi = {
     const res = await api.post<{ message: string }>('/auth/change-password', data)
     return res.data
   },
+
+  forgotPassword: async (email: string): Promise<{ message: string }> => {
+    const res = await api.post<{ message: string }>('/auth/forgot-password', { email })
+    return res.data
+  },
+
+  resetPassword: async (data: {
+    token: string
+    password_baru: string
+    password_baru_konfirmasi: string
+  }): Promise<{ message: string }> => {
+    const res = await api.post<{ message: string }>('/auth/reset-password', data)
+    return res.data
+  },
+
+  verifyEmail: async (token: string): Promise<{ message: string }> => {
+    const res = await api.post<{ message: string }>('/auth/email/verify', { token })
+    return res.data
+  },
+
+  sendVerification: async (): Promise<{ message: string }> => {
+    const res = await api.post<{ message: string }>('/auth/email/send-verification')
+    return res.data
+  },
+
+  resendVerificationPublic: async (email: string): Promise<{ message: string }> => {
+    const res = await api.post<{ message: string }>('/auth/email/resend-verification', { email })
+    return res.data
+  },
+
+  changeEmail: async (data: {
+    email_baru: string
+    password: string
+  }): Promise<{ message: string }> => {
+    const res = await api.post<{ message: string }>('/auth/email/change', data)
+    return res.data
+  },
 }

@@ -1,12 +1,12 @@
 import { useNavigate } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { ArrowLeft, Plus, Trash2, Package, Loader2, Info, AlertCircle, MapPin, Send, Pencil } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useCreateFkp, useDistributors, useOutlets, useProducts } from '@/hooks/useFkp'
 import { Input } from '@/components/ui/Input'
-import { Select } from '@/components/ui/Select'
+import { SearchableSelect } from '@/components/ui/SearchableSelect'
 import { Textarea } from '@/components/ui/Textarea'
 import { FkpItemFormModal, type FileWithMeta } from '@/components/fkp/FkpItemFormModal'
 import { useKodeRole } from '@/store/authStore'
@@ -72,7 +72,7 @@ export function FkpCreatePage() {
     const { data: products = [], isLoading: loadingProd } = useProducts()
 
     const {
-        register, handleSubmit, watch, setValue,
+        register, control, handleSubmit, watch, setValue,
         formState: { errors },
     } = useForm<HeaderForm>({
         resolver: zodResolver(buildHeaderSchema(isOutlet)),
@@ -94,21 +94,26 @@ export function FkpCreatePage() {
     // outlet pada distributor yang sama (ditambahkan admin saat create outlet).
     const { data: outlets = [], isLoading: loadingOutlets } = useOutlets(watchDistributor)
 
-    // Role outlet: auto-select HANYA saat persis 1 kandidat. Jika >1, user
-    // wajib memilih sendiri lewat dropdown — jangan menebak outlet mana
-    // yang dimaksud.
+    // Saat distributor berganti, outlet terpilih dari distributor lama tidak valid lagi —
+    // reset (semua role) supaya tidak terkirim outlet_id yang salah pasangan distributor.
+    // Penanda auto-select ikut di-reset agar distributor baru bisa auto-select lagi.
+    const autoSelectedOutletFor = useRef<string | null>(null)
     useEffect(() => {
-        if (isOutlet && outlets.length === 1 && !watchOutlet)
-            setValue('outlet_id', outlets[0].id, { shouldValidate: true })
-    }, [isOutlet, outlets, watchOutlet, setValue])
-
-    // Saat distributor berganti, outlet yang sudah terpilih dari distributor
-    // lama jadi tidak valid lagi — reset supaya tidak terkirim outlet_id yang
-    // salah pasangan distributor.
-    useEffect(() => {
-        if (isOutlet) setValue('outlet_id', '')
+        autoSelectedOutletFor.current = null
+        setValue('outlet_id', '')
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [watchDistributor])
+
+    // Auto-select HANYA saat persis 1 outlet (semua role). Jika >1, user memilih
+    // sendiri — jangan menebak. Hanya sekali per distributor: untuk role selain outlet
+    // (outlet opsional), user yang sengaja mengosongkan pilihan tidak dipilihkan lagi.
+    useEffect(() => {
+        if (loadingOutlets || !watchDistributor) return
+        if (outlets.length !== 1 || watchOutlet) return
+        if (autoSelectedOutletFor.current === watchDistributor) return
+        autoSelectedOutletFor.current = watchDistributor
+        setValue('outlet_id', outlets[0].id, { shouldValidate: true })
+    }, [loadingOutlets, outlets, watchOutlet, watchDistributor, setValue])
 
     useEffect(() => {
         // Default tab begitu distributor termuat & user belum pilih mode apa pun
@@ -137,6 +142,14 @@ export function FkpCreatePage() {
     }, [lokasiMode, distributors, setValue])
 
     const outletBelumTerdaftar = isOutlet && !loadingDist && distributors.length === 0
+    const distributorOptions = distributors.map((d) => ({
+        value: d.id,
+        label: `[${d.kode_distributor}] ${d.nama_perusahaan}`,
+    }))
+    const outletOptions = outlets.map((o) => ({
+        value: o.id,
+        label: `[${o.kode_outlet}] ${o.nama_toko}`,
+    }))
     const lokasi_pembelian = watch('lokasi_pembelian')
     const campurKemasan = cekCampurKemasan(
         items.map((i) => i.payload),
@@ -282,19 +295,24 @@ export function FkpCreatePage() {
                         <div className="card-body space-y-4">
                             {!outletBelumTerdaftar && (
                                 <div>
-                                    <Select
-                                        label="Distributor" required
-                                        placeholder={loadingDist ? 'Memuat...' : '— Pilih distributor —'}
-                                        error={errors.distributor_id?.message}
-                                        disabled={(isOutlet || isDistributor) && distributors.length === 1}
-                                        {...register('distributor_id')}
-                                    >
-                                        {distributors.map((d) => (
-                                            <option key={d.id} value={d.id}>
-                                                [{d.kode_distributor}] {d.nama_perusahaan}
-                                            </option>
-                                        ))}
-                                    </Select>
+                                    <Controller
+                                        name="distributor_id"
+                                        control={control}
+                                        render={({ field }) => (
+                                            <SearchableSelect
+                                                label="Distributor" required
+                                                placeholder={loadingDist ? 'Memuat...' : 'Cari atau pilih distributor'}
+                                                options={distributorOptions}
+                                                value={field.value || null}
+                                                onChange={(v) => field.onChange(v ?? '')}
+                                                onBlur={field.onBlur}
+                                                ref={field.ref}
+                                                loading={loadingDist}
+                                                disabled={(isOutlet || isDistributor) && distributors.length === 1}
+                                                error={errors.distributor_id?.message}
+                                            />
+                                        )}
+                                    />
                                     {(isOutlet || isDistributor) && distributors.length === 1 && (
                                         <p className="text-xs text-gray-400 mt-1">
                                             {isOutlet ? 'Outlet Anda terdaftar di distributor ini.' : 'Distributor Anda.'}
@@ -311,18 +329,26 @@ export function FkpCreatePage() {
                                 isOutlet ? (
                                     outlets.length > 0 && (
                                         <div>
-                                            <Select
-                                                label="Outlet" required
-                                                placeholder={loadingOutlets ? 'Memuat...' : '— Pilih outlet Anda —'}
-                                                error={errors.outlet_id?.message}
-                                                {...register('outlet_id')}
-                                            >
-                                                {outlets.map((o) => (
-                                                    <option key={o.id} value={o.id}>
-                                                        [{o.kode_outlet}] {o.nama_toko}
-                                                    </option>
-                                                ))}
-                                            </Select>
+                                            <Controller
+                                                name="outlet_id"
+                                                control={control}
+                                                render={({ field }) => (
+                                                    <SearchableSelect
+                                                        label="Outlet" required
+                                                        placeholder={loadingOutlets ? 'Memuat...' : 'Pilih outlet Anda'}
+                                                        options={outletOptions}
+                                                        value={field.value || null}
+                                                        onChange={(v) => field.onChange(v ?? '')}
+                                                        onBlur={field.onBlur}
+                                                        ref={field.ref}
+                                                        loading={loadingOutlets}
+                                                        // Outlet milik PIC biasanya sedikit: cukup select biasa
+                                                        searchable={outlets.length > 5}
+                                                        clearable={false}
+                                                        error={errors.outlet_id?.message}
+                                                    />
+                                                )}
+                                            />
                                             <p className="text-xs text-gray-400 mt-1">
                                                 {outlets.length === 1
                                                     ? 'Keluhan tercatat atas nama outlet Anda.'
@@ -332,17 +358,29 @@ export function FkpCreatePage() {
                                     )
                                 ) : (
                                     outlets.length > 0 && (
-                                        <Select
-                                            label={`Outlet (opsional)${loadingOutlets ? ' — Memuat...' : ''}`}
-                                            placeholder="— Pilih Outlet —"
-                                            {...register('outlet_id')}
-                                        >
-                                            {outlets.map((o) => (
-                                                <option key={o.id} value={o.id}>
-                                                    [{o.kode_outlet}] {o.nama_toko}
-                                                </option>
-                                            ))}
-                                        </Select>
+                                        <div>
+                                            <Controller
+                                                name="outlet_id"
+                                                control={control}
+                                                render={({ field }) => (
+                                                    <SearchableSelect
+                                                        label="Outlet (opsional)"
+                                                        placeholder="Cari atau pilih outlet"
+                                                        options={outletOptions}
+                                                        value={field.value || null}
+                                                        onChange={(v) => field.onChange(v ?? '')}
+                                                        onBlur={field.onBlur}
+                                                        ref={field.ref}
+                                                        loading={loadingOutlets}
+                                                    />
+                                                )}
+                                            />
+                                            {outlets.length === 1 && watchOutlet === outlets[0].id && (
+                                                <p className="text-xs text-gray-400 mt-1">
+                                                    Hanya ada satu outlet di distributor ini, otomatis dipilih.
+                                                </p>
+                                            )}
+                                        </div>
                                     )
                                 )
                             )}
@@ -571,7 +609,7 @@ export function FkpCreatePage() {
                         <button
                             type="submit"
                             onClick={() => setSubmitMode('draft')}
-disabled={isCreating || outletBelumTerdaftar || !lokasi_pembelian || items.length === 0 || !!campurKemasan}                            className="btn-secondary w-full md:w-fit">
+                            disabled={isCreating || outletBelumTerdaftar || !lokasi_pembelian || items.length === 0 || !!campurKemasan} className="btn-secondary w-full md:w-fit">
                             {isCreating && submitMode === 'draft'
                                 ? <><Loader2 className="w-4 h-4 animate-spin" /> Menyimpan...</>
                                 : <><Package className="w-4 h-4" />Simpan Draft</>}

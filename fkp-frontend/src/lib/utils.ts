@@ -89,3 +89,33 @@ export function formatRupiah(amount: number | null | undefined): string {
     minimumFractionDigits: 0,
   }).format(amount)
 }
+
+export function getChangedFields<T extends object>(
+  original: T,
+  current: Partial<Record<keyof T, unknown>>,
+  digitsOnly: (keyof T)[] = [],
+): Partial<T> {
+  const out: Record<string, unknown> = {}
+  for (const key of Object.keys(current) as (keyof T)[]) {
+    let a = (original as Record<string, unknown>)[key as string] ?? null
+    let b = current[key] ?? null
+
+    if (typeof b === 'string') {
+      b = b.trim() === '' ? null : b.trim()
+    }
+    if (digitsOnly.includes(key)) {
+      if (typeof a === 'string') a = a.replace(/\D/g, '') || null
+      if (typeof b === 'string') b = b.replace(/\D/g, '') || null
+    }
+    if (a !== b) out[key as string] = b
+  }
+  return out as Partial<T>
+}
+
+/** Tampilan NPWP: 15 digit → XX.XXX.XXX.X-XXX.XXX; selain itu digit apa adanya. */
+export function formatNpwp(v: string | null | undefined): string {
+  if (!v) return '-'
+  const d = v.replace(/\D/g, '')
+  if (d.length !== 15) return d
+  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}.${d.slice(8, 9)}-${d.slice(9, 12)}.${d.slice(12)}`
+}

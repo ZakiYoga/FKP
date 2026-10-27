@@ -5,7 +5,8 @@ export interface OutletRegisterRequest {
   password: string
   retype_password: string
   nama_toko: string
-  pemilik_toko: string
+  first_name: string
+  last_name?: string | null
   tipe_toko: string
   no_hp: string
   distributor_id: string
@@ -26,6 +27,8 @@ export interface OutletRegistrationDetail {
   kode_outlet: string
   nama_toko: string
   pemilik_toko: string
+  first_name: string
+  last_name?: string | null
   tipe_toko: string
   no_hp: string | null
   email: string

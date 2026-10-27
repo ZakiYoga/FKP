@@ -19,14 +19,28 @@ api.interceptors.request.use(
   (error) => Promise.reject(error),
 )
 
+// Endpoint auth publik: 401 dari sini tidak boleh memicu logout + redirect ke /login
+const PUBLIC_AUTH_PATHS = [
+  '/auth/login',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+  '/auth/email/verify',
+  '/auth/email/resend-verification',
+]
+
 // ─── RESPONSE INTERCEPTOR ─────────────────────────────────────────────────────
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    const isLoginEndpoint = error.config?.url?.includes('/auth/login')
+    const isPublicAuthEndpoint = PUBLIC_AUTH_PATHS.some((p) =>
+      error.config?.url?.includes(p),
+    )
 
-    if (error.response?.status === 401 && !isLoginEndpoint) {
-      // Bersihkan auth state dan query cache sekaligus
+    if (error.response?.status === 401 && !isPublicAuthEndpoint) {
+      const detail = error.response?.data?.detail
+      if (typeof detail === 'string' && detail.includes('password telah diubah')) {
+        sessionStorage.setItem('auth_notice', detail)
+      }
       useAuthStore.getState().clearAuth()
       queryClient.clear()
 

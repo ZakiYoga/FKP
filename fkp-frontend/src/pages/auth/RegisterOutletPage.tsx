@@ -99,7 +99,7 @@ export function RegisterOutletPage() {
   const [step, setStep] = useState(0)
   const [showPw, setShowPw] = useState(false)
   const [showPw2, setShowPw2] = useState(false)
-  const [isSuccess, setIsSuccess] = useState<{ kode_outlet: string; message: string } | null>(null)
+  const [isSuccess, setIsSuccess] = useState<{ kode_outlet: string; message: string; email: string } | null>(null)
 
   const { mutate: register, isPending } = useRegisterOutlet()
   const { distributors, isLoading: loadingDist, error: distError } = usePublicDistributors()
@@ -126,7 +126,7 @@ export function RegisterOutletPage() {
   }))
 
   const stepFields: (keyof RegisterOutletFormValues)[][] = [
-    ['nama_toko', 'pemilik_toko', 'tipe_toko', 'no_hp', 'alamat_lengkap'],
+    ['nama_toko', 'first_name', 'last_name', 'tipe_toko', 'no_hp', 'alamat_lengkap'],
     ['distributor_id'],
     ['email', 'password', 'retype_password'],
   ]
@@ -139,9 +139,14 @@ export function RegisterOutletPage() {
   }
 
   const onSubmit = (data: RegisterOutletFormValues) => {
+    const email = data.email.trim().toLowerCase()
     register(
-      { ...data, alamat_lengkap: data.alamat_lengkap || "" },
-      { onSuccess: (res) => setIsSuccess({ kode_outlet: res.kode_outlet, message: res.message }) },
+      {
+        ...data,
+        last_name: data.last_name?.trim() || undefined,
+        alamat_lengkap: data.alamat_lengkap || "",
+      },
+      { onSuccess: (res) => setIsSuccess({ kode_outlet: res.kode_outlet, message: res.message, email }) },
     )
   }
 
@@ -169,6 +174,19 @@ export function RegisterOutletPage() {
         <div className="bg-gray-50 border border-gray-100 rounded-xl px-5 py-4 mb-6">
           <p className="text-xs text-gray-400 mb-1">Kode Outlet Anda</p>
           <p className="text-xl font-bold text-brand-700 tracking-widest">{isSuccess.kode_outlet}</p>
+        </div>
+        <div className="bg-gray-50 border border-gray-100 rounded-xl px-5 py-4 mb-6 text-left">
+          <p className="text-xs font-semibold text-gray-700 mb-1">Verifikasi email Anda</p>
+          <p className="text-xs text-gray-500 leading-relaxed">
+            Kami mengirim email verifikasi ke{' '}
+            <span className="font-medium text-gray-700 break-all">{isSuccess.email}</span>. Klik tautan
+            di email tersebut agar fitur lupa password dapat dipakai. Tidak menerima email? Periksa folder
+            spam atau{' '}
+            <Link to="/verify-email" className="text-brand-600 font-medium hover:underline">
+              kirim ulang tautan verifikasi
+            </Link>
+            .
+          </p>
         </div>
         <p className="text-xs text-gray-400 mb-8 leading-relaxed">
           Simpan kode outlet di atas. Anda akan mendapat notifikasi setelah akun diverifikasi oleh distributor.
@@ -240,7 +258,11 @@ export function RegisterOutletPage() {
         {step === 0 && (
           <motion.div key="step0" variants={stepContentVariants} initial="initial" animate="animate" exit="exit" className="space-y-4">
             <Input label="Nama Toko" required placeholder="Toko Sumber Jaya" error={errors.nama_toko?.message} {...reg('nama_toko')} />
-            <Input label="Nama Pemilik" required placeholder="Budi Santoso" error={errors.pemilik_toko?.message} {...reg('pemilik_toko')} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input label="Nama Depan" required placeholder="Budi" error={errors.first_name?.message} {...reg('first_name')} />
+              <Input label="Nama Belakang" placeholder="Santoso" error={errors.last_name?.message} {...reg('last_name')} />
+            </div>
+            <p className="-mt-2 text-xs text-gray-400">Nama belakang boleh dikosongkan.</p>
             <div>
               <label htmlFor="tipe_toko" className="label label-required">Tipe Toko</label>
               <Controller
@@ -406,13 +428,13 @@ export function RegisterOutletPage() {
           <button
             type="button"
             onClick={() => setStep((s) => s - 1)}
-            className="btn-secondary flex-1 btn-md flex items-center justify-center gap-1.5"
+            className="btn-secondary flex-1 btn-md lg:btn-lg flex items-center justify-center gap-1.5"
           >
             <ChevronLeft className="w-4 h-4" /> Kembali
           </button>
         )}
         {step < STEPS.length - 1 ? (
-          <button type="button" onClick={handleNext} className="btn-primary flex-1 btn-md">
+          <button type="button" onClick={handleNext} className="btn-primary flex-1 btn-md lg:btn-lg">
             Lanjut
           </button>
         ) : (

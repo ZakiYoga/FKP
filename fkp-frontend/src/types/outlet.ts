@@ -1,3 +1,13 @@
+import type { Outlet } from '@/types/index'
+import { WilayahLengkap } from './wilayah'
+
+export interface OutletDetail extends Outlet {
+  can_edit: boolean
+  edit_blocked_reason: string | null
+  kelurahan_id: number | null
+  wilayah?: WilayahLengkap | null
+}
+
 export const TIPE_TOKO_OPTIONS = [
   { value: 'retail_tradisional', label: 'Retail Tradisional' },
   { value: 'retail_modern', label: 'Retail Modern' },
@@ -28,23 +38,6 @@ export const TIPE_TOKO_VALUES: string[] = TIPE_TOKO_OPTIONS.map((o) => o.value)
 export const getTipeTokoLabel = (v: string) =>
   TIPE_TOKO_OPTIONS.find((o) => o.value === v)?.label ?? v
 
-export interface Outlet {
-  id: string
-  distributor_id: string
-  kode_outlet: string
-  nama_toko: string
-  pemilik_toko: string
-  tipe_toko: string
-  no_hp: string | null
-  email: string | null
-  alamat_lengkap: string | null
-  latitude: number | null
-  longitude: number | null
-  foto_url: string | null
-  pic_user_id: string | null
-  status: string
-}
-
 export interface OutletCreate {
   distributor_id: string
   kode_outlet: string
@@ -54,6 +47,7 @@ export interface OutletCreate {
   no_hp?: string | null
   email?: string | null
   alamat_lengkap?: string | null
+  kode_pos?: string | null
   latitude?: number | null
   longitude?: number | null
   pic_user_id?: string | null
@@ -66,8 +60,24 @@ export interface OutletUpdate {
   no_hp?: string | null
   email?: string | null
   alamat_lengkap?: string | null
+  kode_pos?: string | null
   latitude?: number | null
   longitude?: number | null
   pic_user_id?: string | null
   status?: string
+}
+
+// Cermin OutletSelfUpdate di BE (extra="forbid"). Hanya field ini yang boleh dikirim.
+export interface OutletSelfUpdate {
+  nama_toko?: string
+  pemilik_toko?: string
+  tipe_toko?: TipeToko
+  alamat_lengkap?: string | null
+  kode_pos?: string | null
+  no_hp?: string | null
+  email?: string | null
+  kelurahan_id?: number | null
+  latitude?: number | null
+  longitude?: number | null
+  foto_url?: string | null
 }

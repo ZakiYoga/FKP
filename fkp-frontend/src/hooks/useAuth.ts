@@ -17,7 +17,7 @@ export function useLogin() {
     onSuccess: (res) => {
       setAuth(res.user, res.access_token)
       notifications.show({
-        message: `Selamat datang, ${res.user.nama}!`,
+        message: `Selamat datang, ${res.user.full_name}!`,
         color: 'green',
       })
 

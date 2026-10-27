@@ -2,6 +2,8 @@ import { useMutation, keepPreviousData, useQuery, useQueryClient } from '@tansta
 import toast from 'react-hot-toast'
 import { usersApi, hierarchyApi, type UserListParams } from '@/api/users'
 import { getErrorMessage } from '@/lib/utils'
+import { refreshMe } from '@/hooks/useProfile'
+import { useAuthStore } from '@/store/authStore'
 
 export function useUsers() {
   return useQuery({ queryKey: ['users'], queryFn: usersApi.list })
@@ -37,7 +39,12 @@ export function useUpdateUser(id: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data: Parameters<typeof usersApi.update>[1]) => usersApi.update(id, data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); toast.success('User berhasil diupdate.') },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users'] })
+      // UserDetail tidak membawa objek role, jadi untuk akun sendiri wajib refetch.
+      if (useAuthStore.getState().user?.id === id) void refreshMe(qc)
+      toast.success('User berhasil diupdate.')
+    },
     onError: (e) => toast.error(getErrorMessage(e)),
   })
 }
@@ -47,6 +54,19 @@ export function useDeactivateUser() {
   return useMutation({
     mutationFn: usersApi.deactivate,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); toast.success('User dinonaktifkan.') },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  })
+}
+
+export function useResetUserPassword() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string; password_baru: string; password_baru_konfirmasi: string }) =>
+      usersApi.resetPassword(id, data),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['users'] })
+      toast.success(res.message)
+    },
     onError: (e) => toast.error(getErrorMessage(e)),
   })
 }

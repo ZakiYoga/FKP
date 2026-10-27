@@ -25,7 +25,12 @@ export interface SearchableSelectProps<TOption extends SearchableSelectOption = 
   clearable?: boolean
   /** false: tampil sebagai select biasa (tanpa ketik/cari), cocok untuk daftar pendek. Default true. */
   searchable?: boolean
+  searchValue?: string
+  onSearchChange?: (value: string) => void
   disabled?: boolean
+  /** Tampil seperti input aktif, tapi dropdown tidak bisa dibuka dan nilai tidak bisa diubah. */
+  readOnly?: boolean // BARU
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
   error?: string
   required?: boolean
   /** Batas jumlah item yang dirender di dropdown. */
@@ -45,10 +50,10 @@ export interface SearchableSelectProps<TOption extends SearchableSelectOption = 
 // Mantine v9 bergaya via CSS bawaannya. Modifier `!` (important Tailwind v4) dipakai agar
 // kelas Tailwind tetap menang walau CSS Mantine tidak dibungkus @layer.
 const CLASS_NAMES = {
-  label: 'mb-1 text-sm font-medium text-gray-700',
+  label: 'mb-1 font-semibold text-gray-700 dark:text-gray-400',
   input:
-    'border-gray-200! text-gray-700! placeholder:text-gray-400 ' +
-    'focus:border-brand-400! focus:ring-2 focus:ring-brand-500/20',
+    'border-gray-300 text-gray-700 dark:text-gray-200 placeholder:text-gray-400 ' +
+    'focus:border-brand-400! dark:border-[var(--mantine-color-gray-7)] focus:ring-2 focus:ring-brand-500/20',
   dropdown: 'border-gray-200!',
   option:
     'text-sm data-combobox-selected:bg-brand-50! data-combobox-selected:text-gray-900! ' +
@@ -66,7 +71,10 @@ export function SearchableSelect<TOption extends SearchableSelectOption = Search
   loading = false,
   clearable = true,
   searchable = true,
+  searchValue,
+  onSearchChange,
   disabled,
+  readOnly,
   error,
   required,
   limit = 100,
@@ -103,7 +111,7 @@ export function SearchableSelect<TOption extends SearchableSelectOption = Search
       aria-label={ariaLabel}
       className={cn(className)}
       classNames={CLASS_NAMES}
-      size="sm"
+      size="md"
       radius="md"
       data={options}
       value={safeValue}
@@ -122,7 +130,10 @@ export function SearchableSelect<TOption extends SearchableSelectOption = Search
       withAsterisk={required}
       error={error}
       disabled={disabled}
+      readOnly={readOnly} // BARU
       searchable={searchable}
+      searchValue={searchValue}
+      onSearchChange={onSearchChange}
       clearable={clearable}
       // Satu-satunya cara menghapus nilai adalah tombol clear, bukan klik ulang item terpilih.
       allowDeselect={false}

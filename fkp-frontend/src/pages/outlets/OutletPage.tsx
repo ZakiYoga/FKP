@@ -17,11 +17,12 @@ import { Select } from '@/components/ui/Select'
 import { PageLoader } from '@/components/ui/Spinner'
 import { useKodeRole } from '@/store/authStore'
 import {
-  getTipeTokoLabel, STATUS_OUTLET_OPTIONS, TIPE_TOKO_OPTIONS, type Outlet,
+  getTipeTokoLabel, STATUS_OUTLET_OPTIONS, TIPE_TOKO_OPTIONS,
 } from '@/types/outlet'
 import { Button, Pagination } from '@mantine/core'
 import { OutletFilterBar } from '@/components/outlet/OutletFilterBar'
 import { EntityCard, EntityCardIconButton } from '@/components/ui/EntityCard'
+import { Outlet } from '@/types'
 import PageHeader from '@/components/ui/PageHeader'
 
 // Koordinat diisi sebagai string (input type="number" menghasilkan string),

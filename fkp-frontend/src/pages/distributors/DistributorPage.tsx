@@ -28,6 +28,15 @@ const createSchema = z.object({
   kode_distributor: z.string().min(1, 'Kode distributor wajib diisi'),
   nama_perusahaan: z.string().min(1, 'Nama perusahaan wajib diisi'),
   pemilik: z.string().min(1, 'Nama pemilik wajib diisi'),
+  npwp: z
+    .string()
+    .optional()
+    .refine((v) => !v?.trim() || /^[\d.\-\s]+$/.test(v), 'NPWP hanya boleh berisi angka, titik, dan strip')
+    .refine((v) => {
+      if (!v?.trim()) return true
+      const len = v.replace(/\D/g, '').length
+      return len === 15 || len === 16
+    }, 'NPWP harus 15 atau 16 digit'),
   no_telepon: z.string().optional(),
   email_perusahaan: z.string().email('Format email tidak valid').optional().or(z.literal('')),
   alamat_lengkap: z.string().optional(),
@@ -77,6 +86,12 @@ const ACTION_CONFIG: Record<
       `Yakin ingin mengaktifkan kembali "${nama}"? Distributor akan bisa menerima FKP baru lagi.`,
     confirmLabel: 'Ya, Aktifkan',
   },
+}
+
+function formatNpwp(digits: string) {
+  const d = digits.replace(/\D/g, '')
+  if (d.length !== 15) return d
+  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}.${d.slice(8, 9)}-${d.slice(9, 12)}.${d.slice(12)}`
 }
 
 export function DistributorPage() {
@@ -165,6 +180,7 @@ export function DistributorPage() {
       kode_distributor: d.kode_distributor,
       nama_perusahaan: d.nama_perusahaan,
       pemilik: d.pemilik,
+      npwp: d.npwp ?? '',
       no_telepon: d.no_telepon ?? '',
       email_perusahaan: d.email_perusahaan ?? '',
       alamat_lengkap: d.alamat_lengkap ?? '',
@@ -178,8 +194,11 @@ export function DistributorPage() {
   }
 
   const onSubmit = (data: CreateForm) => {
+    const npwp = data.npwp?.replace(/\D/g, '') || null
+
     const createPayload = {
       ...data,
+      npwp,
       no_telepon: data.no_telepon || null,
       email_perusahaan: data.email_perusahaan || null,
       alamat_lengkap: data.alamat_lengkap || null,
@@ -188,6 +207,7 @@ export function DistributorPage() {
 
     const updatePayload = {
       ...data,
+      npwp,
       no_telepon: data.no_telepon || undefined,
       email_perusahaan: data.email_perusahaan || undefined,
       alamat_lengkap: data.alamat_lengkap || undefined,
@@ -219,6 +239,7 @@ export function DistributorPage() {
         subtitle={d.pemilik}
         meta={[
           area && { text: area.kode_area },
+          d.npwp && { text: `NPWP ${formatNpwp(d.npwp)}` },
           d.no_telepon && { icon: Phone, text: d.no_telepon },
           d.email_perusahaan && { icon: Mail, text: d.email_perusahaan },
         ]}
@@ -359,6 +380,13 @@ export function DistributorPage() {
             required
             error={errors.pemilik?.message}
             {...register('pemilik')}
+          />
+          <Input
+            label="NPWP"
+            placeholder="15 atau 16 digit, contoh: 01.234.567.8-901.234"
+            inputMode="numeric"
+            error={errors.npwp?.message}
+            {...register('npwp')}
           />
           <div className="grid grid-cols-2 gap-4">
             <Input label="No. Telepon" placeholder="08xxx" {...register('no_telepon')} />

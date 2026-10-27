@@ -1,6 +1,28 @@
 import api from '@/lib/axios'
-import type { Distributor, Product, Area, Provinsi } from '@/types'
-import type { Outlet, OutletCreate, OutletUpdate } from '@/types/outlet'
+import type {
+  Distributor, Outlet, Product, Area, Provinsi,
+  DistributorDetail, DistributorSelfUpdate
+} from '@/types'
+import type { OutletCreate, OutletUpdate, OutletDetail, OutletSelfUpdate } from '@/types/outlet'
+
+const OUTLET_SELF_FIELDS = [
+  'nama_toko', 'pemilik_toko', 'tipe_toko', 'alamat_lengkap', 'no_hp',
+  'email', 'kelurahan_id', 'kode_pos', 'latitude', 'longitude', 'foto_url',
+] as const
+
+const DISTRIBUTOR_SELF_FIELDS = [
+  'nama_perusahaan', 'pemilik', 'no_telepon', 'email_perusahaan',
+  'alamat_lengkap', 'kode_pos', 'kelurahan_id', 'npwp', 'latitude', 'longitude',
+] as const
+
+function pickAllowed<T extends object>(data: T, keys: readonly string[]): Partial<T> {
+  const out: Record<string, unknown> = {}
+  for (const k of keys) {
+    const v = (data as Record<string, unknown>)[k]
+    if (v !== undefined) out[k] = v
+  }
+  return out as Partial<T>
+}
 
 // ─── AREA ─────────────────────────────────────────────────────────────────────
 export const areaApi = {
@@ -42,8 +64,19 @@ export const distributorApi = {
     const res = await api.get<Distributor[]>('/distributors/', { params })
     return res.data
   },
-  detail: async (id: string): Promise<Distributor> => {
-    const res = await api.get<Distributor>(`/distributors/${id}`)
+  detail: async (id: string): Promise<DistributorDetail> => {
+    const res = await api.get<DistributorDetail>(`/distributors/${id}`)
+    return res.data
+  },
+  mine: async (): Promise<DistributorDetail[]> => {
+    const res = await api.get<DistributorDetail[]>('/distributors/mine')
+    return res.data
+  },
+  updateMine: async (id: string, data: DistributorSelfUpdate): Promise<DistributorDetail> => {
+    const res = await api.patch<DistributorDetail>(
+      `/distributors/${id}/profile`,
+      pickAllowed(data, DISTRIBUTOR_SELF_FIELDS),
+    )
     return res.data
   },
   create: async (data: {
@@ -69,6 +102,8 @@ export const distributorApi = {
     alamat_lengkap: string
     kode_pos: string
     status: string
+    kelurahan_id: number | null
+    npwp: string
   }>): Promise<Distributor> => {
     const res = await api.put<Distributor>(`/distributors/${id}`, data)
     return res.data
@@ -85,11 +120,21 @@ export const outletApi = {
     const res = await api.get<Outlet[]>('/outlets/', { params })
     return res.data
   },
-  detail: async (id: string): Promise<Outlet> => {
-    const res = await api.get<Outlet>(`/outlets/${id}`)
+  detail: async (id: string): Promise<OutletDetail> => {
+    const res = await api.get<OutletDetail>(`/outlets/${id}`)
     return res.data
   },
-
+  mine: async (): Promise<OutletDetail[]> => {
+    const res = await api.get<OutletDetail[]>('/outlets/mine')
+    return res.data
+  },
+  updateMine: async (id: string, data: OutletSelfUpdate): Promise<OutletDetail> => {
+    const res = await api.patch<OutletDetail>(
+      `/outlets/${id}/profile`,
+      pickAllowed(data, OUTLET_SELF_FIELDS),
+    )
+    return res.data
+  },
   create: (data: OutletCreate) =>
     api.post<Outlet>('/outlets', data).then((r) => r.data),
 

@@ -275,12 +275,10 @@ export function FkpTrackPage() {
                         </div>
 
                         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-                            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-                                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-5">
-                                    Riwayat Proses
-                                </h3>
-                                <PhaseTimeline phases={trackingData.phases} />
-                            </div>
+                            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-5">
+                                Riwayat Proses
+                            </h3>
+                            <PhaseTimeline phases={trackingData.phases} />
                         </div>
 
                         {trackingData.items.length > 0 && (

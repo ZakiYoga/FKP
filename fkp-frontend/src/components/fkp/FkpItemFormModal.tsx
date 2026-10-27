@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { forwardRef, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
     buildItemSchema, type ItemFormData, ITEM_FORM_BLANK, JENIS_KEMASAN_OPTIONS,
@@ -8,7 +8,7 @@ import {
 import { Upload, Plus, CheckCircle2, AlertCircle, Info, Trash } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
-import { Select } from '@/components/ui/Select'
+import { SearchableSelect } from '@/components/ui/SearchableSelect'
 import { Textarea } from '@/components/ui/Textarea'
 import type { FkpItem, FkpItemCreatePayload, Product, FkpAttachment } from '@/types'
 import { JENIS_KELUHAN_LABEL } from '@/types'
@@ -70,6 +70,38 @@ function FotoWajibChip({ label, terpenuhi }: { label: string; terpenuhi: boolean
 
 // ─── Komponen utama ───────────────────────────────────────────────────────────
 
+// ─── Field tanggal ────────────────────────────────────────────────────────────
+// Satu komponen untuk semua field tanggal supaya style-nya pasti sama (label, tinggi,
+// border, error). Memakai class input-base / label / input-error bawaan project,
+// sama seperti field non-Input lain di aplikasi.
+
+type DateFieldProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'> & {
+    label: string
+    error?: string
+}
+
+const DateField = forwardRef<HTMLInputElement, DateFieldProps>(function DateField(
+    { label, error, required, className, ...rest },
+    ref,
+) {
+    const id = useId()
+    return (
+        <div>
+            <label htmlFor={id} className={`label${required ? ' label-required' : ''}`}>
+                {label}
+            </label>
+            <input
+                ref={ref}
+                id={id}
+                type="date"
+                className={`input-base${error ? ' input-error' : ''}${className ? ` ${className}` : ''}`}
+                {...rest}
+            />
+            {error && <p className="mt-1.5 text-xs text-red-600">{error}</p>}
+        </div>
+    )
+})
+
 export function FkpItemFormModal({
     isOpen, onClose, products, initialData, initialFiles,
     existingAttachments, variant = 'add',
@@ -91,7 +123,7 @@ export function FkpItemFormModal({
     const originalExpired = initialData?.expired_date || null
     const schema = useMemo(() => buildItemSchema(originalExpired), [originalExpired])
 
-    const { register, handleSubmit, watch, reset, setValue, formState: { errors } } =
+    const { register, control, handleSubmit, watch, reset, setValue, formState: { errors } } =
         useForm<ItemFormData>({
             resolver: zodResolver(schema),
             defaultValues: ITEM_FORM_BLANK,
@@ -167,6 +199,30 @@ export function FkpItemFormModal({
         () => products.filter((p) => p.is_active || p.id === watchProduk),
         [products, watchProduk],
     )
+
+    // ── Opsi untuk select ─────────────────────────────────────────────────────
+    const produkOptions = produkKatalog.map((p) => ({
+        value: p.id,
+        label: `[${p.kode_produk}] ${p.nama_produk}`, // kode ikut dicari, sama dengan label item di daftar FKP
+    }))
+
+    const kemasanOptions = [
+        ...(kemasanTidakTersedia
+            ? [{ value: watchKemasan as string, label: `${watchKemasan} (tidak tersedia untuk produk ini)` }]
+            : []),
+        ...opsiKemasan.map((opt) => {
+            const beda = !!kelompokAda && kelompokKemasan(opt.value) !== kelompokAda
+            return {
+                value: opt.value as string,
+                label: `${opt.label}${beda ? ' (tidak bisa dicampur dengan item lain)' : ''}`,
+                disabled: beda,
+            }
+        }),
+    ]
+
+    const keluhanOptions = Object.entries(JENIS_KELUHAN_LABEL).map(([value, label]) => ({ value, label }))
+    const adaSampleOptions = ADA_SAMPLE_KELUHAN_OPTIONS.map((o) => ({ value: o.value as string, label: o.label }))
+    const kondisiSampleOptions = KONDISI_SAMPLE_OPTIONS.map((o) => ({ value: o.value as string, label: o.label }))
 
     const tipeTerpenuhi = new Set([
         ...localExisting.map((a) => a.tipe_dokumen).filter((t): t is string => !!t),
@@ -268,44 +324,49 @@ export function FkpItemFormModal({
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                         Identifikasi Produk
                     </p>
-                    <Select
-                        label="Produk dari Katalog"
-                        placeholder="— Pilih produk —"
-                        error={errors.product_id?.message}
-                        {...register('product_id', {
-                            onChange: (e) => handleProdukChange(e.target.value),
-                        })}
-                    >
-                        {produkKatalog.map((p) => (
-                            <option key={p.id} value={p.id}>
-                                {p.nama_produk}
-                            </option>
-                        ))}
-                    </Select>
+                    <Controller
+                        name="product_id"
+                        control={control}
+                        render={({ field }) => (
+                            <SearchableSelect
+                                label="Produk dari Katalog"
+                                placeholder="Cari kode atau nama produk"
+                                options={produkOptions}
+                                value={field.value || null}
+                                onChange={(v) => {
+                                    field.onChange(v ?? '')
+                                    handleProdukChange(v ?? '')
+                                }}
+                                onBlur={field.onBlur}
+                                ref={field.ref}
+                                error={errors.product_id?.message}
+                            />
+                        )}
+                    />
                 </div>
 
                 {/* ── Kemasan & Qty ───────────────────────────────────── */}
                 <div className="grid sm:grid-cols-2 gap-3">
-                    <Select
-                        label="Jenis Kemasan"
-                        placeholder={watchProduk ? '— Pilih kemasan —' : '— Pilih produk dulu —'}
-                        required
-                        disabled={!watchProduk}
-                        error={errors.jenis_kemasan?.message}
-                        {...register('jenis_kemasan')}
-                    >
-                        {kemasanTidakTersedia && (
-                            <option value={watchKemasan}>{watchKemasan} (tidak tersedia untuk produk ini)</option>
+                    <Controller
+                        name="jenis_kemasan"
+                        control={control}
+                        render={({ field }) => (
+                            <SearchableSelect
+                                label="Jenis Kemasan"
+                                required
+                                searchable={false}
+                                clearable={false}
+                                placeholder={watchProduk ? 'Pilih kemasan' : 'Pilih produk dulu'}
+                                options={kemasanOptions}
+                                value={field.value || null}
+                                onChange={(v) => field.onChange(v ?? '')}
+                                onBlur={field.onBlur}
+                                ref={field.ref}
+                                disabled={!watchProduk}
+                                error={errors.jenis_kemasan?.message}
+                            />
                         )}
-                        {opsiKemasan.map((opt) => {
-                            const beda = !!kelompokAda && kelompokKemasan(opt.value) !== kelompokAda
-                            return (
-                                <option key={opt.value} value={opt.value} disabled={beda}>
-                                    {opt.label}{beda ? ' (tidak bisa dicampur dengan item lain)' : ''}
-                                </option>
-                            )
-                        })}
-                    </Select>
+                    />
                     <Input
                         label={qtyLabel}
                         type="number"
@@ -362,9 +423,8 @@ export function FkpItemFormModal({
                         placeholder="1-11503401"
                         required
                         {...register('batch_number')} />
-                    <Input
+                    <DateField
                         label="Tanggal Kadaluarsa"
-                        type="date"
                         min={format(
                             addDays(toZonedTime(new Date(), TIMEZONE), 1),
                             'yyyy-MM-dd'
@@ -380,18 +440,28 @@ export function FkpItemFormModal({
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                         Detail Keluhan
                     </p>
-                    <Select
-                        label="Jenis Keluhan" required
-                        placeholder="— Pilih jenis keluhan —"
-                        error={errors.jenis_keluhan?.message}
-                        {...register('jenis_keluhan', {
-                            onChange: () => setValue('jenis_keluhan_custom', '')
-                        })}
-                    >
-                        {Object.entries(JENIS_KELUHAN_LABEL).map(([val, label]) => (
-                            <option key={val} value={val}>{label}</option>
-                        ))}
-                    </Select>
+                    <Controller
+                        name="jenis_keluhan"
+                        control={control}
+                        render={({ field }) => (
+                            <SearchableSelect
+                                label="Jenis Keluhan"
+                                required
+                                searchable={false}
+                                clearable={false}
+                                placeholder="Pilih jenis keluhan"
+                                options={keluhanOptions}
+                                value={field.value || null}
+                                onChange={(v) => {
+                                    field.onChange(v ?? '')
+                                    setValue('jenis_keluhan_custom', '')
+                                }}
+                                onBlur={field.onBlur}
+                                ref={field.ref}
+                                error={errors.jenis_keluhan?.message}
+                            />
+                        )}
+                    />
                     {/* Muncul hanya saat pilih "Lainnya" */}
                     {watchJenisKeluhan === 'lainnya' && (
                         <Input
@@ -418,46 +488,60 @@ export function FkpItemFormModal({
                         2. Kalau "Ada" -> Kondisi Sample: Utuh / Terbuka /
                            Kemasan Plastik / Lainnya
                         3. Kalau "Lainnya" -> field teks bebas wajib diisi */}
-                    <Select
-                        label="Ada Sample Keluhan?"
-                        className="truncate"
-                        error={errors.ada_sample_keluhan?.message}
-                        {...register('ada_sample_keluhan', {
-                            onChange: (e) => {
-                                // Reset kondisi_sample & teks bebas kalau balik
-                                // ke "Tidak Ada" — supaya tidak ada data basi
-                                // tersimpan dari pilihan sebelumnya.
-                                if (e.target.value !== 'ada') {
-                                    setValue('kondisi_sample', undefined)
-                                    setValue('kondisi_sample_lainnya', '')
-                                }
-                            },
-                        })}
-                    >
-                        {ADA_SAMPLE_KELUHAN_OPTIONS.map((opt) => (
-                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                    </Select>
-
-                    {watchAdaSampleKeluhan === 'ada' && (
-                        <Select
-                            label="Kondisi Sample" required
-                            placeholder="— Pilih kondisi sample —"
-                            error={errors.kondisi_sample?.message}
-                            {...register('kondisi_sample', {
-                                onChange: (e) => {
-                                    // Reset teks bebas kalau pindah dari "Lainnya"
-                                    // ke opsi lain.
-                                    if (e.target.value !== 'lainnya') {
+                    <Controller
+                        name="ada_sample_keluhan"
+                        control={control}
+                        render={({ field }) => (
+                            <SearchableSelect
+                                label="Ada Sample Keluhan?"
+                                searchable={false}
+                                clearable={false}
+                                options={adaSampleOptions}
+                                value={field.value ?? null}
+                                onChange={(v) => {
+                                    field.onChange(v)
+                                    // Reset kondisi_sample & teks bebas kalau balik
+                                    // ke "Tidak Ada" — supaya tidak ada data basi
+                                    // tersimpan dari pilihan sebelumnya.
+                                    if (v !== 'ada') {
+                                        setValue('kondisi_sample', undefined)
                                         setValue('kondisi_sample_lainnya', '')
                                     }
-                                },
-                            })}
-                        >
-                            {KONDISI_SAMPLE_OPTIONS.map((opt) => (
-                                <option key={opt.value} value={opt.value}>{opt.label}</option>
-                            ))}
-                        </Select>
+                                }}
+                                onBlur={field.onBlur}
+                                ref={field.ref}
+                                error={errors.ada_sample_keluhan?.message}
+                            />
+                        )}
+                    />
+
+                    {watchAdaSampleKeluhan === 'ada' && (
+                        <Controller
+                            name="kondisi_sample"
+                            control={control}
+                            render={({ field }) => (
+                                <SearchableSelect
+                                    label="Kondisi Sample"
+                                    required
+                                    searchable={false}
+                                    clearable={false}
+                                    placeholder="Pilih kondisi sample"
+                                    options={kondisiSampleOptions}
+                                    value={field.value ?? null}
+                                    onChange={(v) => {
+                                        field.onChange(v)
+                                        // Reset teks bebas kalau pindah dari "Lainnya"
+                                        // ke opsi lain.
+                                        if (v !== 'lainnya') {
+                                            setValue('kondisi_sample_lainnya', '')
+                                        }
+                                    }}
+                                    onBlur={field.onBlur}
+                                    ref={field.ref}
+                                    error={errors.kondisi_sample?.message}
+                                />
+                            )}
+                        />
                     )}
 
                     {watchAdaSampleKeluhan === 'ada' && watchKondisiSample === 'lainnya' && (
@@ -471,18 +555,16 @@ export function FkpItemFormModal({
                     )}
 
                     <div className="grid sm:grid-cols-2 gap-3">
-                        <Input
+                        <DateField
                             label="Tanggal Pembelian (Invoice)"
-                            type="date"
                             min="2025-01-01"
                             max={today}
                             required
                             error={errors.tanggal_pembelian?.message}
                             {...register('tanggal_pembelian')}
                         />
-                        <Input
+                        <DateField
                             label="Tanggal Dikonsumsi"
-                            type="date"
                             min={watchTanggalBeli}
                             required
                             error={errors.tanggal_dikonsumsi?.message}

@@ -4,6 +4,7 @@ import { useDisclosure, useMediaQuery } from '@mantine/hooks'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
+import { APP_VERSION } from '@/lib/app-config'
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -48,7 +49,7 @@ export function AppLayout() {
             overflow: 'visible',
             position: 'relative',
             zIndex: 999,
-            background: SIDEBAR_BG,
+            background: "#fff",
           }}
         >
           <Sidebar collapsed={collapsed} onToggle={toggleCollapse} />
@@ -98,21 +99,13 @@ export function AppLayout() {
         </AnimatePresence>
       )}
 
-      {/* ── Kolom kanan ── */}
       <Flex
         flex={1}
         direction="column"
         style={{ minWidth: 0, overflow: 'hidden' }}
-        bg="var(--mantine-color-gray-0)"
       >
         {/* Header */}
-        <Box
-          className="
-          h-16 shrink-0
-          border-b border-gray-200 dark:border-gray-800
-          bg-white dark:bg-gray-900
-          shadow-[0_1px_3px_rgba(0,0,0,0.05)]
-          z-100">
+        <Box className="h-16 shrink-0 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-[0_1px_3px_rgba(0,0,0,0.05)] z-100">
           <Header
             mobileOpened={mobileOpened}
             onToggleMobile={toggleMobile}
@@ -120,8 +113,8 @@ export function AppLayout() {
           />
         </Box>
 
-        {/* Main content */}
-        <Box flex={1} style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column' }} className="bg-gray-50 dark:bg-gray-950">
+        {/* Main content: hapus class bg yang rusak */}
+        <Box flex={1} style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
           <Box
             flex={1}
             p={{ base: 'md', sm: 'lg', lg: 'xl' }}
@@ -133,14 +126,11 @@ export function AppLayout() {
           {/* Footer */}
           <Center
             py="xs"
-            bg="var(--mantine-color-body)"
-            style={{
-              borderTop: '1px solid var(--mantine-color-gray-2)',
-              flexShrink: 0,
-            }}
+            className="border-t border-gray-200 dark:border-gray-800"
+            style={{ flexShrink: 0 }}
           >
             <Text size="xs" c="dimmed">
-              FKP SaktiFood v1.0.0 — Sistem Formulir Keluhan Produk
+              FKP SaktiFood Version {APP_VERSION} — Sistem Formulir Keluhan Produk
             </Text>
           </Center>
         </Box>

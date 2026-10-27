@@ -30,6 +30,9 @@ import { NotFoundPage, ForbiddenPage } from '@/pages/ErrorPages'
 import { FkpPcsPage } from '@/pages/apsm/FkpPcsPage'
 import LabQcPage from '@/pages/lab-qc/LabQcPage'
 import Profile from '@/pages/profile/Profile'
+import { ForgotPasswordPage } from '@/pages/auth/ForgotPasswordPage'
+import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage'
+import { VerifyEmailPage } from '@/pages/auth/VerifyEmailPage'
 
 // AuthProvider dibungkus di root layout agar punya akses ke router context
 function RootLayout() {
@@ -48,13 +51,20 @@ export const router = createBrowserRouter([
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: '/', element: <Navigate to="/dashboard" replace /> },
 
-      // ── Publik murni ───────────────────────────────────────────────────────
+      // ── Publik ───────────────────────────────────────────────────────
       {
         element: <PublicLayout />,
         children: [
           { path: '/403', element: <ForbiddenPage /> },
           { path: '/track', element: <FkpTrackPage /> },
           { path: '/track/:fkpId', element: <FkpTrackPage /> },
+        ],
+      },
+      {
+        element: <AuthLayout />,
+        children: [
+          { path: '/reset-password', element: <ResetPasswordPage /> },
+          { path: '/verify-email', element: <VerifyEmailPage /> },
         ],
       },
 
@@ -67,6 +77,7 @@ export const router = createBrowserRouter([
             children: [
               { path: '/login', element: <LoginPage /> },
               { path: '/register/outlet', element: <RegisterOutletPage /> },
+              { path: '/forgot-password', element: <ForgotPasswordPage /> },
             ],
           },
         ],
@@ -85,13 +96,13 @@ export const router = createBrowserRouter([
               // Profile
               { path: '/me', element: <Profile /> },
               { path: '/change-password', element: <ChangePasswordPage /> },
-              
+
               // FKP
               { path: '/fkp', element: <FkpListPage /> },
               { path: '/fkp/baru', element: <FkpCreatePage /> },
               { path: '/fkp/:id', element: <FkpDetailPage /> },
               { path: '/fkp/:id/edit', element: <FkpEditPage /> },
-              
+
               // Master Data
               { path: '/areas', element: <AreaPage /> },
               { path: '/distributors', element: <DistributorPage /> },

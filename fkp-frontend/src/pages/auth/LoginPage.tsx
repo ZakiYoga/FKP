@@ -2,11 +2,12 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useLogin } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
 import { Link } from 'react-router-dom'
+import { notifications } from '@mantine/notifications'
 
 const loginSchema = z.object({
   email: z.string().email('Format email tidak valid'),
@@ -50,6 +51,14 @@ export function LoginPage() {
     login(data)
   }
 
+  useEffect(() => {
+    const notice = sessionStorage.getItem('auth_notice')
+    if (notice) {
+      sessionStorage.removeItem('auth_notice')
+      notifications.show({ message: notice, color: 'yellow' })
+    }
+  }, [])
+
   return (
     <motion.div
       variants={containerVariants}
@@ -90,9 +99,17 @@ export function LoginPage() {
 
         {/* Password */}
         <div>
-          <label htmlFor="password" className="label">
-            Password
-          </label>
+          <div className="flex items-center justify-between">
+            <label htmlFor="password" className="label">
+              Password
+            </label>
+            <Link
+              to="/forgot-password"
+              className="text-xs text-brand-600 font-medium hover:underline"
+            >
+              Lupa password?
+            </Link>
+          </div>
           <div className="relative">
             <input
               id="password"
@@ -120,7 +137,7 @@ export function LoginPage() {
         <button
           type="submit"
           disabled={isPending}
-          className="btn-primary w-full btn-lg mt-2"
+          className="btn-primary w-full btn-md lg:btn-lg"
         >
           {isPending ? (
             <>

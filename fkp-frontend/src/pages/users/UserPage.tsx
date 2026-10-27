@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Plus, Pencil, PowerOff, Eye, EyeOff } from 'lucide-react'
+import { Plus, Pencil, PowerOff, Eye, EyeOff, KeyRound, MoreVertical, CircleAlert, BadgeCheck } from 'lucide-react'
+import { ActionIcon, Menu } from '@mantine/core'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -11,13 +12,21 @@ import { FilterSelect } from '@/components/fkp/FilterSelect'
 import { PageLoader } from '@/components/ui/Spinner'
 import { StatusToggleBadge } from '@/components/ui/StatusToggle'
 import { formatRelative } from '@/lib/utils'
+import { newPasswordSchema, PASSWORD_MAX_BYTES, PASSWORD_MIN_LENGTH } from '@/lib/password'
 import { useCurrentUser } from '@/store/authStore'
 import type { UserDetail } from '@/api/users'
+import type { Gender } from '@/types'
 import { FilterBar, FilterBarField } from '@/components/ui/FilterBar'
-import { Pagination } from '@/components/ui/Pagination' // sesuaikan path
+import { Pagination } from '@/components/ui/Pagination'
 import PageHeader from '@/components/ui/PageHeader'
+import { ResetUserPasswordModal } from '@/components/users/ResetUserPasswordModal' // sesuaikan path-nya
 
 const PAGE_SIZE = 10
+
+const GENDER_OPTIONS = [
+  { value: 'male', label: 'Laki-laki' },
+  { value: 'female', label: 'Perempuan' },
+]
 
 function useDebounced<T>(value: T, delay = 400) {
   const [v, setV] = useState(value)
@@ -27,16 +36,22 @@ function useDebounced<T>(value: T, delay = 400) {
   }, [value, delay])
   return v
 }
+
 const createSchema = z.object({
   role_id: z.string().min(1, 'Role wajib dipilih'),
-  nama: z.string().min(2, 'Nama minimal 2 karakter'),
+  first_name: z.string().trim().min(1, 'Nama depan wajib diisi').max(100, 'Maksimal 100 karakter'),
+  last_name: z.string().trim().max(100, 'Maksimal 100 karakter').optional(),
+  gender: z.union([z.enum(['male', 'female']), z.literal('')]).optional(),
   email: z.string().email('Format email tidak valid'),
-  password: z.string().min(8, 'Password minimal 8 karakter'),
+  // Aturan password dari satu sumber: src/lib/password.ts (min 8 karakter, maks 72 byte)
+  password: newPasswordSchema,
   no_telepon: z.string().optional(),
 })
 
 const updateSchema = z.object({
-  nama: z.string().min(2),
+  first_name: z.string().trim().min(1, 'Nama depan wajib diisi').max(100, 'Maksimal 100 karakter'),
+  last_name: z.string().trim().max(100, 'Maksimal 100 karakter').optional(),
+  gender: z.union([z.enum(['male', 'female']), z.literal('')]).optional(),
   no_telepon: z.string().optional(),
   role_id: z.string().min(1),
   is_active: z.boolean(),
@@ -54,6 +69,7 @@ export function UserPage() {
   const [modalType, setModalType] = useState<'create' | 'edit' | null>(null)
   const [editing, setEditing] = useState<UserDetail | null>(null)
   const [deactivating, setDeactivating] = useState<UserDetail | null>(null)
+  const [resetTarget, setResetTarget] = useState<UserDetail | null>(null)
 
   const debouncedSearch = useDebounced(search)
 
@@ -85,7 +101,7 @@ export function UserPage() {
   // Opsi role untuk select di modal (value = id role)
   const roleOptions = roles.map((r) => ({ value: r.id, label: r.nama_role }))
 
-  // Filter memakai kode_role (bukan id), sesuai logika `matchRole` di `filtered`
+  // Filter role dikirim ke server memakai kode_role (bukan id)
   const roleFilterOptions = roles.map((r) => ({ value: r.kode_role, label: r.nama_role }))
 
   const filterFields: FilterBarField[] = [
@@ -94,7 +110,7 @@ export function UserPage() {
       type: 'select',
       label: 'Role',
       value: roleFilter,
-      onChange: setRoleFilter,
+      onChange: (v: string) => { setRoleFilter(v); setPage(1) },
       options: roleFilterOptions,
       placeholder: 'Semua Role',
     },
@@ -108,7 +124,9 @@ export function UserPage() {
   const openEdit = (u: UserDetail) => {
     setEditing(u)
     updateForm.reset({
-      nama: u.nama,
+      first_name: u.first_name,
+      last_name: u.last_name ?? '',
+      gender: u.gender ?? '',
       no_telepon: u.no_telepon ?? '',
       role_id: u.role_id,
       is_active: u.is_active,
@@ -118,14 +136,24 @@ export function UserPage() {
 
   const onCreateSubmit = (data: CreateForm) => {
     create(
-      { ...data, no_telepon: data.no_telepon || null },
+      {
+        ...data,
+        last_name: data.last_name || null,
+        gender: data.gender || null,
+        no_telepon: data.no_telepon || null,
+      },
       { onSuccess: () => { setModalType(null); createForm.reset() } },
     )
   }
 
   const onUpdateSubmit = (data: UpdateForm) => {
     update(
-      { ...data, no_telepon: data.no_telepon || null },
+      {
+        ...data,
+        last_name: data.last_name || null,
+        gender: data.gender || null,
+        no_telepon: data.no_telepon || null,
+      },
       { onSuccess: () => { setModalType(null); setEditing(null) } },
     )
   }
@@ -174,17 +202,26 @@ export function UserPage() {
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
-                          <span className="text-brand-700 text-xs font-bold">{u.nama.charAt(0).toUpperCase()}</span>
+                          <span className="text-brand-700 text-xs font-bold">{u.first_name.charAt(0).toUpperCase()}</span>
                         </div>
                         <div>
-                          <p className="font-semibold text-gray-900">{u.nama}</p>
+                          <p className="font-semibold text-gray-900">{u.full_name}</p>
                           {u.no_telepon && <p className="text-xs text-gray-400">{u.no_telepon}</p>}
                           {isSelf && <span className="text-xs text-brand-500 font-medium">(Saya)</span>}
                         </div>
                       </div>
                     </td>
-                    <td className="px-5 py-4 text-gray-600">{u.email}</td>
-                    <td className="px-5 py-4">
+                    <td className="px-5 py-4 text-gray-600">
+                      <p className="flex items-center gap-1 leading-1">
+                        {u.email}
+                        {u.email_verified_at ? (
+                          <BadgeCheck className="w-4 h-4 text-brand-500" />
+                        ) : (
+                          <CircleAlert className="w-4 h-4 text-yellow-600" />
+                        )}
+                      </p>
+
+                    </td>                    <td className="px-5 py-4">
                       {role && (
                         <span className="badge bg-brand-50 text-brand-700">{role.nama_role}</span>
                       )}
@@ -194,17 +231,31 @@ export function UserPage() {
                       {u.last_login ? formatRelative(u.last_login) : '—'}
                     </td>
                     <td className="px-5 py-4">
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => openEdit(u)} className="btn-ghost btn-sm p-2 text-gray-500" title="Edit">
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        {!isSelf && u.is_active && (
-                          <button onClick={() => setDeactivating(u)}
-                            className="btn-ghost btn-sm p-2 text-red-400 hover:text-red-600 hover:bg-red-50" title="Nonaktifkan">
-                            <PowerOff className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
+                      <Menu position="bottom-end" shadow="md" width={200} withinPortal>
+                        <Menu.Target>
+                          <ActionIcon variant="subtle" color="gray" aria-label={`Aksi untuk ${u.full_name}`}>
+                            <MoreVertical size={16} />
+                          </ActionIcon>
+                        </Menu.Target>
+                        <Menu.Dropdown>
+                          <Menu.Item leftSection={<Pencil size={14} />} onClick={() => openEdit(u)}>
+                            Edit
+                          </Menu.Item>
+                          {!isSelf && (
+                            <Menu.Item leftSection={<KeyRound size={14} />} onClick={() => setResetTarget(u)}>
+                              Reset password
+                            </Menu.Item>
+                          )}
+                          {!isSelf && u.is_active && (
+                            <>
+                              <Menu.Divider />
+                              <Menu.Item color="red" leftSection={<PowerOff size={14} />} onClick={() => setDeactivating(u)}>
+                                Nonaktifkan
+                              </Menu.Item>
+                            </>
+                          )}
+                        </Menu.Dropdown>
+                      </Menu>
                     </td>
                   </tr>
                 )
@@ -245,12 +296,34 @@ export function UserPage() {
               <p className="mt-1.5 text-xs text-red-600">{createForm.formState.errors.role_id.message}</p>
             )}
           </div>
-          <Input label="Nama Lengkap" required error={createForm.formState.errors.nama?.message} {...createForm.register('nama')} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input label="Nama Depan" required
+              error={createForm.formState.errors.first_name?.message}
+              {...createForm.register('first_name')} />
+            <Input label="Nama Belakang"
+              error={createForm.formState.errors.last_name?.message}
+              {...createForm.register('last_name')} />
+          </div>
+          <label className="block">
+            <span className="label">Gender</span>
+            <Controller
+              name="gender"
+              control={createForm.control}
+              render={({ field }) => (
+                <FilterSelect
+                  value={field.value ?? ''}
+                  onChange={field.onChange}
+                  placeholder="— Pilih gender —"
+                  options={GENDER_OPTIONS}
+                />
+              )}
+            />
+          </label>
           <Input label="Email" type="email" required error={createForm.formState.errors.email?.message} {...createForm.register('email')} />
           <div className="relative">
             <Input label="Password" required
               type={showPass ? 'text' : 'password'}
-              placeholder="Min. 8 karakter"
+              placeholder={`Min. ${PASSWORD_MIN_LENGTH} karakter, maks. ${PASSWORD_MAX_BYTES} byte`}
               error={createForm.formState.errors.password?.message}
               {...createForm.register('password')} />
             <button type="button" onClick={() => setShowPass(!showPass)}
@@ -293,7 +366,29 @@ export function UserPage() {
               </p>
             )}
           </div>
-          <Input label="Nama Lengkap" required error={updateForm.formState.errors.nama?.message} {...updateForm.register('nama')} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input label="Nama Depan" required
+              error={updateForm.formState.errors.first_name?.message}
+              {...updateForm.register('first_name')} />
+            <Input label="Nama Belakang"
+              error={updateForm.formState.errors.last_name?.message}
+              {...updateForm.register('last_name')} />
+          </div>
+          <label className="block">
+            <span className="label">Gender</span>
+            <Controller
+              name="gender"
+              control={updateForm.control}
+              render={({ field }) => (
+                <FilterSelect
+                  value={field.value ?? ''}
+                  onChange={field.onChange}
+                  placeholder="— Pilih gender —"
+                  options={GENDER_OPTIONS}
+                />
+              )}
+            />
+          </label>
           <Input label="No. Telepon" {...updateForm.register('no_telepon')} />
           <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
             <input type="checkbox" {...updateForm.register('is_active')}
@@ -315,9 +410,11 @@ export function UserPage() {
         onConfirm={() => { if (deactivating) deactivate(deactivating.id, { onSuccess: () => setDeactivating(null) }) }}
         isPending={isDeactivating}
         title="Nonaktifkan User"
-        message={`Yakin ingin menonaktifkan akun "${deactivating?.nama}"? User tidak bisa login.`}
+        message={`Yakin ingin menonaktifkan akun "${deactivating?.full_name}"? User tidak bisa login.`}
         confirmLabel="Ya, Nonaktifkan"
       />
+
+      <ResetUserPasswordModal user={resetTarget} onClose={() => setResetTarget(null)} />
     </div>
   )
 }

@@ -1,11 +1,12 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Paginated } from '@/types/pagination'
-import type { Distributor } from '@/types'
-import type { Outlet } from '@/types/outlet'
+import type { Distributor, Outlet } from '@/types'
 import toast from 'react-hot-toast'
 import { areaApi, distributorApi, outletApi, productApi } from '@/api/masterdata'
 import { getErrorMessage } from '@/lib/utils'
 import api from '@/lib/axios'
+import type { OutletSelfUpdate } from '@/types/outlet'
+import type { DistributorSelfUpdate } from '@/types'
 
 // ─── AREA ─────────────────────────────────────────────────────────────────────
 export function useAreas() {
@@ -237,6 +238,49 @@ export function useRejectOutlet() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['outlets'] })
       toast.success('Pendaftaran outlet ditolak.')
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  })
+}
+
+// ─── PROFILE (self-service) ───────────────────────────────────────────────────
+export function useMyDistributors(enabled = true) {
+  return useQuery({
+    queryKey: ['distributors', 'mine'],
+    queryFn: distributorApi.mine,
+    enabled,
+  })
+}
+
+export function useMyOutlets(enabled = true) {
+  return useQuery({
+    queryKey: ['outlets', 'mine'],
+    queryFn: outletApi.mine,
+    enabled,
+  })
+}
+
+export function useUpdateMyDistributor() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: DistributorSelfUpdate }) =>
+      distributorApi.updateMine(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['distributors'] })
+      toast.success('Data distributor berhasil diperbarui.')
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  })
+}
+
+export function useUpdateMyOutlet() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: OutletSelfUpdate }) =>
+      outletApi.updateMine(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['outlets'] })
+      toast.success('Data outlet berhasil diperbarui.')
     },
     onError: (e) => toast.error(getErrorMessage(e)),
   })

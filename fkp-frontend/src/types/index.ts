@@ -1,4 +1,8 @@
-// ─── AUTH ─────────────────────────────────────────────────────────────────────
+import type { WilayahLengkap } from '@/types/wilayah'
+
+// ─── AUTH ──────────────────────────────────────────────
+
+export type Gender = 'male' | 'female'
 
 export interface RoleInfo {
   id: string
@@ -8,13 +12,19 @@ export interface RoleInfo {
 
 export interface UserMe {
   id: string
-  nama: string
+  first_name: string
+  last_name: string | null
+  full_name: string
+  gender: Gender | null
+  avatar_path: string | null
   email: string
   no_telepon: string | null
   is_active: boolean
   last_login: string | null
   created_at: string
   role: RoleInfo | null
+  email_verified_at: string | null
+  pending_email?: string | null
 }
 
 export interface LoginRequest {
@@ -27,6 +37,30 @@ export interface LoginResponse {
   token_type: string
   expires_in: number
   user: UserMe
+}
+
+export interface UpdateProfilePayload {
+  first_name?: string
+  last_name?: string | null
+  gender?: Gender | null
+  no_telepon?: string | null
+}
+
+export interface ChangePasswordPayload {
+  old_password: string
+  new_password: string
+}
+
+export interface UpdateProfilePayload {
+  first_name?: string
+  last_name?: string | null
+  gender?: Gender | null
+  no_telepon?: string | null
+}
+
+export interface ChangePasswordPayload {
+  old_password: string
+  new_password: string
 }
 
 // ─── FKP STATUS ───────────────────────────────────────────────────────────────
@@ -53,7 +87,7 @@ export type FkpPrioritas = 'top_urgent' | 'urgent' | 'reguler' | 'low'
 export type JalurFkp = 'pcs' | 'approval_rsm' | 'approval_direktur'
 export type TahapPcs = 'dalam_pengajuan' | 'dalam_proses' | 'selesai'
 export type JenisKemasan = 'karton' | 'ball' | 'zak' | 'pcs'
-export type TipeResolusi = 'tukar_barang' | 'potong_tagihan' 
+export type TipeResolusi = 'tukar_barang' | 'potong_tagihan'
 export type MetodePenangananFisik =
   | 'dimusnahkan'
   | 'dijual_pakan_ternak'
@@ -192,13 +226,66 @@ export interface Area {
 export interface Distributor {
   id: string
   area_id: string
+  kelurahan_id?: number | null
   kode_distributor: string
   nama_perusahaan: string
   pemilik: string
+  npwp: string | null
   no_telepon: string | null
   email_perusahaan: string | null
   alamat_lengkap: string | null
+  kode_pos?: string | null
   status: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface Outlet {
+  id: string
+  distributor_id: string
+  kode_outlet: string
+  nama_toko: string
+  pemilik_toko: string
+  tipe_toko: string
+  no_hp: string | null
+  email: string | null
+  alamat_lengkap: string | null
+  kode_pos?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  foto_url: string | null
+  pic_user_id: string | null
+  status: string
+  kelurahan_id?: number | null
+  created_at?: string
+  updated_at?: string
+}
+
+// ─── PROFILE: DISTRIBUTOR ────────────────────────────────────────────────────
+export interface DistributorDetail extends Distributor {
+  can_edit: boolean
+  edit_blocked_reason: string | null
+  is_primary: boolean
+  jabatan: string | null
+  kelurahan_id: number | null
+  wilayah?: WilayahLengkap | null
+  kode_pos?: string | null
+  latitude?: number | null
+  longitude?: number | null
+}
+
+// Cermin DistributorSelfUpdate di BE (extra="forbid")
+export interface DistributorSelfUpdate {
+  nama_perusahaan?: string
+  pemilik?: string
+  no_telepon?: string | null
+  email_perusahaan?: string | null
+  alamat_lengkap?: string | null
+  kode_pos?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  kelurahan_id?: number | null
+  npwp?: string | null   // BE menolak null (400) jika NPWP sudah terisi
 }
 
 // ─── PRODUCT ──────────────────────────────────────────────────────────────────

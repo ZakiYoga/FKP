@@ -43,7 +43,7 @@ export const theme = createTheme({
   primaryColor: 'brand',
   colors: { brand },
   primaryShade: { light: 6, dark: 5 },
-  black: '#111827', // gray-900
+  black: '#141b2b', // gray-900
   white: '#ffffff',
 
   // ===== Radius (md = 8px = rounded-lg Tailwind) =====
@@ -100,7 +100,7 @@ export const theme = createTheme({
           wrapper: {
             '--input-height': s.height,
             '--input-fz': s.fz,
-            '--input-bd': '#d1d5db', // gray-300, sama dengan input-base
+            '--input-bd': 'var(--mantine-color-default-border)',
             '--input-bd-focus': 'var(--mantine-color-brand-6)',
           },
         }
@@ -113,8 +113,25 @@ export const theme = createTheme({
         comboboxProps: { shadow: 'md', radius: 'md' },
       },
       styles: {
-        dropdown: { borderColor: '#e5e7eb' }, // gray-200
+        dropdown: { borderColor: 'var(--mantine-color-default-border)' },
         option: { fontSize: rem(14) },
+      },
+    }),
+
+    InputWrapper: Input.Wrapper.extend({
+      defaultProps: {
+        inputWrapperOrder: ['label', 'input', 'description', 'error'],
+      },
+      styles: {
+        label: {
+          fontSize: rem(14),
+          fontWeight: 600,
+          marginBottom: rem(6),
+          color: 'light-dark(var(--mantine-color-gray-7), var(--mantine-color-gray-3))',
+        },
+        required: { color: 'var(--mantine-color-red-6)' },
+        description: { fontSize: rem(12), marginBottom: rem(6) },
+        error: { fontSize: rem(12), marginTop: rem(4) },
       },
     }),
   },

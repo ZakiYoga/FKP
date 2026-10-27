@@ -27,7 +27,10 @@ const NAV_COLOR = '#94a3b8'
 const ACTIVE_BG = 'rgba(59,130,246,0.9)'
 
 const SKELETON_USER: UserMe = {
-  id: '', nama: 'Loading...', email: '', no_telepon: null,
+  id: '',
+  first_name: 'Loading...', last_name: null, full_name: 'Loading...',
+  gender: null, avatar_path: null,
+  email: '', no_telepon: null,
   is_active: true, last_login: null, created_at: '',
   role: { id: '', kode_role: '', nama_role: 'Loading...' },
 }
@@ -162,7 +165,7 @@ export function Sidebar({ collapsed, onToggle, isMobile = false }: SidebarProps)
             {!isMobile && collapsed ? (
               <PanelLeftOpen size={18} className="text-white" />
             ) : (
-              <PanelRightOpen size={18} className="text-white"/>
+              <PanelRightOpen size={18} className="text-white" />
             )}
           </ActionIcon>
         </Tooltip>
@@ -212,10 +215,10 @@ export function Sidebar({ collapsed, onToggle, isMobile = false }: SidebarProps)
             }}
           >
             <Avatar size={28} radius="xl" color="blue" variant="filled">
-              {getInitials(resolvedUser.nama)}
+              {getInitials(resolvedUser.full_name)}
             </Avatar>
             <Box style={{ minWidth: 0, flex: 1 }}>
-              <Text size="xs" fw={600} c="white" truncate lh={1.4}>{resolvedUser.nama}</Text>
+              <Text size="xs" fw={600} c="white" truncate lh={1.4}>{resolvedUser.full_name}</Text>
               <Text size="xs" truncate lh={1.3} style={{ color: '#60a5fa' }}>
                 {resolvedUser.role?.nama_role}
               </Text>

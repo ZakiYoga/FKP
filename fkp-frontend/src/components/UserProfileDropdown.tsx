@@ -18,8 +18,8 @@ interface MenuItem {
 }
 
 const MENU_ITEMS: MenuItem[] = [
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { label: 'Profil', href: '/me', icon: User },
+  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   // { label: 'Ubah Password', href: '/change-password', icon: Settings },
   { label: 'Lacak Proses FKP', href: '/track', icon: Route },
 ]
@@ -65,7 +65,7 @@ export function UserProfileDropdown() {
           `}
         >
           <Avatar size={32} radius="xl" color="brand" variant="filled">
-            {getInitials(user?.nama)}
+            {getInitials(user?.full_name)}
           </Avatar>
           <ChevronDown size={16} />
         </button>
@@ -77,18 +77,18 @@ export function UserProfileDropdown() {
       >
 
         {/* Profile card */}
-        <Link to='/ganti-password' className='w-full p-2 flex items-center gap-2 justify-start'>
-            <Avatar size={30} radius="xl" color="brand" variant="filled">
-              {getInitials(user?.nama)}
-            </Avatar>
-            <Box className='w-full flex flex-col justify-end items-start'>
-              <Text size="sm" fw={600} truncate>
-                {user?.nama}
-              </Text>
-              <Text size="xs" c="dimmed" truncate>
-                {user?.role?.nama_role}
-              </Text>
-            </Box>
+        <Link to='/me' className='w-full p-2 flex items-center gap-2 justify-start'>
+          <Avatar size={30} radius="xl" color="brand" variant="filled">
+            {getInitials(user?.full_name)}
+          </Avatar>
+          <Box className='w-full flex flex-col justify-end items-start'>
+            <Text size="sm" fw={600} truncate>
+              {user?.full_name}
+            </Text>
+            <Text size="xs" c="dimmed" truncate>
+              {user?.role?.nama_role}
+            </Text>
+          </Box>
         </Link>
 
         <Divider my={4} />
