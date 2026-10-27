@@ -25,6 +25,7 @@ class Outlet(SQLModel, table=True):
 
     # Lokasi
     kelurahan_id: Optional[int] = Field(default=None, foreign_key="kelurahan.id")
+    kode_pos: Optional[str] = Field(default=None, max_length=10)
     alamat_lengkap: Optional[str] = Field(default=None)
     latitude: Optional[float] = Field(default=None)
     longitude: Optional[float] = Field(default=None)

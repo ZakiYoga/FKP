@@ -5,6 +5,7 @@ from app.models.wilayah import Provinsi, KabupatenKota, Kecamatan, Kelurahan
 from app.models.role import Role, RolePermission
 from app.models.permission import Permission
 from app.models.user import User
+from app.models.auth_token import AuthToken
 from app.models.area import Area, AreaProvince
 from app.models.distributor import Distributor, DistributorUser
 from app.models.outlet import Outlet
@@ -23,7 +24,7 @@ from app.models.testimoni import FkpTestimoni
 __all__ = [
     "Provinsi", "KabupatenKota", "Kecamatan", "Kelurahan",
     "Role", "RolePermission", "Permission",
-    "User",
+    "User", "AuthToken",
     "Area", "AreaProvince",
     "Distributor", "DistributorUser",
     "Outlet",

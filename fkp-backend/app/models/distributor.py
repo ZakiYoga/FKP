@@ -1,7 +1,9 @@
 import uuid
+import re
 from typing import TYPE_CHECKING, Optional, List
 from datetime import datetime, timezone
-from sqlalchemy import DateTime, Column
+from pydantic import field_validator
+from sqlalchemy import DateTime, Column, Float
 from sqlmodel import SQLModel, Field, Relationship
 
 if TYPE_CHECKING:
@@ -23,8 +25,10 @@ class Distributor(SQLModel, table=True):
     no_telepon: Optional[str] = Field(default=None, max_length=20)
     email_perusahaan: Optional[str] = Field(default=None, max_length=150)
     alamat_lengkap: Optional[str] = Field(default=None)
-    kode_pos: Optional[str] = Field(default=None, max_length=10)
+    latitude: Optional[float] = Field(default=None, sa_column=Column(Float(53), nullable=True))
+    longitude: Optional[float] = Field(default=None, sa_column=Column(Float(53), nullable=True))
     status: str = Field(default="aktif", max_length=20)  # "aktif" | "nonaktif"
+    npwp: Optional[str] = Field(default=None, max_length=20, index=True)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True))
@@ -40,6 +44,15 @@ class Distributor(SQLModel, table=True):
     outlets: List["Outlet"] = Relationship(back_populates="distributor")    
     distributor_users: List["DistributorUser"] = Relationship(back_populates="distributor")
     fkp_complaints: List["FkpComplaint"] = Relationship(back_populates="distributor")
+
+    @field_validator("npwp")
+    def validate_npwp(cls, v):
+        if v is None:
+            return v
+        digits = re.sub(r"\D", "", v)
+        if len(digits) not in (15, 16):
+            raise ValueError("NPWP harus 15 atau 16 digit")
+        return digits
 
 
 class DistributorUser(SQLModel, table=True):
