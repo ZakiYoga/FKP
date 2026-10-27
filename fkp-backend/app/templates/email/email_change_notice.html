@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="id">
+  <body
+    style="
+      margin: 0;
+      padding: 24px;
+      background: #f4f5f7;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #1f2937;
+    "
+  >
+    <div
+      style="
+        max-width: 520px;
+        margin: 0 auto;
+        background: #ffffff;
+        border-radius: 8px;
+        padding: 32px;
+      "
+    >
+      <div style="text-align: center; margin: 0 0 24px">
+        <img
+          src="{{ logo_url }}"
+          alt="SaktiFood"
+          width="140"
+          style="
+            display: inline-block;
+            height: auto;
+            max-width: 100%;
+            border: 0;
+            outline: none;
+            text-decoration: none;
+          "
+        />
+      </div>
+      <h2 style="margin: 0 0 16px; font-size: 20px">
+        Permintaan penggantian email
+      </h2>
+      <p style="line-height: 1.6">Halo {{ nama_penerima }},</p>
+      <p style="line-height: 1.6">
+        Ada permintaan mengganti email akun {{ app_name }} Anda ke
+        <b>{{ email_baru }}</b>. Email akun baru berubah hanya jika tautan di
+        alamat tujuan tersebut diklik.
+      </p>
+      <p style="line-height: 1.6">
+        Jika ini bukan Anda, segera ganti password dan hubungi administrator.
+      </p>
+    </div>
+  </body>
+</html>
