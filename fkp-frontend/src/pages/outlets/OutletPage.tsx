@@ -287,7 +287,7 @@ export function OutletPage() {
         title={<>{o.nama_toko}&nbsp; ({getTipeTokoLabel(o.tipe_toko)})</>}
         subtitle={o.pemilik_toko}
         meta={[
-          o.alamat_lengkap && { icon: MapPin, text: o.alamat_lengkap, clamp: true },
+          o.alamat_lengkap ? { icon: MapPin, text: o.alamat_lengkap, clamp: true } : { icon: MapPin, text: '-', clamp: true },
           dist && { icon: Truck, text: dist.nama_perusahaan, clamp: true },
         ]}
         actions={
@@ -297,13 +297,13 @@ export function OutletPage() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setPendingAction({ type: 'approve', outlet: o })}
-                    className="btn-ghost border bg-green-600 text-white btn-sm flex-1"
+                    className="btn-ghost border bg-green-600 hover:bg-green-700 text-white btn-sm flex-1"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" /> Setujui
                   </button>
                   <button
                     onClick={() => setPendingAction({ type: 'reject', outlet: o })}
-                    className="btn-secondary btn-sm flex-1 text-red-600 hover:bg-red-50"
+                    className="btn-secondary btn-sm flex-1 text-red-600 border-red-300 dark:border-red-600 hover:text-red-400 hover:bg-red-100 dark:hover:bg-red-800"
                   >
                     <XCircle className="w-3.5 h-3.5" /> Tolak
                   </button>

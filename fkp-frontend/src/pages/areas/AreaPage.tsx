@@ -105,7 +105,7 @@ export function AreaPage() {
               <div className="flex items-center gap-3">
                 <div>
                   <div className="flex items-center gap-2">
-                    <p className="font-semibold text-gray-900">{area.nama_area}</p>
+                    <p className="font-semibold">{area.nama_area}</p>
                     <span className="text-xs font-mono text-gray-400 bg-gray-100 px-2 py-0.5 rounded-sm">
                       {area.kode_area}
                     </span>

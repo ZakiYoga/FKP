@@ -24,7 +24,7 @@
 
 /* Dark mode */
 [data-mantine-color-scheme='dark'] {
-  --mantine-color-body: #1c1c1c; /* gray-950 */
+  --mantine-color-body: #00081a; /* gray-950 */
   --mantine-color-text: #f9fafb; /* gray-50  */
 
   /* Brand — lebih terang di dark agar kontras */

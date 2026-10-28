@@ -30,18 +30,8 @@ jinja_env = Environment(
     autoescape=select_autoescape(["html"]),
 )
 
-_LOGO_PATH = Path(__file__).parent.parent / "static" / "email" / "logo.png"
-_LOGO_CID = "logo_saktifood"
-
 # Template cukup memakai {{ logo_url }}, tidak perlu diteruskan di tiap _render()
-jinja_env.globals["logo_url"] = f"cid:{_LOGO_CID}"
-
-try:
-    _LOGO_BYTES: Optional[bytes] = _LOGO_PATH.read_bytes()
-except FileNotFoundError:
-    _LOGO_BYTES = None
-    logger.warning("[EMAIL] Logo tidak ditemukan di %s, email dikirim tanpa logo", _LOGO_PATH)
-
+jinja_env.globals["logo_url"] = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/email/logo.webp"
 
 def _qr_png_bytes(fkp_id: str) -> bytes:
     url = f"{settings.FRONTEND_BASE_URL}/track/{fkp_id}"
@@ -80,11 +70,6 @@ async def _send(to: str, subject: str, html: str, qr_png_bytes: Optional[bytes] 
         img_part.add_header("Content-Disposition", "inline", filename="qr.png")
         msg.attach(img_part)
 
-    if _LOGO_BYTES:
-        logo_part = MIMEImage(_LOGO_BYTES, _subtype="png")
-        logo_part.add_header("Content-ID", f"<{_LOGO_CID}>")
-        logo_part.add_header("Content-Disposition", "inline", filename="logo.png")
-        msg.attach(logo_part)
 
     # Verifikasi sertifikat TLS AKTIF (hostname + rantai sertifikat). Email ini
     # membawa tautan reset password/verifikasi, jadi koneksi ke server SMTP

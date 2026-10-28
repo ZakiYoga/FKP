@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import {
   Alert,
-  Avatar,
   Button,
   Group,
   Modal,
@@ -14,9 +13,9 @@ import {
   TextInput,
 } from '@mantine/core'
 import { BadgeCheck } from 'lucide-react'
-import { getAvatarUrl } from '@/lib/avatar'
 import type { Gender, UpdateProfilePayload, UserMe } from '@/types'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
+import { UserAvatar } from '../UserAvatar'
 
 // Handler boleh sinkron (void) atau async (Promise). Jika Promise:
 // mode edit baru selesai setelah berhasil, dan tetap terbuka jika gagal.
@@ -44,8 +43,23 @@ interface EmailFormValues {
 }
 type EmailFormErrors = Partial<Record<keyof EmailFormValues, string>>
 
+// File avatar yang sudah dipilih tetapi belum diupload (menunggu konfirmasi di modal pratinjau).
+interface PendingAvatar {
+  file: File
+  url: string // object URL untuk pratinjau
+}
+
 const EMAIL_PATTERN = /^\S+@\S+\.\S+$/
 const EMPTY_EMAIL_FORM: EmailFormValues = { email_baru: '', password: '' }
+
+const AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const AVATAR_MAX_MB = 2
+const AVATAR_MAX_BYTES = AVATAR_MAX_MB * 1024 * 1024
+
+const formatSize = (bytes: number) =>
+  bytes < 1024 * 1024
+    ? `${Math.max(1, Math.round(bytes / 1024))} KB`
+    : `${(bytes / 1024 / 1024).toFixed(2)} MB`
 
 // "+62812..." / "0812..." / "812..." -> "812..."
 const toLocalPhone = (v: string | null | undefined) =>
@@ -82,10 +96,14 @@ export function ProfileSection({
   const [values, setValues] = useState<FormValues>(() => toFormValues(data))
   const [errors, setErrors] = useState<FormErrors>({})
   const [saving, setSaving] = useState(false)
+
+  // Avatar
   const [avatarBusy, setAvatarBusy] = useState(false)
-  const [preview, setPreview] = useState<string | null>(null)
+  const [pendingAvatar, setPendingAvatar] = useState<PendingAvatar | null>(null)
+  const [avatarError, setAvatarError] = useState<string | null>(null)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const pendingRef = useRef<PendingAvatar | null>(null)
 
   // Email
   const [resending, setResending] = useState(false)
@@ -102,39 +120,69 @@ export function ProfileSection({
     }
   }, [data, isEditing])
 
-  // Lepas object URL lama saat preview berganti atau komponen dilepas.
+  // Simpan pratinjau terbaru di ref, lalu lepas object URL-nya saat komponen dilepas.
+  useEffect(() => {
+    pendingRef.current = pendingAvatar
+  }, [pendingAvatar])
+
   useEffect(() => {
     return () => {
-      if (preview) URL.revokeObjectURL(preview)
+      if (pendingRef.current) URL.revokeObjectURL(pendingRef.current.url)
     }
-  }, [preview])
+  }, [])
 
   const fieldsDisabled = !isEditing || saving
   const emailVerified = Boolean(data.email_verified_at)
-  const hasAvatar = !!(preview || data.avatar_path)
-  const avatarSrc = preview ?? getAvatarUrl(data.avatar_path)
-  const initials = [data.first_name?.[0], data.last_name?.[0]]
-    .filter(Boolean)
-    .join('')
-    .toUpperCase()
+  const hasAvatar = Boolean(data.avatar_path)
 
   const setField = <K extends keyof FormValues>(key: K, value: FormValues[K]) => {
     setValues((prev) => ({ ...prev, [key]: value }))
     setErrors((prev) => ({ ...prev, [key]: undefined }))
   }
 
-  const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+  // ─── Avatar ─────────────────────────────────────────────────────────────────
+
+  // Ganti pratinjau (atau kosongkan) sambil melepas object URL sebelumnya.
+  const replacePending = (next: PendingAvatar | null) => {
+    setPendingAvatar((prev) => {
+      if (prev) URL.revokeObjectURL(prev.url)
+      return next
+    })
+  }
+
+  // Memilih file TIDAK langsung mengupload: validasi dulu, lalu buka modal pratinjau.
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = '' // izinkan memilih file yang sama lagi
     if (!file) return
-    setPreview(URL.createObjectURL(file))
+
+    if (!AVATAR_TYPES.includes(file.type)) {
+      setAvatarError('Format harus JPG, PNG, atau WebP.')
+      return
+    }
+    if (file.size > AVATAR_MAX_BYTES) {
+      setAvatarError(`Ukuran file maksimal ${AVATAR_MAX_MB} MB (file ini ${formatSize(file.size)}).`)
+      return
+    }
+
+    setAvatarError(null)
+    replacePending({ file, url: URL.createObjectURL(file) })
+  }
+
+  const closePreview = () => {
+    if (avatarBusy) return
+    replacePending(null)
+  }
+
+  const handleConfirmUpload = async () => {
+    if (!pendingAvatar) return
     setAvatarBusy(true)
     try {
-      await onUploadAvatar(file)
+      await onUploadAvatar(pendingAvatar.file)
+      replacePending(null) // sukses: tutup modal
     } catch {
-      // pesan error ditampilkan oleh hook
+      // gagal: modal tetap terbuka agar bisa dicoba lagi; pesan error ditampilkan oleh hook
     } finally {
-      setPreview(null)
       setAvatarBusy(false)
     }
   }
@@ -151,6 +199,8 @@ export function ProfileSection({
       setConfirmDeleteOpen(false)
     }
   }
+
+  // ─── Profil ─────────────────────────────────────────────────────────────────
 
   const handleSave = async () => {
     const next: FormErrors = {}
@@ -230,32 +280,41 @@ export function ProfileSection({
     <>
       <Stack gap="lg">
         {/* Avatar */}
-        <Group gap="lg">
-          <Avatar size={92} color="brand" variant="filled">
-            {initials}
-          </Avatar>
-          <Group gap="xs">
-            <Button loading={avatarBusy} onClick={() => fileInputRef.current?.click()}>
-              {hasAvatar ? 'Upload New' : 'Upload'}
-            </Button>
-            {hasAvatar && (
-              <Button
-                variant="default"
-                disabled={avatarBusy}
-                onClick={() => setConfirmDeleteOpen(true)}
-              >
-                Delete avatar
+        <Stack gap={6}>
+          <Group gap="lg">
+            <UserAvatar user={data} size={92} />
+            <Group gap="xs">
+              <Button disabled={avatarBusy} onClick={() => fileInputRef.current?.click()}>
+                {hasAvatar ? 'Upload New' : 'Upload'}
               </Button>
-            )}
+              {hasAvatar && (
+                <Button
+                  variant="default"
+                  disabled={avatarBusy}
+                  onClick={() => setConfirmDeleteOpen(true)}
+                >
+                  Delete avatar
+                </Button>
+              )}
+            </Group>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={AVATAR_TYPES.join(',')}
+              hidden
+              onChange={handleFileChange}
+            />
           </Group>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            hidden
-            onChange={handleFileChange}
-          />
-        </Group>
+          {avatarError ? (
+            <Text size="xs" c="red">
+              {avatarError}
+            </Text>
+          ) : (
+            <Text size="xs" c="dimmed">
+              JPG, PNG, atau WebP. Maksimal {AVATAR_MAX_MB} MB.
+            </Text>
+          )}
+        </Stack>
 
         {/* Form */}
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
@@ -367,6 +426,56 @@ export function ProfileSection({
           )}
         </Group>
       </Stack>
+
+      {/* Pratinjau avatar: upload baru terjadi setelah user menekan "Upload" */}
+      <Modal
+        opened={pendingAvatar !== null}
+        onClose={closePreview}
+        title="Pratinjau avatar"
+        closeOnClickOutside={!avatarBusy}
+        closeOnEscape={!avatarBusy}
+        withCloseButton={!avatarBusy}
+        centered
+        size="sm"
+      >
+        {pendingAvatar && (
+          <Stack gap="md" align="center">
+            <img
+              src={pendingAvatar.url}
+              alt="Pratinjau avatar baru"
+              className="size-44 rounded-full border border-gray-200 object-cover dark:border-gray-700"
+            />
+            <div className="text-center">
+              <Text size="sm" fw={500} className="max-w-[16rem] truncate">
+                {pendingAvatar.file.name}
+              </Text>
+              <Text size="xs" c="dimmed">
+                {formatSize(pendingAvatar.file.size)}
+              </Text>
+            </div>
+            <Text size="xs" c="dimmed" ta="center">
+              Gunakan foto persegi (1:1) untuk hasil terbaik.
+            </Text>
+            <Group justify="space-between" w="100%" gap="xs">
+              <Button
+                variant="subtle"
+                disabled={avatarBusy}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Pilih ulang
+              </Button>
+              <Group gap="xs">
+                <Button variant="default" disabled={avatarBusy} onClick={closePreview}>
+                  Batal
+                </Button>
+                <Button loading={avatarBusy} onClick={handleConfirmUpload}>
+                  Upload
+                </Button>
+              </Group>
+            </Group>
+          </Stack>
+        )}
+      </Modal>
 
       <ConfirmDialog
         isOpen={confirmDeleteOpen}

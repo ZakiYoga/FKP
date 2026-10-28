@@ -33,13 +33,47 @@ export function formatRelative(dateStr: string | null | undefined): string {
 export function getErrorMessage(error: unknown): string {
   if (error && typeof error === 'object' && 'response' in error) {
     const axiosError = error as { response?: { data?: ApiError } }
-    console.log('RESPONSE DATA:', axiosError.response?.data)
     const detail = axiosError.response?.data?.detail
     if (typeof detail === 'string') return detail
     if (Array.isArray(detail)) return detail.map((d) => d.msg).join(', ')
   }
   if (error instanceof Error) return error.message
   return 'Terjadi kesalahan. Silakan coba lagi.'
+}
+
+export type FieldErrors = Record<string, string>
+
+// Kata kunci pesan 409/400 → nama field di form. Sesuaikan dengan pesan backend-mu.
+const FIELD_KEYWORDS: [RegExp, string][] = [
+  [/email/i, 'email'],
+  [/no\.?\s?hp|telepon|whatsapp|phone/i, 'no_hp'],
+]
+
+/** Kembalikan {field: pesan} kalau error dari server milik field tertentu, selain itu null. */
+export function getFieldErrors(error: unknown): FieldErrors | null {
+  if (!error || typeof error !== 'object' || !('response' in error)) return null
+  const res = (error as { response?: { status?: number; data?: { detail?: unknown } } }).response
+  const status = res?.status
+  const detail = res?.data?.detail
+
+  // FastAPI 422: detail = [{ loc: ['body', 'email'], msg: '...' }]
+  if (status === 422 && Array.isArray(detail)) {
+    const out: FieldErrors = {}
+    for (const d of detail as { loc?: unknown[]; msg?: string }[]) {
+      const field = d.loc?.[d.loc.length - 1]
+      if (typeof field === 'string' && d.msg && !out[field]) out[field] = d.msg
+    }
+    return Object.keys(out).length ? out : null
+  }
+
+  // 409/400 dengan detail string, mis. "Email sudah terdaftar"
+  if ((status === 409 || status === 400) && typeof detail === 'string') {
+    for (const [re, field] of FIELD_KEYWORDS) {
+      if (re.test(detail)) return { [field]: detail }
+    }
+  }
+
+  return null
 }
 
 // Status color sesuai FkpStatus BE baru

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import toast from 'react-hot-toast'
+import { notifications } from '@mantine/notifications'
+import { getErrorMessage, getFieldErrors } from '@/lib/utils'
 import { outletRegisterApi } from '@/api/outletRegister'
-import { getErrorMessage } from '@/lib/utils'
 import { OutletApproveRequest, OutletRegisterRequest, OutletRejectRequest } from '@/types/outletRegister'
 
 const QUERY_KEY = 'outlet-registrations'
@@ -11,7 +11,10 @@ const QUERY_KEY = 'outlet-registrations'
 export function useRegisterOutlet() {
   return useMutation({
     mutationFn: (data: OutletRegisterRequest) => outletRegisterApi.register(data),
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => {
+      if (getFieldErrors(e)) return // ditangani halaman: inline + toast ringkas
+      notifications.show({ message: getErrorMessage(e), color: 'red' })
+    },
   })
 }
 
@@ -21,7 +24,7 @@ export function usePendingRegistrations(distributorId?: string) {
   return useQuery({
     queryKey: [QUERY_KEY, 'pending', distributorId],
     queryFn: () => outletRegisterApi.listPending(distributorId),
-    staleTime: 30 * 1000, // 30 detik
+    staleTime: 30 * 1000,
   })
 }
 
@@ -41,9 +44,10 @@ export function useApproveRegistration() {
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: [QUERY_KEY] })
       qc.invalidateQueries({ queryKey: ['outlets'] })
-      toast.success(res.message)
+      notifications.show({ message: res.message, color: 'green' })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) =>
+      notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -54,8 +58,9 @@ export function useRejectRegistration() {
       outletRegisterApi.reject(outletId, data),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: [QUERY_KEY] })
-      toast.success(res.message)
+      notifications.show({ message: res.message, color: 'green' })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) =>
+      notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }

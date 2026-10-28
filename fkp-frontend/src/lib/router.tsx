@@ -94,7 +94,7 @@ export const router = createBrowserRouter([
               { path: '/dashboard', element: <DashboardPage /> },
 
               // Profile
-              { path: '/me', element: <Profile /> },
+              { path: '/profile', element: <Profile /> },
               { path: '/change-password', element: <ChangePasswordPage /> },
 
               // FKP

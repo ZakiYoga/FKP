@@ -7,11 +7,12 @@ import { motion } from 'framer-motion'
 import { useRegisterOutlet } from '@/hooks/useOutletRegister'
 import { Input } from '@/components/ui/Input'
 import { SearchableSelect } from '@/components/ui/SearchableSelect'
-import { cn } from '@/lib/utils'
+import { cn, getErrorMessage, getFieldErrors } from '@/lib/utils'
 import axios from 'axios'
 import { DistributorOption } from '@/types'
 import { RegisterOutletFormValues, registerOutletSchema } from '@/schemas/registerOutletSchema'
 import { TIPE_TOKO_OPTIONS } from '@/types/outlet'
+import { notifications } from '@mantine/notifications'
 
 // ─── Password Strength ────────────────────────────────────────────────────────
 
@@ -33,7 +34,7 @@ function PasswordStrengthBar({ password }: { password: string }) {
   const { score, label, color } = getPasswordStrength(password)
   return (
     <div className="mt-2 space-y-1">
-      <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
         <div
           className="h-full rounded-full transition-all duration-300 ease-out"
           style={{ width: `${score}%`, backgroundColor: color }}
@@ -42,7 +43,7 @@ function PasswordStrengthBar({ password }: { password: string }) {
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium" style={{ color }}>{label}</p>
         <p className="text-[10px] text-gray-400">
-          {score < 100 ? 'Tambahkan huruf besar, angka, atau simbol' : '✓ Password kuat'}
+          {score < 100 ? 'Kombinasikan huruf besar, angka, atau simbol' : '✓ Password kuat'}
         </p>
       </div>
     </div>
@@ -113,6 +114,8 @@ export function RegisterOutletPage() {
     setValue,
     watch,
     clearErrors,
+    setError,
+    setFocus,
     formState: { errors },
   } = useForm<RegisterOutletFormValues>({ resolver: zodResolver(registerOutletSchema) })
 
@@ -144,9 +147,44 @@ export function RegisterOutletPage() {
       {
         ...data,
         last_name: data.last_name?.trim() || undefined,
-        alamat_lengkap: data.alamat_lengkap || "",
+        alamat_lengkap: data.alamat_lengkap || '',
       },
-      { onSuccess: (res) => setIsSuccess({ kode_outlet: res.kode_outlet, message: res.message, email }) },
+      {
+        onSuccess: (res) =>
+          setIsSuccess({ kode_outlet: res.kode_outlet, message: res.message, email }),
+
+        onError: (e) => {
+          const fieldErrors = getFieldErrors(e)
+          if (!fieldErrors) return // error umum sudah di-toast oleh hook
+
+          // 1) Tandai tiap field yang dikenali, catat step paling awal
+          let firstStep = Infinity
+          let firstField: keyof RegisterOutletFormValues | null = null
+
+          for (const [field, message] of Object.entries(fieldErrors)) {
+            const key = field as keyof RegisterOutletFormValues
+            const stepIdx = stepFields.findIndex((f) => f.includes(key))
+            if (stepIdx === -1) continue
+            setError(key, { type: 'server', message })
+            if (stepIdx < firstStep) { firstStep = stepIdx; firstField = key }
+          }
+
+          // 2) Tidak ada field yang cocok → jangan diam, toast pesan server
+          if (!firstField) {
+            notifications.show({ message: getErrorMessage(e), color: 'red' })
+            return
+          }
+
+          // 3) Pindah ke step bermasalah + toast ringkas + fokus ke field
+          setStep(firstStep)
+          notifications.show({
+            title: 'Data belum valid',
+            message: `Periksa kembali isian pada langkah "${STEPS[firstStep]}".`,
+            color: 'red',
+          })
+          setTimeout(() => setFocus(firstField!), 150) // tunggu step selesai render
+        },
+      },
     )
   }
 
@@ -161,34 +199,34 @@ export function RegisterOutletPage() {
   if (isSuccess) {
     return (
       <motion.div
-        initial={{ opacity: 0, scale: 0.96 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.4 }}
-        className="text-center"
+        variants={containerVariants}
+        initial="initial"
+        animate="animate"
+        className="w-full text-center space-y-6 p-4 md:p-6 lg:max-w-xl xl:max-w-2xl"
       >
-        <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-5">
-          <CheckCircle2 className="w-8 h-8 text-emerald-600" />
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-500/15">
+          <CheckCircle2 className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
         </div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Pendaftaran Berhasil!</h2>
-        <p className="text-gray-500 text-sm mb-6">{isSuccess.message}</p>
-        <div className="bg-gray-50 border border-gray-100 rounded-xl px-5 py-4 mb-6">
-          <p className="text-xs text-gray-400 mb-1">Kode Outlet Anda</p>
-          <p className="text-xl font-bold text-brand-700 tracking-widest">{isSuccess.kode_outlet}</p>
+        <h2 className="mb-2 text-2xl font-bold text-gray-900 dark:text-gray-100">Pendaftaran Berhasil!</h2>
+        <p className="mb-6 text-justify align-middle text-sm text-gray-500 dark:text-gray-400">Lorem, ipsum dolor sit amet consectetur adipisicing elit. Eos minima a, numquam neque temporibus obcaecati eveniet sunt, beatae voluptatem at officiis atque dolorem? Eum possimus perspiciatis, quos fuga explicabo sunt.</p>
+        <div className="mb-6 rounded-xl border border-gray-100 bg-gray-50 px-5 py-4 text-center dark:border-gray-700 dark:bg-gray-800/60">
+          <p className="mb-1 text-xs text-gray-400">Kode Outlet Anda</p>
+          <p className="text-xl font-bold tracking-widest text-brand-700 dark:text-brand-300">OTL-129-1231-23</p>
         </div>
-        <div className="bg-gray-50 border border-gray-100 rounded-xl px-5 py-4 mb-6 text-left">
-          <p className="text-xs font-semibold text-gray-700 mb-1">Verifikasi email Anda</p>
-          <p className="text-xs text-gray-500 leading-relaxed">
+        <div className="mb-6 rounded-xl border border-gray-100 bg-gray-50 px-5 py-4 text-left dark:border-gray-700 dark:bg-gray-800/60">
+          <p className="mb-1 text-xs font-semibold text-gray-700 dark:text-gray-200">Verifikasi email Anda</p>
+          <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
             Kami mengirim email verifikasi ke{' '}
-            <span className="font-medium text-gray-700 break-all">{isSuccess.email}</span>. Klik tautan
+            <span className="break-all font-medium text-gray-700 dark:text-gray-200">Lorem ipsum dolor,</span>. Klik tautan
             di email tersebut agar fitur lupa password dapat dipakai. Tidak menerima email? Periksa folder
             spam atau{' '}
-            <Link to="/verify-email" className="text-brand-600 font-medium hover:underline">
+            <Link to="/verify-email" className="font-medium text-brand-600 hover:underline dark:text-brand-400">
               kirim ulang tautan verifikasi
             </Link>
             .
           </p>
         </div>
-        <p className="text-xs text-gray-400 mb-8 leading-relaxed">
+        <p className="mb-8 text-xs leading-relaxed text-gray-400">
           Simpan kode outlet di atas. Anda akan mendapat notifikasi setelah akun diverifikasi oleh distributor.
         </p>
         <Link to="/login" className="btn-primary w-full btn-lg inline-flex items-center justify-center gap-2">
@@ -211,8 +249,8 @@ export function RegisterOutletPage() {
         variants={itemVariants}
         className="mb-6"
       >
-        <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Daftar Outlet</h2>
-        <p className="text-gray-500 text-sm mt-1.5">
+        <h2 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Daftar Outlet</h2>
+        <p className="mt-1.5 text-sm text-gray-500 dark:text-gray-400">
           Lengkapi data berikut untuk mendaftarkan outlet Anda.
         </p>
       </motion.div>
@@ -226,21 +264,21 @@ export function RegisterOutletPage() {
                 className={cn(
                   'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300',
                   i < step ? 'bg-emerald-500 text-white' :
-                    i === step ? 'bg-brand-600 text-white ring-4 ring-brand-100' :
-                      'bg-gray-100 text-gray-400',
+                    i === step ? 'bg-brand-600 text-white ring-4 ring-brand-100 dark:ring-brand-500/30' :
+                      'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500',
                 )}
               >
                 {i < step ? '✓' : i + 1}
               </div>
               <span className={cn('text-[10px] font-medium whitespace-nowrap transition-colors',
-                i === step ? 'text-brand-600' : i < step ? 'text-emerald-500' : 'text-gray-400'
+                i === step ? 'text-brand-600 dark:text-brand-400' : i < step ? 'text-emerald-500' : 'text-gray-400'
               )}>
                 {label}
               </span>
             </div>
             {i < STEPS.length - 1 && (
               <div className={cn('h-0.5 flex-1 mb-4 rounded-full transition-all duration-500',
-                i < step ? 'bg-emerald-400' : 'bg-gray-200'
+                i < step ? 'bg-emerald-400' : 'bg-gray-200 dark:bg-gray-700'
               )} />
             )}
           </div>
@@ -291,7 +329,7 @@ export function RegisterOutletPage() {
                 <div>
                   <label className="label label-required">No. HP / WhatsApp</label>
                   <div className="relative">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 pr-2 text-sm font-medium text-gray-500 border-r border-gray-200 pointer-events-none select-none">
+                    <span className="pointer-events-none absolute inset-y-0 left-0 flex select-none items-center border-r border-gray-200 pl-3 pr-2 text-sm font-medium text-gray-500 dark:border-gray-600 dark:text-gray-400">
                       +62
                     </span>
                     <input
@@ -309,7 +347,7 @@ export function RegisterOutletPage() {
                       onBlur={field.onBlur}
                     />
                   </div>
-                  {errors.no_hp && <p className="mt-1.5 text-xs text-red-600">{errors.no_hp.message}</p>}
+                  {errors.no_hp && <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">{errors.no_hp.message}</p>}
                   <p className="mt-1 text-xs text-gray-400">Nomor HP/WhatsApp aktif, tanpa angka 0 di depan. Contoh: 81234567890</p>
                 </div>
               )}
@@ -325,7 +363,7 @@ export function RegisterOutletPage() {
                 {...reg('alamat_lengkap')}
               />
               {errors.alamat_lengkap && (
-                <p className="mt-1.5 text-xs text-red-600">{errors.alamat_lengkap.message}</p>
+                <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">{errors.alamat_lengkap.message}</p>
               )}
               <p className="mt-1 text-xs text-gray-400">Opsional. Alamat lengkap lokasi toko Anda.</p>
             </div>
@@ -338,7 +376,7 @@ export function RegisterOutletPage() {
             <div>
               <label htmlFor="distributor_id" className="label label-required">Distributor</label>
               {distError && !loadingDist ? (
-                <div className="input-base text-sm text-red-500 bg-red-50 border-red-200">{distError}</div>
+                <div className="input-base border-red-200 bg-red-50 text-sm text-red-500 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400">{distError}</div>
               ) : (
                 <Controller
                   name="distributor_id"
@@ -374,7 +412,7 @@ export function RegisterOutletPage() {
                 readOnly
                 value={previewAlamatDistributor}
                 placeholder={selectedDistributorId ? 'Alamat tidak tersedia' : 'Otomatis terisi setelah memilih distributor'}
-                className="input-base resize-none bg-gray-50 text-gray-500 cursor-not-allowed"
+                className="input-base cursor-not-allowed resize-none bg-gray-50 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
               />
               <p className="mt-1 text-xs text-gray-400">Alamat diambil otomatis dari data distributor.</p>
             </div>
@@ -395,11 +433,11 @@ export function RegisterOutletPage() {
                   className={cn('input-base pr-10', errors.password && 'input-error')}
                   {...reg('password')}
                 />
-                <button type="button" onClick={() => setShowPw(!showPw)} className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600" tabIndex={-1}>
+                <button type="button" onClick={() => setShowPw(!showPw)} className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300" tabIndex={-1}>
                   {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
-              {errors.password && <p className="mt-1.5 text-xs text-red-600">{errors.password.message}</p>}
+              {errors.password && <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">{errors.password.message}</p>}
               <PasswordStrengthBar password={passwordValue} />
             </div>
 
@@ -412,11 +450,11 @@ export function RegisterOutletPage() {
                   className={cn('input-base pr-10', errors.retype_password && 'input-error')}
                   {...reg('retype_password')}
                 />
-                <button type="button" onClick={() => setShowPw2(!showPw2)} className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600" tabIndex={-1}>
+                <button type="button" onClick={() => setShowPw2(!showPw2)} className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300" tabIndex={-1}>
                   {showPw2 ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
-              {errors.retype_password && <p className="mt-1.5 text-xs text-red-600">{errors.retype_password.message}</p>}
+              {errors.retype_password && <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">{errors.retype_password.message}</p>}
             </div>
           </motion.div>
         )}
@@ -446,7 +484,7 @@ export function RegisterOutletPage() {
 
       <motion.p variants={itemVariants} className="mt-5 text-center text-xs text-gray-400">
         Sudah punya akun?{' '}
-        <Link to="/login" className="text-brand-600 font-medium hover:underline">Masuk di sini</Link>
+        <Link to="/login" className="font-medium text-brand-600 hover:underline dark:text-brand-400">Masuk di sini</Link>
       </motion.p>
     </motion.div>
   )

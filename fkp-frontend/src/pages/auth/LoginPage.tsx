@@ -68,9 +68,11 @@ export function LoginPage() {
     >
       {/* Header */}
       <motion.div variants={itemVariants} className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Selamat datang</h2>
-        <p className="text-gray-500 text-sm mt-1.5">
-          Masuk menggunakan akun yang diberikan oleh administrator.
+        <h2 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
+          Selamat datang
+        </h2>
+        <p className="mt-1.5 text-sm text-gray-500 dark:text-gray-400">
+          Masuk menggunakan akun Anda untuk melanjutkan.
         </p>
       </motion.div>
 
@@ -88,12 +90,12 @@ export function LoginPage() {
             id="email"
             type="email"
             autoComplete="email"
-            placeholder="mail@saktipangan.co.id"
+            placeholder="email@example.com"
             className={cn('input-base', errors.email && 'input-error')}
             {...register('email')}
           />
           {errors.email && (
-            <p className="mt-1.5 text-xs text-red-600">{errors.email.message}</p>
+            <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">{errors.email.message}</p>
           )}
         </div>
 
@@ -105,7 +107,7 @@ export function LoginPage() {
             </label>
             <Link
               to="/forgot-password"
-              className="text-xs text-brand-600 font-medium hover:underline"
+              className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
             >
               Lupa password?
             </Link>
@@ -122,14 +124,14 @@ export function LoginPage() {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 transition-colors"
+              className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 transition-colors hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
               tabIndex={-1}
             >
-              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
           {errors.password && (
-            <p className="mt-1.5 text-xs text-red-600">{errors.password.message}</p>
+            <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">{errors.password.message}</p>
           )}
         </div>
 
@@ -141,7 +143,7 @@ export function LoginPage() {
         >
           {isPending ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" />
               Memproses...
             </>
           ) : (
@@ -153,7 +155,10 @@ export function LoginPage() {
       {/* Divider */}
       <motion.div variants={itemVariants} className="mt-6 text-center text-xs text-gray-400">
         Belum punya akun?&nbsp;
-        <Link to="/register/outlet" className="text-brand-600 font-medium hover:underline">
+        <Link
+          to="/register/outlet"
+          className="font-medium text-brand-600 hover:underline dark:text-brand-400"
+        >
           Daftar sekarang
         </Link>
       </motion.div>

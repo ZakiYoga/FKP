@@ -52,9 +52,9 @@ export interface SearchableSelectProps<TOption extends SearchableSelectOption = 
 const CLASS_NAMES = {
   label: 'mb-1 font-semibold text-gray-700 dark:text-gray-400',
   input:
-    'border-gray-300 text-gray-700 dark:text-gray-200 placeholder:text-gray-400 ' +
+    'border-gray-300 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 placeholder:text-gray-400 ' +
     'focus:border-brand-400! dark:border-[var(--mantine-color-gray-7)] focus:ring-2 focus:ring-brand-500/20',
-  dropdown: 'border-gray-200!',
+  dropdown: 'border-gray-200 bg-white dark:bg-gray-900',
   option:
     'text-sm data-combobox-selected:bg-brand-50! data-combobox-selected:text-gray-900! ' +
     'data-checked:font-medium',

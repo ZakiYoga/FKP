@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 import { APP_VERSION } from '@/lib/app-config'
+import { usePersistentState } from '@/hooks/usePersistentState'
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -28,7 +29,7 @@ const MOBILE_BREAKPOINT = '(min-width: 1024px)'
 const SIDEBAR_BG = '#0f172a'
 
 export function AppLayout() {
-  const [collapsed, { toggle: toggleCollapse }] = useDisclosure(false)
+  const [collapsed, setCollapsed] = usePersistentState('sidebar-collapsed', false)
   const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] = useDisclosure(false)
 
   const isDesktop = useMediaQuery(MOBILE_BREAKPOINT)
@@ -52,7 +53,7 @@ export function AppLayout() {
             background: "#fff",
           }}
         >
-          <Sidebar collapsed={collapsed} onToggle={toggleCollapse} />
+          <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((v) => !v)} />
         </Box>
       )}
 

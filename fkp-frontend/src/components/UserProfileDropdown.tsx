@@ -1,36 +1,23 @@
-import { useState } from 'react'
+import { useState, type ElementType } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, LogOut, ChevronDown, User, Route } from 'lucide-react'
-import {
-  Menu,
-  Avatar,
-  Text,
-  Box,
-  Divider,
-} from '@mantine/core'
+import { LogOut, ChevronDown, User, Route } from 'lucide-react'
+import { Menu, Text, Box, Divider } from '@mantine/core'
 import { useCurrentUser } from '@/store/authStore'
 import { useLogout } from '@/hooks/useAuth'
+import { UserAvatar } from './UserAvatar'
 
 interface MenuItem {
   label: string
   href: string
-  icon: React.ElementType
+  icon: ElementType
 }
+
+const PROFILE_HREF = '/profile'
 
 const MENU_ITEMS: MenuItem[] = [
-  { label: 'Profil', href: '/me', icon: User },
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  // { label: 'Ubah Password', href: '/change-password', icon: Settings },
+  { label: 'Profil', href: PROFILE_HREF, icon: User },
   { label: 'Lacak Proses FKP', href: '/track', icon: Route },
 ]
-
-function getInitials(nama?: string) {
-  return nama
-    ?.split(' ')
-    .slice(0, 2)
-    .map((w) => w.charAt(0).toUpperCase())
-    .join('') ?? '?'
-}
 
 export function UserProfileDropdown() {
   const [opened, setOpened] = useState(false)
@@ -56,7 +43,7 @@ export function UserProfileDropdown() {
         <button
           aria-label="Menu profil pengguna"
           className={`
-            flex items-center gap-2 p-2 rounded-md
+            flex items-center gap-2 p-2 rounded-md ml-2
             transition-colors duration-150 border-none cursor-pointer
             ${opened
               ? 'bg-gray-100 dark:bg-gray-800'
@@ -64,9 +51,7 @@ export function UserProfileDropdown() {
             }
           `}
         >
-          <Avatar size={32} radius="xl" color="brand" variant="filled">
-            {getInitials(user?.full_name)}
-          </Avatar>
+          <UserAvatar user={user} size={32} />
           <ChevronDown size={16} />
         </button>
       </Menu.Target>
@@ -75,17 +60,18 @@ export function UserProfileDropdown() {
         style={{ border: '1px solid var(--mantine-color-gray-3)' }}
         py={4}
       >
-
         {/* Profile card */}
-        <Link to='/me' className='w-full p-2 flex items-center gap-2 justify-start'>
-          <Avatar size={30} radius="xl" color="brand" variant="filled">
-            {getInitials(user?.full_name)}
-          </Avatar>
-          <Box className='w-full flex flex-col justify-end items-start'>
-            <Text size="sm" fw={600} truncate>
+        <Link
+          to={PROFILE_HREF}
+          onClick={() => setOpened(false)}
+          className="flex w-full items-center justify-start gap-2 rounded-md p-2 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+        >
+          <UserAvatar user={user} size={30} />
+          <Box className="flex min-w-0 flex-1 flex-col items-start justify-end">
+            <Text size="sm" fw={600} truncate className="w-full">
               {user?.full_name}
             </Text>
-            <Text size="xs" c="dimmed" truncate>
+            <Text size="xs" c="dimmed" truncate className="w-full">
               {user?.role?.nama_role}
             </Text>
           </Box>

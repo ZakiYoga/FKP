@@ -238,7 +238,7 @@ export function FilterBar({
               'transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-500/30',
               open
                 ? 'border-brand-400 text-brand-500'
-                : 'border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300',
+                : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900 dark:border-gray-600 hover:border-gray-300',
             )}
           >
             Filter
@@ -297,7 +297,7 @@ export function FilterBar({
           )}
         >
           <div className="overflow-hidden min-h-0">
-            <div className="mt-3 rounded-lg border border-gray-200 bg-white p-4">
+            <div className="mt-3 rounded-lg border border-gray-200 bg-white dark:bg-gray-900 dark:border-gray-600 p-4">
               <div className="flex flex-wrap gap-3">
                 {visibleFields.map((field) => {
                   if (field.type === 'select') {
