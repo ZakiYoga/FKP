@@ -3,7 +3,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.models.product import JenisKemasan, tentukan_qty_per_kemasan
+from app.models.product import JenisKemasan, ProductClass, tentukan_qty_per_kemasan
 
 
 def _strip(v):
@@ -19,15 +19,18 @@ def _kosong_jadi_none(v):
 
 class ProductCreate(BaseModel):
     model_config = ConfigDict(
+        populate_by_name=True,
+        use_enum_values=True,
         json_schema_extra={
             "example": {
-                "kode_produk": "PRD-BALL-003",
-                "nama_produk": "Garam Baru Cap Saktifood 1kg",
-                "kemasan": ["ball", "pcs"],
-                "berat_gr": 1000,
-                "qty_per_kemasan": 20,
+                "kode_produk": "SKU-001",
+                "nama_produk": "7 DAUN TEPUNG ROTI MIX 10 KG",
+                "kemasan": ["zak"],
+                "berat_gr": 10000,
+                "qty_per_kemasan": 1,
+                "class": "fighting",
             }
-        }
+        },
     )
 
     kode_produk: str = Field(
@@ -63,6 +66,12 @@ class ProductCreate(BaseModel):
             "diabaikan). Ball/karton WAJIB diisi, minimal 2."
         ),
     )
+
+    class_: ProductClass = Field(
+        alias="class",
+        description="Klasifikasi SKU: fighting | general | premium. WAJIB diisi.",
+    )
+
     foto_url: Optional[str] = Field(
         default=None,
         description="URL foto produk. Diisi otomatis oleh POST /api/products/{id}/foto.",
@@ -104,8 +113,10 @@ class ProductUpdate(BaseModel):
     diubah di sini — hanya lewat PUT /{id}/kemasan, karena keduanya satu kesatuan.
     Field jenis_kemasan, kemasan, atau qty_per_kemasan dari klien diabaikan.
     """
+    model_config = ConfigDict(populate_by_name=True, use_enum_values=True)
     nama_produk: Optional[str] = Field(default=None, min_length=1, max_length=200)
     berat_gr: Optional[int] = Field(default=None, gt=0)
+    class_: Optional[ProductClass] = Field(default=None, alias="class")
     is_active: Optional[bool] = None
     foto_url: Optional[str] = None
 
@@ -152,8 +163,8 @@ class KemasanUpdate(BaseModel):
 
 
 class ProductResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True, use_enum_values=True)
+    class_: ProductClass = Field(alias="class", description="Klasifikasi SKU: fighting | general | premium.")
     id: uuid.UUID
     kode_produk: str
     nama_produk: str

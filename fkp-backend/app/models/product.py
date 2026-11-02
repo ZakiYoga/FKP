@@ -1,7 +1,8 @@
+from enum import Enum
 import uuid
 from typing import Optional, List
-from sqlalchemy import UniqueConstraint
-from sqlmodel import SQLModel, Field, Relationship
+from sqlalchemy import Column, String, String, UniqueConstraint
+from sqlmodel import Column, SQLModel, Field, Relationship
 
 from app.models.fkp import FkpItem
 
@@ -68,6 +69,15 @@ def tentukan_qty_per_kemasan(kemasan_urut: list[str], qty: int | None) -> int:
         raise ValueError(f"Isi per {label} wajib diisi (minimal 2 pcs).")
     return qty
 
+class ProductClass(str, Enum):
+    """
+    Klasifikasi SKU. Disimpan sebagai VARCHAR (nilai enum, huruf kecil), bukan
+    tipe ENUM native Postgres, supaya menambah kelas baru kelak tidak butuh
+    ALTER TYPE. Validasi nilai dilakukan di schema (Pydantic).
+    """
+    FIGHTING = "fighting"
+    GENERAL = "general"
+    PREMIUM = "premium"
 
 class ProductCatalog(SQLModel, table=True):
     """
@@ -80,10 +90,11 @@ class ProductCatalog(SQLModel, table=True):
     (mis. Laskar MIX 12 kg vs 10 kg) = SKU baru dengan kode_produk baru.
 
     Semantik berat dan isi:
-      - berat_gr         = berat per SATUAN TERKECIL: per zak untuk kemasan zak,
-                           per pcs untuk ball/karton/pcs.
-      - qty_per_kemasan  = isi kemasan besar dalam pcs. Zak dan produk pcs-saja = 1.
-      - Berat kemasan    = qty_per_kemasan x berat_gr (dihitung, TIDAK disimpan).
+        - berat_gr          = berat per SATUAN TERKECIL: per zak untuk kemasan zak,
+                            per pcs untuk ball/karton/pcs.
+        - qty_per_kemasan   = isi kemasan besar dalam pcs. Zak dan produk pcs-saja = 1.
+        - Berat kemasan     = qty_per_kemasan x berat_gr (dihitung, TIDAK disimpan).
+        - class_            = klasifikasi SKU (fighting / general / premium), kolom DB "class".
 
     Rumus analitik FKP per produk (belum diimplementasi, dokumentasi):
         berat_item_gr = jumlah_item x isi x berat_gr
@@ -123,10 +134,15 @@ class ProductCatalog(SQLModel, table=True):
         default=None,
         description="Isi kemasan besar dalam pcs. Zak dan produk pcs-saja = 1.",
     )
+    # "class" adalah keyword Python, jadi atribut bernama class_ sedangkan nama
+    # kolom DB tetap "class". Alias JSON "class" diatur di schema.
+    class_: str = Field(
+        default=ProductClass.GENERAL.value,
+        sa_column=Column("class", String(20), nullable=False),
+        description="Klasifikasi SKU: fighting | general | premium.",
+    )
 
     fkp_items: List["FkpItem"] = Relationship(back_populates="product")
-    # Jangan diakses langsung di kode async tanpa selectinload (lazy load =
-    # MissingGreenlet). Untuk membaca kemasan, pakai get_kemasan().
     kemasan_list: List["ProductKemasan"] = Relationship(back_populates="product")
 
 

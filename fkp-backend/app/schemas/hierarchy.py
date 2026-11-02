@@ -8,6 +8,17 @@ from typing import Optional, List
 from pydantic import BaseModel
 
 
+# ─── Area  ────────────────────────────────────────────────────
+
+class AreaBasicInfo(BaseModel):
+    id: uuid.UUID
+    kode_area: str
+    nama_area: str
+
+    class Config:
+        from_attributes = True
+
+
 # ─── SC/SPV ↔ DISTRIBUTOR ────────────────────────────────────────────────────
 
 class ScSpvDistributorAssign(BaseModel):
@@ -37,9 +48,9 @@ class ScSpvDistributorResponse(BaseModel):
 # ─── APSM ↔ SC/SPV ───────────────────────────────────────────────────────────
 
 class ApsmScSpvAssign(BaseModel):
-    """Assign SC/SPV ke bawah APSM tertentu."""
     apsm_user_id: uuid.UUID
     sc_spv_user_id: uuid.UUID
+    area_id: uuid.UUID
 
     class Config:
         json_schema_extra = {
@@ -54,6 +65,7 @@ class ApsmScSpvResponse(BaseModel):
     id: uuid.UUID
     apsm_user_id: uuid.UUID
     sc_spv_user_id: uuid.UUID
+    area_id: Optional[uuid.UUID] = None
     created_at: datetime
 
     class Config:
@@ -92,7 +104,8 @@ class UserBasicInfo(BaseModel):
     id: uuid.UUID
     nama: str
     email: str
-    no_telepon: Optional[str]
+    no_telepon: Optional[str] = None
+    avatar_path: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -109,8 +122,8 @@ class DistributorBasicInfo(BaseModel):
 
 
 class ScSpvWithDistributors(BaseModel):
-    """SC/SPV beserta daftar distributor yang dia handle."""
     sc_spv: UserBasicInfo
+    area: Optional[AreaBasicInfo] = None
     distributors: List[DistributorBasicInfo] = []
 
 

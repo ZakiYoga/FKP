@@ -21,6 +21,9 @@ Aturan kemasan dan isi (tentukan_qty_per_kemasan di models/product.py):
     dan diganti bersamaan lewat PUT /{id}/kemasan. PUT /{id} tidak mengubahnya.
   - berat_gr = berat per satuan terkecil (per zak untuk zak, per pcs untuk kemasan
     lain); berat kemasan = qty_per_kemasan x berat_gr (dihitung, tidak disimpan).
+  - Klasifikasi (class) = fighting | general | premium. WAJIB diisi saat create
+    (tanpa nilai default; kirim key JSON "class"), selalu ada di respons, dan
+    boleh diubah lewat PUT /{id} (null diabaikan, tidak boleh dikosongkan).
 
 Foto: satu foto per produk, JPG/PNG/WebP maksimal 2 MB, disimpan di
 uploads/products dan dilayani publik lewat static mount di main.py. Mengunggah
@@ -35,6 +38,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_permission_dep
 from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse, KemasanUpdate
+from app.models.product import ProductClass
 from app.services import product_service
 
 router = APIRouter()
@@ -42,16 +46,20 @@ router = APIRouter()
 
 @router.get("/", response_model=List[ProductResponse], summary="List produk")
 async def list_products(
-    jenis_kemasan: Optional[str] = Query(
-        default=None,
-        description="Filter produk yang tersedia dalam kemasan ini: zak | ball | karton | pcs",
-    ),
+    jenis_kemasan: Optional[str] = Query(default=None, description="..."),
     is_active: Optional[bool] = Query(default=None),
+    class_: Optional[ProductClass] = Query(
+        default=None, alias="class",
+        description="Filter klasifikasi: fighting | general | premium",
+    ),
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user),   # semua role
+    current_user=Depends(get_current_user),
 ):
     return await product_service.list_products_with_kemasan(
-        db, jenis_kemasan=jenis_kemasan, is_active=is_active
+        db,
+        jenis_kemasan=jenis_kemasan,
+        is_active=is_active,
+        class_=class_.value if class_ else None,
     )
 
 
@@ -62,9 +70,9 @@ async def create_product(
     current_user=Depends(require_permission_dep("product.manage")),
 ):
     """
-    berat_gr wajib (per satuan terkecil). qty_per_kemasan: wajib >= 2 untuk
-    ball/karton, otomatis 1 untuk zak atau produk pcs-saja. Maksimal satu kemasan
-    besar per SKU.
+    berat_gr wajib (per satuan terkecil). class wajib (fighting | general | premium).
+    qty_per_kemasan: wajib >= 2 untuk ball/karton, otomatis 1 untuk zak atau
+    produk pcs-saja. Maksimal satu kemasan besar per SKU.
     """
     product = await product_service.create_product(data, db)
     return await product_service.get_product_with_kemasan(product.id, db)

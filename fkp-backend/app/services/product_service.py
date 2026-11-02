@@ -10,7 +10,7 @@ from sqlmodel import select
 
 from app.core.uploads import FOTO_PRODUK_DIR, FOTO_PRODUK_URL_PREFIX
 from app.models.product import (
-    JenisKemasan, ProductCatalog, ProductKemasan, tentukan_qty_per_kemasan,
+    JenisKemasan, ProductCatalog, ProductClass, ProductKemasan, tentukan_qty_per_kemasan,
 )
 from app.schemas.product import ProductCreate, ProductUpdate
 
@@ -137,6 +137,7 @@ async def list_products(
     db: AsyncSession,
     jenis_kemasan: Optional[str] = None,
     is_active: Optional[bool] = None,
+    class_: Optional[str] = None,
 ) -> List[ProductCatalog]:
     query = select(ProductCatalog)
     if jenis_kemasan:
@@ -156,6 +157,8 @@ async def list_products(
         )
     if is_active is not None:
         query = query.where(ProductCatalog.is_active == is_active)
+    if class_ is not None:
+        query = query.where(ProductCatalog.class_ == class_)
     query = query.order_by(ProductCatalog.nama_produk)
     result = await db.execute(query)
     return result.scalars().all()
@@ -175,12 +178,13 @@ async def list_products_with_kemasan(
     db: AsyncSession,
     jenis_kemasan: Optional[str] = None,
     is_active: Optional[bool] = None,
+    class_: Optional[str] = None,
 ) -> List[dict]:
     """
     Untuk endpoint list produk. Satu query tambahan untuk semua produk (tanpa N+1).
     Mengembalikan dict agar field kemasan_tersedia divalidasi oleh ProductResponse.
     """
-    produk_list = await list_products(db, jenis_kemasan, is_active)
+    produk_list = await list_products(db, jenis_kemasan, is_active, class_)
     kemasan_map = await get_kemasan(db, [p.id for p in produk_list])
     return [
         {**p.model_dump(), "kemasan_tersedia": kemasan_map.get(p.id, [])}
@@ -237,8 +241,8 @@ async def update_product(
     """
     product = await get_product(product_id, db)
     foto_lama = product.foto_url
-    NON_NULLABLE = {"nama_produk", "is_active", "berat_gr"}
-
+    NON_NULLABLE = {"nama_produk", "is_active", "berat_gr", "class_"}
+    
     for key, value in data.model_dump(exclude_unset=True).items():
         if value is None and key in NON_NULLABLE:
             continue

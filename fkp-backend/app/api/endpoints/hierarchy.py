@@ -11,6 +11,7 @@ APSM ↔ SC/SPV:
   GET    /api/hierarchy/apsm/{apsm_id}/sc-spv                   → List SC/SPV di bawah APSM
   POST   /api/hierarchy/apsm/sc-spv                             → Assign SC/SPV ke APSM
   DELETE /api/hierarchy/apsm/{apsm_id}/sc-spv/{sc_spv_id}       → Lepas SC/SPV dari APSM
+  GET /api/hierarchy/apsm/{apsm_id}/areas
 
 SC/SPV ↔ DISTRIBUTOR:
   GET    /api/hierarchy/sc-spv/{sc_id}/distributors             → List distributor SC/SPV
@@ -18,7 +19,7 @@ SC/SPV ↔ DISTRIBUTOR:
   DELETE /api/hierarchy/sc-spv/{sc_id}/distributors/{dist_id}   → Lepas distributor
 """
 import uuid
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.dependencies import require_permission_dep
 from app.schemas.hierarchy import (
-    RsmApsmAssign, RsmApsmResponse,
+    AreaBasicInfo, RsmApsmAssign, RsmApsmResponse,
     ApsmScSpvAssign, ApsmScSpvResponse,
     ScSpvDistributorAssign, ScSpvDistributorResponse,
     RsmWithTeam,
@@ -34,9 +35,12 @@ from app.schemas.hierarchy import (
 from sqlmodel import select
 from app.models.user import User
 from app.models.role import Role
+from app.models.sc_spv import RsmApsm, ApsmScSpv, ScSpvDistributor
 from app.models.distributor import Distributor
+from app.models.area import Area
 from app.schemas.hierarchy import UserBasicInfo, DistributorBasicInfo
 from app.services import hierarchy_service
+from app.services.hierarchy_service import to_user_basic
 
 router = APIRouter()
 
@@ -48,16 +52,24 @@ router = APIRouter()
 )
 async def list_users_by_role(
     kode_role: str,
+    unassigned: bool = False,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission_dep("hierarchy.read")),
 ):
-    result = await db.execute(
+    q = (
         select(User)
         .join(Role, User.role_id == Role.id)
         .where(Role.kode_role == kode_role, User.is_active == True)
         .order_by(User.first_name, User.last_name)
     )
-    return result.scalars().all()
+    if unassigned:
+        if kode_role == "apsm":
+            q = q.where(User.id.not_in(select(RsmApsm.apsm_user_id)))
+        elif kode_role == "sc_spv":
+            q = q.where(User.id.not_in(select(ApsmScSpv.sc_spv_user_id)))
+
+    result = await db.execute(q)
+    return [to_user_basic(u) for u in result.scalars().all()]
 
 
 @router.get(
@@ -66,14 +78,21 @@ async def list_users_by_role(
     summary="List distributor aktif — untuk dropdown assign hierarki",
 )
 async def list_distributors_for_hierarchy(
+    unassigned: bool = False,
+    area_id: Optional[uuid.UUID] = None,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission_dep("hierarchy.read")),
 ):
-    result = await db.execute(
+    q = (
         select(Distributor)
         .where(Distributor.status == "aktif")
         .order_by(Distributor.nama_perusahaan)
     )
+    if unassigned:
+        q = q.where(Distributor.id.not_in(select(ScSpvDistributor.distributor_id)))
+    if area_id:
+        q = q.where(Distributor.area_id == area_id)
+    result = await db.execute(q)
     return result.scalars().all()
 
 # ─── RSM ↔ APSM ──────────────────────────────────────────────────────────────
@@ -172,6 +191,23 @@ async def remove_sc_spv_from_apsm(
 ):
     return await hierarchy_service.remove_sc_spv_from_apsm(apsm_user_id, sc_spv_user_id, db)
 
+
+@router.get(
+    "/apsm/{apsm_user_id}/areas",
+    response_model=List[AreaBasicInfo],
+    summary="Area aktif yang dipegang APSM",
+)
+async def list_apsm_areas(
+    apsm_user_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_permission_dep("hierarchy.read")),
+):
+    result = await db.execute(
+        select(Area)
+        .where(Area.pic_user_id == apsm_user_id, Area.status == "aktif")
+        .order_by(Area.nama_area)
+    )
+    return result.scalars().all()
 
 # ─── SC/SPV ↔ DISTRIBUTOR ────────────────────────────────────────────────────
 

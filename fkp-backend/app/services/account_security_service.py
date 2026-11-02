@@ -83,6 +83,7 @@ async def request_email_verification(
             raise HTTPException(
                 status.HTTP_429_TOO_MANY_REQUESTS,
                 f"Mohon tunggu {sisa} detik sebelum meminta tautan baru.",
+                headers={"Retry-After": str(sisa)},
             )
 
     full_name = user.full_name           # simpan sebelum commit

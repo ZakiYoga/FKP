@@ -30,19 +30,18 @@ class ScSpvDistributor(SQLModel, table=True):
 
 class ApsmScSpv(SQLModel, table=True):
     """
-    Mapping APSM ke SC/SPV bawahannya.
-    1 SC/SPV hanya bisa punya 1 APSM atasan.
+    Mapping APSM ke SC/SPV bawahannya, plus area yang dipegang SC/SPV.
+    1 SC/SPV hanya bisa punya 1 APSM atasan dan 1 area.
     1 APSM bisa punya banyak SC/SPV.
+    Aturan: area harus aktif dan Area.pic_user_id == apsm_user_id (dicek di service).
     """
     __tablename__ = "apsm_sc_spv"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     apsm_user_id: uuid.UUID = Field(foreign_key="users.id", index=True)
-    sc_spv_user_id: uuid.UUID = Field(
-        foreign_key="users.id",
-        unique=True,   # 1 SC/SPV hanya 1 APSM atasan
-        index=True
-    )
+    sc_spv_user_id: uuid.UUID = Field(foreign_key="users.id", unique=True, index=True)
+    # Nullable sementara untuk backfill; jadikan NOT NULL di migrasi kedua
+    area_id: Optional[uuid.UUID] = Field(default=None, foreign_key="areas.id", index=True)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True))

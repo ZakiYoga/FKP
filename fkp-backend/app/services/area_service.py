@@ -7,8 +7,19 @@ from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.area import Area, AreaProvince
+from app.models.sc_spv import ApsmScSpv
 from app.models.wilayah import Provinsi
 from app.schemas.area import AreaCreate, AreaUpdate, AreaResponse, ProvinsiResponse
+
+
+async def _assert_area_not_held_by_sc_spv(
+    area_id: uuid.UUID, db: AsyncSession, detail: str
+) -> None:
+    row = await db.execute(
+        select(ApsmScSpv.id).where(ApsmScSpv.area_id == area_id).limit(1)
+    )
+    if row.first():
+        raise HTTPException(status_code=400, detail=detail)
 
 
 async def _get_area_with_provinces(area: Area, db: AsyncSession) -> AreaResponse:
@@ -94,6 +105,21 @@ async def update_area(area_id: uuid.UUID, data: AreaUpdate, db: AsyncSession) ->
         raise HTTPException(status_code=404, detail="Area tidak ditemukan.")
 
     update_data = data.model_dump(exclude_none=True, exclude={"provinsi_ids"})
+
+    # Guard hierarki: area yang masih dipegang SC/SPV tidak boleh ganti PIC / dinonaktifkan
+    if "pic_user_id" in update_data and update_data["pic_user_id"] != area.pic_user_id:
+        await _assert_area_not_held_by_sc_spv(
+            area_id, db,
+            "PIC area tidak bisa diganti karena area ini masih dipegang SC/SPV. "
+            "Pindahkan atau lepas SC/SPV tersebut terlebih dahulu.",
+        )
+    if update_data.get("status") == "nonaktif" and area.status != "nonaktif":
+        await _assert_area_not_held_by_sc_spv(
+            area_id, db,
+            "Area tidak bisa dinonaktifkan karena masih dipegang SC/SPV. "
+            "Pindahkan atau lepas SC/SPV tersebut terlebih dahulu.",
+        )
+
     for key, value in update_data.items():
         setattr(area, key, value)
     area.updated_at = datetime.now(timezone.utc)

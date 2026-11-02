@@ -578,6 +578,17 @@ PERMISSION_CATALOG: List[Dict] = [
         "deskripsi": "Lihat daftar & detail surat jalan, termasuk download PDF (via endpoint terautentikasi).",
         "roles": ["admin_ho", "warehouse", "rsm", "direktur", "apsm", "sc_spv", "distributor", "outlet"],
     },
+    {
+        "code": "warehouse.surat_jalan.view_all",
+        "module": "warehouse", "action": "surat_jalan.view_all",
+        "label": "Lihat Semua Surat Jalan (halaman Surat Jalan)",
+        "deskripsi": (
+            "Melihat daftar surat jalan lintas FKP, ringkasan jumlah per status, dan "
+            "antrean FKP yang menunggu dibuatkan surat jalan (halaman Surat Jalan). "
+            "Role internal HO saja; role pengirim memakai endpoint per-FKP."
+        ),
+        "roles": ["warehouse", "admin_ho", "rsm", "direktur"],
+    },
 
     # ── 4.15 Module fkp — Confirm resolusi & invoice (BARU) ────────────────
     {

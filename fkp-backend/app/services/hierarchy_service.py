@@ -2,6 +2,7 @@
 Hierarchy Service — validasi dan manajemen hierarki sales.
 RSM → APSM → SC/SPV → Distributor
 """
+from collections import defaultdict
 import uuid
 from typing import List
 
@@ -18,9 +19,17 @@ from app.schemas.hierarchy import (
     ScSpvDistributorAssign, ApsmScSpvAssign, RsmApsmAssign,
     ScSpvDistributorResponse, ApsmScSpvResponse, RsmApsmResponse,
     ScSpvWithDistributors, ApsmWithTeam, RsmWithTeam,
-    UserBasicInfo, DistributorBasicInfo,
+    UserBasicInfo, DistributorBasicInfo, AreaBasicInfo
 )
 
+def to_user_basic(u: User) -> UserBasicInfo:
+    return UserBasicInfo(
+        id=u.id,
+        nama=u.full_name,
+        email=u.email,
+        no_telepon=u.no_telepon,
+        avatar_path=u.avatar_path,
+    )
 
 async def _get_user_with_role(user_id: uuid.UUID, expected_role: str, db: AsyncSession) -> User:
     """Ambil user dan validasi role-nya."""
@@ -37,12 +46,6 @@ async def _get_user_with_role(user_id: uuid.UUID, expected_role: str, db: AsyncS
             detail=f"User harus memiliki role '{expected_role}', bukan '{role.kode_role if role else 'unknown'}'.",
         )
     return user
-
-
-async def _get_apsm_area_ids(apsm_user_id: uuid.UUID, db: AsyncSession) -> List[uuid.UUID]:
-    """Ambil semua area_id yang di-handle APSM ini."""
-    result = await db.execute(select(Area).where(Area.pic_user_id == apsm_user_id))
-    return [a.id for a in result.scalars().all()]
 
 
 # ─── RSM ↔ APSM ──────────────────────────────────────────────────────────────
@@ -115,7 +118,19 @@ async def assign_sc_spv_to_apsm(data: ApsmScSpvAssign, db: AsyncSession) -> Apsm
             detail="SC/SPV ini sudah memiliki APSM atasan. Lepas dulu sebelum assign ke APSM baru.",
         )
 
-    mapping = ApsmScSpv(apsm_user_id=data.apsm_user_id, sc_spv_user_id=data.sc_spv_user_id)
+    area = await db.get(Area, data.area_id)
+    if not area or area.status != "aktif" or area.pic_user_id != data.apsm_user_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Area harus aktif dan dipegang oleh APSM tujuan.",
+        )
+
+    mapping = ApsmScSpv(
+        apsm_user_id=data.apsm_user_id,
+        sc_spv_user_id=data.sc_spv_user_id,
+        area_id=data.area_id,
+    )
+    
     db.add(mapping)
     await db.commit()
     await db.refresh(mapping)
@@ -132,6 +147,17 @@ async def remove_sc_spv_from_apsm(apsm_user_id: uuid.UUID, sc_spv_user_id: uuid.
     mapping = result.scalar_one_or_none()
     if not mapping:
         raise HTTPException(status_code=404, detail="Mapping APSM-SC/SPV tidak ditemukan.")
+
+    has_dist = await db.execute(
+        select(ScSpvDistributor.id)
+        .where(ScSpvDistributor.sc_spv_user_id == sc_spv_user_id)
+        .limit(1)
+    )
+    if has_dist.first():
+        raise HTTPException(
+            status_code=400,
+            detail="SC/SPV masih meng-handle distributor. Lepas distributornya terlebih dahulu.",
+        )
     await db.delete(mapping)
     await db.commit()
     return {"message": "SC/SPV berhasil dilepas dari APSM."}
@@ -168,40 +194,37 @@ async def assign_distributor_to_sc_spv(data: ScSpvDistributorAssign, db: AsyncSe
             detail="Distributor ini sudah di-handle oleh SC/SPV lain. Lepas dulu sebelum assign ke SC/SPV baru.",
         )
 
-    # ─── VALIDASI AREA ────────────────────────────────────────────────────────
-    # SC/SPV hanya boleh handle distributor di area APSM atasannya
-    apsm_result = await db.execute(
-        select(ApsmScSpv).where(ApsmScSpv.sc_spv_user_id == data.sc_spv_user_id)
-    )
-    apsm_mapping = apsm_result.scalar_one_or_none()
+        # ─── VALIDASI AREA ────────────────────────────────────────────────────────
+    link = (
+        await db.execute(
+            select(ApsmScSpv).where(ApsmScSpv.sc_spv_user_id == data.sc_spv_user_id)
+        )
+    ).scalar_one_or_none()
 
-    if not apsm_mapping:
+    if not link:
         raise HTTPException(
             status_code=400,
             detail="SC/SPV belum memiliki APSM atasan. Assign SC/SPV ke APSM terlebih dahulu.",
         )
 
-    # Ambil area-area yang di-handle APSM atasan SC/SPV ini
-    apsm_area_ids = await _get_apsm_area_ids(apsm_mapping.apsm_user_id, db)
-
-    if not apsm_area_ids:
+    # Hapus cek ini setelah kolom area_id dijadikan NOT NULL
+    if link.area_id is None:
         raise HTTPException(
             status_code=400,
-            detail="APSM atasan SC/SPV ini belum memiliki area yang di-assign.",
+            detail="SC/SPV ini belum memiliki area. Hubungi admin untuk melengkapi data area.",
         )
 
-    # Validasi: area distributor harus termasuk area APSM atasan
-    if distributor.area_id not in apsm_area_ids:
-        # Ambil nama area untuk pesan error yang informatif
-        area_result = await db.execute(select(Area).where(Area.id == distributor.area_id))
-        area = area_result.scalar_one_or_none()
+    if distributor.area_id != link.area_id:
+        rows = await db.execute(
+            select(Area).where(Area.id.in_([distributor.area_id, link.area_id]))
+        )
+        names = {a.id: a.nama_area for a in rows.scalars().all()}
         raise HTTPException(
             status_code=400,
             detail=(
                 f"Distributor '{distributor.nama_perusahaan}' berada di area "
-                f"'{area.nama_area if area else distributor.area_id}' yang tidak termasuk "
-                f"dalam area APSM atasan SC/SPV ini. "
-                f"SC/SPV hanya boleh handle distributor di area APSM atasannya."
+                f"'{names.get(distributor.area_id, '-')}', sedangkan SC/SPV ini "
+                f"memegang area '{names.get(link.area_id, '-')}'."
             ),
         )
     # ─── END VALIDASI AREA ────────────────────────────────────────────────────
@@ -235,71 +258,115 @@ async def remove_distributor_from_sc_spv(
 
 # ─── VIEW HIERARKI ────────────────────────────────────────────────────────────
 
-async def get_hierarchy_by_rsm(rsm_user_id: uuid.UUID, db: AsyncSession) -> RsmWithTeam:
-    """Tampilkan hierarki lengkap: RSM → APSM → SC/SPV → Distributor."""
+async def _users_by_ids(ids, db: AsyncSession) -> dict:
+    if not ids:
+        return {}
+    rows = await db.execute(select(User).where(User.id.in_(list(ids))))
+    return {u.id: u for u in rows.scalars().all()}
 
-    rsm_result = await db.execute(select(User).where(User.id == rsm_user_id))
-    rsm_user = rsm_result.scalar_one_or_none()
+
+async def get_hierarchy_by_rsm(rsm_user_id: uuid.UUID, db: AsyncSession) -> RsmWithTeam:
+    """Tampilkan hierarki lengkap: RSM → APSM → SC/SPV → Distributor (8 query tetap)."""
+
+    # 1) RSM
+    rsm_user = (
+        await db.execute(select(User).where(User.id == rsm_user_id))
+    ).scalar_one_or_none()
     if not rsm_user:
         raise HTTPException(status_code=404, detail="RSM tidak ditemukan.")
 
-    rsm_info = UserBasicInfo(
-        id=rsm_user.id, nama=rsm_user.full_name,
-        email=rsm_user.email, no_telepon=rsm_user.no_telepon
-    )
+    # 2) Mapping RSM → APSM
+    apsm_maps = (
+        await db.execute(
+            select(RsmApsm)
+            .where(RsmApsm.rsm_user_id == rsm_user_id)
+            .order_by(RsmApsm.created_at, RsmApsm.id)
+        )
+    ).scalars().all()
+    apsm_ids = [m.apsm_user_id for m in apsm_maps]
 
-    # Ambil semua APSM di bawah RSM ini
-    apsm_mappings = await db.execute(
-        select(RsmApsm).where(RsmApsm.rsm_user_id == rsm_user_id)
-    )
+    # 3) Semua user APSM
+    apsm_users = await _users_by_ids(apsm_ids, db)
+
+    # 4) Mapping APSM → SC/SPV untuk semua APSM sekaligus
+    sc_maps = []
+    if apsm_ids:
+        sc_maps = (
+            await db.execute(
+                select(ApsmScSpv)
+                .where(ApsmScSpv.apsm_user_id.in_(apsm_ids))
+                .order_by(ApsmScSpv.created_at, ApsmScSpv.id)
+            )
+        ).scalars().all()
+    sc_by_apsm = defaultdict(list)
+    for m in sc_maps:
+        sc_by_apsm[m.apsm_user_id].append(m)
+    sc_ids = [m.sc_spv_user_id for m in sc_maps]
+
+    # 5) Semua user SC/SPV
+    sc_users = await _users_by_ids(sc_ids, db)
+
+    # 6) Mapping SC/SPV → distributor untuk semua SC/SPV sekaligus
+    dist_maps = []
+    if sc_ids:
+        dist_maps = (
+            await db.execute(
+                select(ScSpvDistributor)
+                .where(ScSpvDistributor.sc_spv_user_id.in_(sc_ids))
+                .order_by(ScSpvDistributor.created_at, ScSpvDistributor.id)
+            )
+        ).scalars().all()
+    dist_ids_by_sc = defaultdict(list)
+    for dm in dist_maps:
+        dist_ids_by_sc[dm.sc_spv_user_id].append(dm.distributor_id)
+
+    # 7) Semua distributor
+    all_dist_ids = {dm.distributor_id for dm in dist_maps}
+    dist_by_id = {}
+    if all_dist_ids:
+        rows = await db.execute(
+            select(Distributor).where(Distributor.id.in_(list(all_dist_ids)))
+        )
+        dist_by_id = {d.id: d for d in rows.scalars().all()}
+
+    # 8) Semua area SC/SPV
+    area_ids = {m.area_id for m in sc_maps if m.area_id}
+    area_by_id = {}
+    if area_ids:
+        rows = await db.execute(select(Area).where(Area.id.in_(list(area_ids))))
+        area_by_id = {a.id: a for a in rows.scalars().all()}
+
+    # ─── Rangkai di memori (tanpa query) ──────────────────────────────────────
     apsm_list = []
-
-    for apsm_map in apsm_mappings.scalars().all():
-        apsm_result = await db.execute(select(User).where(User.id == apsm_map.apsm_user_id))
-        apsm_user = apsm_result.scalar_one_or_none()
+    for apsm_map in apsm_maps:
+        apsm_user = apsm_users.get(apsm_map.apsm_user_id)
         if not apsm_user:
             continue
 
-        apsm_info = UserBasicInfo(
-            id=apsm_user.id, nama=apsm_user.full_name,
-            email=apsm_user.email, no_telepon=apsm_user.no_telepon
-        )
-
-        # Ambil SC/SPV di bawah APSM ini
-        sc_mappings = await db.execute(
-            select(ApsmScSpv).where(ApsmScSpv.apsm_user_id == apsm_user.id)
-        )
         sc_list = []
-
-        for sc_map in sc_mappings.scalars().all():
-            sc_result = await db.execute(select(User).where(User.id == sc_map.sc_spv_user_id))
-            sc_user = sc_result.scalar_one_or_none()
+        for sc_map in sc_by_apsm.get(apsm_user.id, []):
+            sc_user = sc_users.get(sc_map.sc_spv_user_id)
             if not sc_user:
                 continue
 
-            sc_info = UserBasicInfo(
-                id=sc_user.id, nama=sc_user.full_name,
-                email=sc_user.email, no_telepon=sc_user.no_telepon
-            )
-
-            # Ambil distributor yang di-handle SC/SPV ini
-            dist_mappings = await db.execute(
-                select(ScSpvDistributor).where(ScSpvDistributor.sc_spv_user_id == sc_user.id)
-            )
-            dist_list = []
-            for dm in dist_mappings.scalars().all():
-                dist_result = await db.execute(
-                    select(Distributor).where(Distributor.id == dm.distributor_id)
+            dist_list = [
+                DistributorBasicInfo(
+                    id=d.id,
+                    kode_distributor=d.kode_distributor,
+                    nama_perusahaan=d.nama_perusahaan,
+                    status=d.status,
                 )
-                dist = dist_result.scalar_one_or_none()
-                if dist:
-                    dist_list.append(DistributorBasicInfo(
-                        id=dist.id, kode_distributor=dist.kode_distributor,
-                        nama_perusahaan=dist.nama_perusahaan, status=dist.status,
-                    ))
+                for d in (dist_by_id.get(did) for did in dist_ids_by_sc.get(sc_user.id, []))
+                if d
+            ]
 
-            sc_list.append(ScSpvWithDistributors(sc_spv=sc_info, distributors=dist_list))
+            area = area_by_id.get(sc_map.area_id)
+            sc_list.append(ScSpvWithDistributors(
+                sc_spv=to_user_basic(sc_user),
+                area=AreaBasicInfo.model_validate(area) if area else None,
+                distributors=dist_list,
+            ))
 
-        apsm_list.append(ApsmWithTeam(apsm=apsm_info, sc_spv_list=sc_list))
+        apsm_list.append(ApsmWithTeam(apsm=to_user_basic(apsm_user), sc_spv_list=sc_list))
 
-    return RsmWithTeam(rsm=rsm_info, apsm_list=apsm_list)
+    return RsmWithTeam(rsm=to_user_basic(rsm_user), apsm_list=apsm_list)
