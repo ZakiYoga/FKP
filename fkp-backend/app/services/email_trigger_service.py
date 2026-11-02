@@ -1,10 +1,15 @@
 """
-Dipanggil dari fkp_service setelah commit — resolve user dari DB
-lalu fire email di background (tidak memblokir response API).
+Pemicu email — dipanggil dari service/route setelah db.commit().
+Resolve data dari DB lalu kirim email di background (tidak memblokir response API).
+
+  FKP : trigger_email_after_transition()   (ke submitter FKP)
+
+Email outlet dan email akun TIDAK lewat modul ini: dijadwalkan langsung lewat
+BackgroundTasks dari service masing-masing (lihat outlet_register_service).
 """
 import asyncio
 import logging
-from typing import Optional
+from typing import Coroutine, Optional
 
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +19,17 @@ from app.models.user import User
 from app.services import email_service
 
 logger = logging.getLogger(__name__)
+
+# asyncio hanya menyimpan weak reference ke task. Tanpa referensi kuat, task
+# fire-and-forget bisa dibuang garbage collector sebelum email terkirim.
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _fire(coro: Coroutine, label: str, to_email: str) -> None:
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    logger.info("[EMAIL-TRIGGER] Task email dibuat: %s -> %s", label, to_email)
 
 
 async def _get_user(db: AsyncSession, user_id) -> Optional[User]:
@@ -35,6 +51,8 @@ def _nama(user: Optional[User]) -> str:
     )
 
 
+# ─── FKP ─────────────────────────────────────────────────────────────────────
+
 async def trigger_email_after_transition(
     db: AsyncSession,
     fkp: FkpComplaint,
@@ -48,7 +66,6 @@ async def trigger_email_after_transition(
     Menjalankan pengiriman email sebagai asyncio background task
     sehingga tidak memperlambat response API.
     """
-    # Resolve submitter
     submitter = await _get_user(db, fkp.submitted_by)
     if not submitter or not getattr(submitter, "email", None):
         logger.warning("[EMAIL-TRIGGER] FKP %s: email submitter kosong, skip.", fkp.nomor_fkp)
@@ -59,7 +76,6 @@ async def trigger_email_after_transition(
     actor_nama    = _nama(actor)
     fkp_id        = str(fkp.id)
 
-    # Pilih fungsi email berdasarkan status baru
     if status_baru == FkpStatus.SUBMITTED:
         coro = email_service.kirim_email_fkp_submitted(
             to_email=to_email, nama_penerima=nama_penerima,
@@ -94,6 +110,4 @@ async def trigger_email_after_transition(
         # Status lain tidak memerlukan notifikasi email ke submitter
         return
 
-    # Fire-and-forget — tidak await langsung agar response API tidak tertahan
-    asyncio.create_task(coro)
-    logger.info("[EMAIL-TRIGGER] Task email dibuat: %s → %s", status_baru, to_email)
+    _fire(coro, status_baru, to_email)

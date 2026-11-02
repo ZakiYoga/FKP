@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import api from '@/lib/axios'
-import type { Outlet } from '@/types/outlet'
+import { Outlet } from '@/types'
 
 // Hook untuk endpoint berpagination BE:
 //   GET /outlets/page            → list + pagination + search server-side

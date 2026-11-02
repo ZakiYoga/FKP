@@ -14,6 +14,9 @@ import {
 } from '@mantine/core'
 import { BadgeCheck } from 'lucide-react'
 import type { Gender, UpdateProfilePayload, UserMe } from '@/types'
+import { useCooldown } from '@/hooks/useCooldown'
+import { AUTH_EMAIL_RESEND_COOLDOWN_SECONDS } from '@/lib/constants'
+import { retryAfterSeconds, verifyEmailCooldownKey } from '@/lib/cooldown'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { UserAvatar } from '../UserAvatar'
 
@@ -111,6 +114,11 @@ export function ProfileSection({
   const [emailValues, setEmailValues] = useState<EmailFormValues>(EMPTY_EMAIL_FORM)
   const [emailErrors, setEmailErrors] = useState<EmailFormErrors>({})
   const [emailSaving, setEmailSaving] = useState(false)
+
+  // Cooldown kirim email verifikasi. "Kirim ulang verifikasi" dan "Ganti email" memakai
+  // token yang sama di server (cooldown per user), jadi keduanya berbagi satu hitung
+  // mundur. Tanpa ini: klik kedua dijawab 429 dan terlihat seperti error tanpa sebab.
+  const emailCooldown = useCooldown(verifyEmailCooldownKey(data.email))
 
   // Sinkron dari server saat tidak sedang mengedit (juga membuang perubahan saat Cancel).
   useEffect(() => {
@@ -229,11 +237,16 @@ export function ProfileSection({
   // ─── Email ──────────────────────────────────────────────────────────────────
 
   const handleResendVerification = async () => {
+    if (resending || emailCooldown.isCoolingDown) return
     setResending(true)
     try {
       await onResendVerification()
-    } catch {
-      // pesan error ditampilkan oleh hook
+      emailCooldown.start(AUTH_EMAIL_RESEND_COOLDOWN_SECONDS)
+    } catch (err) {
+      // pesan error ditampilkan oleh hook. Jika server menolak karena cooldown
+      // (429, mis. email baru saja dikirim dari perangkat/tab lain), ikuti waktu tunggunya.
+      const retry = retryAfterSeconds(err)
+      if (retry) emailCooldown.start(retry)
     } finally {
       setResending(false)
     }
@@ -256,6 +269,8 @@ export function ProfileSection({
 
   const handleChangeEmail = async (e: FormEvent) => {
     e.preventDefault()
+    // Enter di kolom password juga lewat sini, jadi cooldown dicek di handler.
+    if (emailSaving || emailCooldown.isCoolingDown) return
     const email_baru = emailValues.email_baru.trim().toLowerCase()
     const next: EmailFormErrors = {}
     if (!email_baru) next.email_baru = 'Wajib diisi'
@@ -268,9 +283,12 @@ export function ProfileSection({
     setEmailSaving(true)
     try {
       await onChangeEmail({ email_baru, password: emailValues.password })
+      emailCooldown.start(AUTH_EMAIL_RESEND_COOLDOWN_SECONDS)
       resetEmailModal()
-    } catch {
+    } catch (err) {
       // modal tetap terbuka; pesan error ditampilkan oleh hook
+      const retry = retryAfterSeconds(err)
+      if (retry) emailCooldown.start(retry)
     } finally {
       setEmailSaving(false)
     }
@@ -363,15 +381,24 @@ export function ProfileSection({
                   size="compact-xs"
                   variant="subtle"
                   loading={resending}
+                  disabled={emailCooldown.isCoolingDown}
                   onClick={handleResendVerification}
                 >
-                  Kirim ulang verifikasi
+                  {emailCooldown.isCoolingDown
+                    ? `Kirim ulang dalam ${emailCooldown.remaining} dtk`
+                    : 'Kirim ulang verifikasi'}
                 </Button>
               )}
               <Button size="compact-xs" variant="subtle" onClick={() => setEmailModalOpen(true)}>
                 Ganti email
               </Button>
             </Group>
+            {/* Teks statis (bukan hitung mundur) agar pembaca layar tidak mengumumkan tiap detik */}
+            {emailCooldown.isCoolingDown && (
+              <Text size="xs" c="dimmed" role="status">
+                Email dapat memerlukan beberapa menit untuk sampai. Periksa juga folder spam.
+              </Text>
+            )}
             {data.pending_email && (
               <Alert color="blue" variant="light" p="xs">
                 <Text size="xs">
@@ -500,10 +527,10 @@ export function ProfileSection({
       >
         <form onSubmit={handleChangeEmail} noValidate>
           <Stack gap="md">
-            <Text size="sm" c="dimmed">
+            {/* <Text size="sm" c="dimmed">
               Kami akan mengirim tautan konfirmasi ke email baru. Email akun Anda baru berubah
               setelah tautan itu diklik; sampai saat itu Anda tetap login dengan email lama.
-            </Text>
+            </Text> */}
             <TextInput
               label="Email baru"
               type="email"
@@ -520,12 +547,20 @@ export function ProfileSection({
               error={emailErrors.password}
               onChange={(e) => setEmailField('password', e.currentTarget.value)}
             />
+            {emailCooldown.isCoolingDown && (
+              <Text size="xs" c="dimmed">
+                Email konfirmasi baru saja dikirim. Anda dapat meminta tautan baru dalam{' '}
+                {emailCooldown.remaining} detik.
+              </Text>
+            )}
             <Group justify="flex-end" gap="xs">
               <Button variant="default" disabled={emailSaving} onClick={closeEmailModal}>
                 Batal
               </Button>
-              <Button type="submit" loading={emailSaving}>
-                Ganti Email
+              <Button type="submit" loading={emailSaving} disabled={emailCooldown.isCoolingDown}>
+                {emailCooldown.isCoolingDown
+                  ? `Coba lagi dalam ${emailCooldown.remaining} dtk`
+                  : 'Ganti Email'}
               </Button>
             </Group>
           </Stack>

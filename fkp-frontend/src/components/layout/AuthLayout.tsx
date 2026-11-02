@@ -8,10 +8,12 @@ function RightPanel() {
   return (
     <div className="relative flex min-h-screen flex-1 flex-col items-center justify-center overflow-y-auto bg-gray-100 dark:bg-gray-900">
       {/* Toggle tema: fixed agar tetap di pojok kanan atas walau konten di-scroll */}
-      <div className="fixed right-4 top-4 z-10">
-        <ThemeToggle />
+      <div className="flex w-full mb-auto justify-end space-y-6 py-4 md:py-6 lg:max-w-xl xl:max-w-2xl">
+        <ThemeToggle className='border-gray-800 text-gray-800 dark:border-gray-300 dark:text-gray-300 p-2 hover:bg-brand-50 dark:hover:bg-gray-800' size={36}/>
       </div>
-      <Outlet />
+      <div className="flex w-full justify-center items-center h-full">
+        <Outlet />
+      </div>
     </div>
   )
 }

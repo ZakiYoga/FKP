@@ -83,7 +83,7 @@ export function FkpQrCode({ fkpId, nomorFkp }: FkpQrCodeProps) {
   return (
     <div className="card">
       <div className="card-header">
-        <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+        <h2 className="font-semibold flex items-center gap-2">
           <QrCode className="w-4 h-4 text-brand-500" />
           QR Tracking
         </h2>

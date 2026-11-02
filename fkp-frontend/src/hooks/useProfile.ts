@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { QueryClient } from '@tanstack/react-query'
-import toast from 'react-hot-toast'
+import { notifications } from '@mantine/notifications'
 import { profileApi } from '@/api/profile'
 import { getErrorMessage } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
@@ -62,9 +62,9 @@ export function useUpdateProfile() {
     mutationFn: profileApi.updateMyProfile,
     onSuccess: (user) => {
       afterProfileChange(qc, user)
-      toast.success('Profil berhasil diperbarui.')
+      notifications.show({ message: 'Profil berhasil diperbarui.', color: 'green' })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -74,9 +74,9 @@ export function useUploadAvatar() {
     mutationFn: (file: File) => profileApi.uploadAvatar(file),
     onSuccess: (user) => {
       afterProfileChange(qc, user)
-      toast.success('Foto profil berhasil diperbarui.')
+      notifications.show({ message: 'Foto profil berhasil diperbarui.', color: 'green' })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -86,8 +86,8 @@ export function useDeleteAvatar() {
     mutationFn: () => profileApi.deleteAvatar(),
     onSuccess: (user) => {
       afterProfileChange(qc, user)
-      toast.success('Foto profil dihapus.')
+      notifications.show({ message: 'Foto profil dihapus.', color: 'green' })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }

@@ -27,7 +27,7 @@ export function FkpCard({ fkp }: FkpCardProps) {
       </div>
 
       {/* Jenis keluhan */}
-      <h3 className="font-semibold text-gray-900 text-sm leading-snug mb-1 line-clamp-2">
+      <h3 className="font-semibold text-sm leading-snug mb-1 line-clamp-2">
         {fkp.jenis_keluhan}
       </h3>
 

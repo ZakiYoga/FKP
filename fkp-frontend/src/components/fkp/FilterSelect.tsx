@@ -8,9 +8,10 @@ export interface FilterOption {
 // Masih dipakai input tanggal agar tinggi dan gayanya sama dengan select (h-9 = size="sm" Mantine).
 // Select sendiri sudah di-style lewat CLASS_NAMES di SearchableSelect.
 export const filterFieldClass =
-  'w-full text-sm border border-gray-200 bg-red-500 rounded-lg px-3 pr-2 h-10 bg-white text-gray-700' +
-  'focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 cursor-pointer'
-
+  'w-full text-sm border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg px-3 pr-2 h-10 text-gray-700 dark:text-gray-200 ' +
+  'focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 dark:focus:border-brand-400 cursor-pointer ' +
+  'dark:[color-scheme:dark]'
+  
 interface FilterSelectProps {
   value: string
   onChange: (v: string) => void

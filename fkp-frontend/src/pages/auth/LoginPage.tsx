@@ -90,7 +90,7 @@ export function LoginPage() {
             id="email"
             type="email"
             autoComplete="email"
-            placeholder="email@example.com"
+            placeholder="email@saktipangan.co.id"
             className={cn('input-base', errors.email && 'input-error')}
             {...register('email')}
           />

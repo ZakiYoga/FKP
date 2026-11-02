@@ -22,6 +22,8 @@ export interface SelectFilterField extends BaseField {
   label: string
   /** '' berarti belum ada filter. */
   value: string
+  /** Nilai bawaan: tidak dihitung sebagai filter aktif dan dipakai saat Reset (mis. tab awal). */
+  defaultValue?: string
   onChange: (v: string) => void
   options: FilterOption[]
   /** Teks saat belum ada pilihan, mis. "Semua Status". */
@@ -106,7 +108,7 @@ function Field({ label, className, as: Tag = 'label', children }: FieldProps) {
 
 function countActive(fields: FilterBarField[]): number {
   return fields.reduce((total, f) => {
-    if (f.type === 'select') return total + Number(Boolean(f.value))
+    if (f.type === 'select') return total + Number(Boolean(f.value) && f.value !== (f.defaultValue ?? ''))
     if (f.type === 'toggle') return total + Number(f.checked)
     return total + Number(Boolean(f.from)) + Number(Boolean(f.to))
   }, 0)
@@ -169,7 +171,7 @@ export function FilterBar({
     }
     for (const f of visibleFields) {
       if (f.type === 'select') {
-        f.onChange('')
+        f.onChange(f.defaultValue ?? '')
       } else if (f.type === 'toggle') {
         f.onChange(false)
       } else {
@@ -215,7 +217,7 @@ export function FilterBar({
       {/* Baris utama: search + Filter + Reset */}
       <div className="flex items-center">
         <div className="relative flex-1 min-w-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
           <input
             type="text"
             placeholder={searchPlaceholder}
@@ -237,8 +239,8 @@ export function FilterBar({
               'ml-2 shrink-0 inline-flex items-center px-3 text-sm rounded-lg border',
               'transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-500/30',
               open
-                ? 'border-brand-400 text-brand-500'
-                : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900 dark:border-gray-600 hover:border-gray-300',
+                ? 'border-brand-400 text-brand-500 dark:border-brand-400 dark:text-brand-400'
+                : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-600',
             )}
           >
             Filter
@@ -270,9 +272,7 @@ export function FilterBar({
               type="button"
               variant="outline"
               onClick={clearAll}
-              className="ml-2 inline-flex border items-center gap-1 text-red-500 border-red-500 h-9 px-3 text-sm whitespace-nowrap rounded-lg
-                        hover:text-red-700 hover:bg-red-100 hover:border-red-600 transition-colors
-                         focus-visible:outline-hidden"
+              className="ml-2 inline-flex border items-center gap-1 text-red-500 dark:text-red-400 border-red-500 dark:border-red-500 h-9 px-3 text-sm whitespace-nowrap rounded-lg hover:text-red-700 dark:hover:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 hover:border-red-600 dark:hover:border-red-400 transition-colors focus-visible:outline-hidden"
             >
               <X className="w-3.5 h-3.5" />
               Reset
@@ -297,7 +297,7 @@ export function FilterBar({
           )}
         >
           <div className="overflow-hidden min-h-0">
-            <div className="mt-3 rounded-lg border border-gray-200 bg-white dark:bg-gray-900 dark:border-gray-600 p-4">
+            <div className="mt-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
               <div className="flex flex-wrap gap-3">
                 {visibleFields.map((field) => {
                   if (field.type === 'select') {
@@ -334,7 +334,7 @@ export function FilterBar({
                       <label
                         key={field.key}
                         className={clsx(
-                          'flex items-center gap-2 self-end h-9 min-w-0 text-sm text-gray-700 cursor-pointer select-none',
+                          'flex items-center gap-2 self-end h-9 min-w-0 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none',
                           FIELD_BASIS,
                         )}
                       >
@@ -342,7 +342,7 @@ export function FilterBar({
                           type="checkbox"
                           checked={field.checked}
                           onChange={(e) => field.onChange(e.target.checked)}
-                          className="rounded-sm border-gray-300 text-brand-600"
+                          className="rounded-sm border-gray-300 dark:border-gray-600 text-brand-600 dark:bg-gray-700"
                         />
                         {field.label}
                       </label>
@@ -358,7 +358,7 @@ export function FilterBar({
                           value={field.from}
                           max={field.to || undefined}
                           onChange={(e) => field.onFromChange(e.target.value)}
-                          className={clsx(filterFieldClass, 'py-0', !field.from && 'text-gray-500')}
+                          className={clsx(filterFieldClass, 'py-0', !field.from && 'text-gray-500 dark:text-gray-400')}
                         />
                       </Field>
                       <Field label={field.toLabel ?? 'Tanggal Selesai'} className="flex-1">
@@ -367,7 +367,7 @@ export function FilterBar({
                           value={field.to}
                           min={field.from || undefined}
                           onChange={(e) => field.onToChange(e.target.value)}
-                          className={clsx(filterFieldClass, 'py-0', !field.to && 'text-gray-500')}
+                          className={clsx(filterFieldClass, 'py-0', !field.to && 'text-gray-500 dark:text-gray-400')}
                         />
                       </Field>
                     </div>

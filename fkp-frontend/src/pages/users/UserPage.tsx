@@ -20,6 +20,7 @@ import { FilterBar, FilterBarField } from '@/components/ui/FilterBar'
 import { Pagination } from '@/components/ui/Pagination'
 import PageHeader from '@/components/ui/PageHeader'
 import { ResetUserPasswordModal } from '@/components/users/ResetUserPasswordModal' // sesuaikan path-nya
+import { UserAvatar } from '@/components/UserAvatar'
 
 const PAGE_SIZE = 10
 
@@ -185,33 +186,31 @@ export function UserPage() {
       {/* Table */}
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm border">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50">
+              <tr className="border-b">
                 {['Nama', 'Email', 'Role', 'Status', 'Terakhir Login', 'Aksi'].map((h) => (
                   <th key={h} className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y">
               {users.map((u) => {
                 const role = roles.find((r) => r.id === u.role_id)
                 const isSelf = u.id === currentUser?.id
                 return (
-                  <tr key={u.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={u.id} className="transition-colors">
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
-                          <span className="text-brand-700 text-xs font-bold">{u.first_name.charAt(0).toUpperCase()}</span>
-                        </div>
+                        <UserAvatar user={u} size={32} className="shrink-0" />
                         <div>
-                          <p className="font-semibold text-gray-900">{u.full_name}</p>
+                          <p className="font-semibold">{u.full_name}</p>
                           {u.no_telepon && <p className="text-xs text-gray-400">{u.no_telepon}</p>}
                           {isSelf && <span className="text-xs text-brand-500 font-medium">(Saya)</span>}
                         </div>
                       </div>
                     </td>
-                    <td className="px-5 py-4 text-gray-600">
+                    <td className="px-5 py-4 text-gray-600 dark:text-gray-500">
                       <p className="flex items-center gap-1 leading-1">
                         {u.email}
                         {u.email_verified_at ? (
@@ -221,7 +220,8 @@ export function UserPage() {
                         )}
                       </p>
 
-                    </td>                    <td className="px-5 py-4">
+                    </td>
+                    <td className="px-5 py-4">
                       {role && (
                         <span className="badge bg-brand-50 text-brand-700">{role.nama_role}</span>
                       )}

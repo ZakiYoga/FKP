@@ -28,7 +28,7 @@ export function TestimoniFormFields({
       <div className="card-header">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+            <h3 className="font-semibold flex items-center gap-2">
               <MessageSquare className="w-4 h-4 text-brand-500" />
               {isEditing ? 'Edit Testimoni' : 'Beri Testimoni'}
             </h3>

@@ -16,13 +16,13 @@ export interface PublicPageMeta {
 
 export function PublicLayout() {
     const [meta, setMeta] = useState<PublicPageMeta>({
-        pageTitle: 'SaktiFood',
-        pageSubtitle: undefined,
+        pageTitle: 'FKP - PT SAKTI PANGAN PERKASA',
+        pageSubtitle: 'Aplikasi untuk pengajuan form keluhan pelanggan',
         pageIcon: undefined,
     })
 
     return (
-        <div className="min-h-screen bg-linear-to-br from-slate-50 via-blue-50/30 to-white flex flex-col">
+        <div className="min-h-screen flex flex-col">
             <PublicHeader meta={meta} />
             <main className="flex-1">
                 <Outlet context={{ setPage: setMeta } satisfies PublicPageContext} />

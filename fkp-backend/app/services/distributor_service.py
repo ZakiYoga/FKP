@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.wilayah_service import attach_wilayah, ensure_kelurahan
 
 from app.models.distributor import Distributor, DistributorUser
+from app.models.sc_spv import ScSpvDistributor
 from app.models.area import Area
 from app.models.user import User
 from app.schemas.distributor import (
@@ -329,7 +330,7 @@ async def update_my_distributor(
         )
 
     changes = data.model_dump(exclude_unset=True)
-    print("SELF-UPDATE CHANGES:", changes, flush=True)
+
     if "kelurahan_id" in changes:
         await ensure_kelurahan(db, changes["kelurahan_id"])
 
@@ -391,6 +392,18 @@ async def update_distributor(
     distributor_id: uuid.UUID, data: DistributorUpdate, db: AsyncSession
 ) -> Distributor:
     distributor = await get_distributor(distributor_id, db)
+
+    if data.area_id and data.area_id != distributor.area_id:
+        row = await db.execute(
+            select(ScSpvDistributor.id)
+            .where(ScSpvDistributor.distributor_id == distributor_id)
+            .limit(1)
+        )
+        if row.first():
+            raise HTTPException(
+                status_code=400,
+                detail="Distributor ini masih di-handle SC/SPV. Lepas dari SC/SPV sebelum mengganti area.",
+            )
 
     if data.area_id:
         area_result = await db.execute(select(Area).where(Area.id == data.area_id))

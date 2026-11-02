@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Package, Pencil, Power, PowerOff, AlertTriangle, Scale, Boxes } from 'lucide-react'
+import { Plus, Package, Pencil, Power, PowerOff, AlertTriangle } from 'lucide-react'
 import { EntityCard, EntityCardIconButton } from '@/components/ui/EntityCard'
 import { StatusToggleBadge } from '@/components/ui/StatusToggle'
 import { Controller, useForm, type Resolver } from 'react-hook-form'
@@ -31,8 +31,12 @@ import {
   tentukanQtyPerKemasan,
   terapkanSatuKemasanBesar,
 } from '@/lib/kemasan'
-import type { Product } from '@/types'
+import { PRODUCT_CLASS_LABEL, PRODUCT_CLASS_OPTIONS, type Product } from '@/types'
 import PageHeader from '@/components/ui/PageHeader'
+import { SearchableSelect } from '@/components/ui/SearchableSelect'
+import { ProductFotoInput } from '@/components/product/ProductFotoInput'
+import { ProductSummary } from '@/components/product/ProductSummary'
+import { ProductPhotoModal } from '@/components/product/ProductPhoto'
 
 // Nilai kosong dari <input> dianggap "belum diisi" (undefined), bukan 0 / NaN.
 const kosongJadiUndefined = (v: unknown) =>
@@ -42,6 +46,10 @@ const schema = z
   .object({
     kode_produk: z.string().min(1, 'Kode produk wajib diisi'),
     nama_produk: z.string().min(1, 'Nama produk wajib diisi'),
+    class: z.preprocess(
+      kosongJadiUndefined,
+      z.enum(PRODUCT_CLASS_OPTIONS, { required_error: 'Class wajib dipilih' }),
+    ),
     kemasan: z.array(z.enum(KEMASAN_OPTIONS)).min(1, 'Pilih minimal satu kemasan'),
     // Berat per SATUAN TERKECIL: per zak untuk zak, per pcs untuk kemasan lain.
     berat_gr: z.preprocess(
@@ -80,12 +88,14 @@ const EMPTY_FORM: FormInput = {
   kode_produk: '',
   nama_produk: '',
   kemasan: [],
+  class: '',
   berat_gr: '',
   qty_per_kemasan: '',
 }
 
 const CAN_MANAGE = ['superadmin', 'admin_ho']
 
+const CLASS_FILTER_OPTIONS = PRODUCT_CLASS_OPTIONS.map((c) => ({ value: c, label: PRODUCT_CLASS_LABEL[c] }))
 const KEMASAN_FILTER_OPTIONS = KEMASAN_OPTIONS.map((k) => ({ value: k, label: KEMASAN_LABEL[k] }))
 
 export function ProductPage() {
@@ -96,6 +106,8 @@ export function ProductPage() {
   const [kemasanFilter, setKemasanFilter] = useState('')
   const [showInactive, setShowInactive] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
+  const [fotoFile, setFotoFile] = useState<File | null>(null)
+  const [hapusFoto, setHapusFoto] = useState(false)
   const [editing, setEditing] = useState<Product | null>(null)
 
   const { data: products = [], isLoading } = useProducts(
@@ -125,28 +137,37 @@ export function ProductPage() {
   const qtyInput = qtyMentah === '' || qtyMentah == null ? undefined : Number(qtyMentah)
   const beratKemasan = beratKemasanGr(kemasanDipilih, beratInput, qtyInput)
   const labelKemasanBesar = kemasanBesarDipilih[0] ? KEMASAN_LABEL[kemasanBesarDipilih[0]] : ''
+  const [classFilter, setClassFilter] = useState('')
+  const [fotoPreview, setFotoPreview] = useState<Product | null>(null)
+
 
   const filtered = products.filter((p) => {
     const matchSearch = !search ||
       p.nama_produk.toLowerCase().includes(search.toLowerCase()) ||
       p.kode_produk.toLowerCase().includes(search.toLowerCase())
     const matchKemasan = !kemasanFilter || p.kemasan_tersedia.includes(kemasanFilter)
-    return matchSearch && matchKemasan
+    const matchClass = !classFilter || p.class === classFilter
+    return matchSearch && matchKemasan && matchClass
   })
+
+  const resetFoto = () => { setFotoFile(null); setHapusFoto(false) }
 
   const closeModal = () => {
     setModalOpen(false)
     reset(EMPTY_FORM)
+    resetFoto()
   }
 
   const openCreate = () => {
     setEditing(null)
     reset(EMPTY_FORM)
+    resetFoto()
     setModalOpen(true)
   }
 
   const openEdit = (p: Product) => {
     setEditing(p)
+    resetFoto()
     const kemasanProduk = normalisasiKemasan(p.kemasan_tersedia)
     reset({
       kode_produk: p.kode_produk,
@@ -157,6 +178,7 @@ export function ProductPage() {
       // dibawa ke form supaya tidak jadi isi "ball" bila kemasan diganti.
       qty_per_kemasan:
         perluInputIsi(kemasanProduk) && p.qty_per_kemasan ? p.qty_per_kemasan : '',
+      class: p.class || '',
     })
     setModalOpen(true)
   }
@@ -182,20 +204,31 @@ export function ProductPage() {
       save(
         {
           id: editing.id,
-          data: { nama_produk: data.nama_produk, berat_gr: data.berat_gr },
+          data: {
+            nama_produk: data.nama_produk,
+            class: data.class,
+            berat_gr: data.berat_gr,
+            // Foto lama dihapus hanya bila ditandai dan tidak ada foto pengganti.
+            ...(hapusFoto && !fotoFile ? { foto_url: null } : {}),
+          },
           kemasan: kirimKemasan ? kemasanBaru : undefined,
           qty_per_kemasan: kirimKemasan ? (qtyBaru ?? null) : undefined,
+          foto: fotoFile,
         },
         { onSuccess: closeModal },
       )
     } else {
       create(
         {
-          kode_produk: data.kode_produk,
-          nama_produk: data.nama_produk,
-          kemasan: kemasanBaru,
-          berat_gr: data.berat_gr,
-          qty_per_kemasan: qtyBaru ?? null,
+          data: {
+            kode_produk: data.kode_produk,
+            nama_produk: data.nama_produk,
+            class: data.class,
+            kemasan: kemasanBaru,
+            berat_gr: data.berat_gr,
+            qty_per_kemasan: qtyBaru ?? null,
+          },
+          foto: fotoFile,
         },
         { onSuccess: closeModal },
       )
@@ -214,6 +247,15 @@ export function ProductPage() {
       onChange: setKemasanFilter,
       options: KEMASAN_FILTER_OPTIONS,
       placeholder: 'Semua Kemasan',
+    },
+    {
+      key: 'class',
+      type: 'select',
+      label: 'Class',
+      value: classFilter,
+      onChange: setClassFilter,
+      options: CLASS_FILTER_OPTIONS,
+      placeholder: 'Semua Class',
     },
     {
       key: 'nonaktif',
@@ -272,21 +314,7 @@ export function ProductPage() {
                 badge={<StatusToggleBadge status={p.is_active ? 'aktif' : 'nonaktif'} />}
                 title={p.nama_produk}
                 meta={[
-                  {
-                    icon: Package,
-                    text: kemasanProduk.length > 0
-                      ? kemasanProduk.map((k) => KEMASAN_LABEL[k]).join(' · ')
-                      : 'Belum ada kemasan',
-                  },
-                  !!p.berat_gr && {
-                    icon: Scale,
-                    text: `${formatBerat(p.berat_gr)} / ${satuanBerat(kemasanProduk)}`,
-                  },
-                  besar && beratBesar !== null && !!p.qty_per_kemasan && {
-                    icon: Boxes,
-                    text: `1 ${KEMASAN_LABEL[besar].toLowerCase()} = ${p.qty_per_kemasan} pcs · ${formatBerat(beratBesar)}`,
-                    clamp: true,
-                  },
+                  { text: <ProductSummary product={p} onOpenFoto={() => setFotoPreview(p)} /> },
                   canManage && besar && isiBelumDiisi && {
                     icon: AlertTriangle,
                     tone: 'warning',
@@ -342,6 +370,43 @@ export function ProductPage() {
           <div>
             <Controller
               control={control}
+              name="class"
+              render={({ field }) => (
+                <SearchableSelect
+                  label="Class"
+                  required
+                  placeholder="Pilih class..."
+                  options={CLASS_FILTER_OPTIONS}
+                  // field.value bertipe unknown (hasil preprocess zod), jadi dipersempit dulu
+                  value={typeof field.value === 'string' && field.value ? field.value : null}
+                  // '' (bukan null) agar preprocess zod menganggapnya "belum diisi"
+                  onChange={(v) => field.onChange(v ?? '')}
+                  onBlur={field.onBlur}
+                  ref={field.ref}
+                  searchable={false}
+                  clearable={false}
+                  disabled={isBusy}
+                  error={errors.class?.message as string | undefined}
+                />
+              )}
+            />
+            {errors.class?.message && (
+              <p className="mt-1 text-xs text-red-600">{errors.class.message as string}</p>
+            )}
+          </div>
+
+          <ProductFotoInput
+            currentUrl={editing?.foto_url}
+            file={fotoFile}
+            onFileChange={setFotoFile}
+            removed={hapusFoto}
+            onRemovedChange={setHapusFoto}
+            disabled={isBusy}
+          />
+
+          <div>
+            <Controller
+              control={control}
               name="kemasan"
               render={({ field }) => (
                 <KemasanPicker
@@ -379,7 +444,7 @@ export function ProductPage() {
             {...register('berat_gr')}
           />
 
-          {tampilIsi && (
+          {kemasanDipilih.length > 0 && (tampilIsi ? (
             <Input
               label={`Isi per ${labelKemasanBesar.toLowerCase()} (pcs)`}
               required
@@ -388,7 +453,20 @@ export function ProductPage() {
               error={errors.qty_per_kemasan?.message as string | undefined}
               {...register('qty_per_kemasan')}
             />
-          )}
+          ) : (
+            <div>
+              <Input
+                label={`Isi per ${labelKemasanBesar.toLowerCase() || 'kemasan'} (pcs)`}
+                type="number"
+                value={1}
+                readOnly
+                disabled
+              />
+              <p className="mt-1 text-xs text-gray-400">
+                Otomatis 1 untuk zak atau produk pcs-saja. Isi hanya bisa diatur untuk ball atau karton.
+              </p>
+            </div>
+          ))}
 
           {beratKemasan !== null && kemasanBesarDipilih[0] && (
             <p className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2 text-xs text-gray-600">
@@ -406,6 +484,8 @@ export function ProductPage() {
           </div>
         </form>
       </Modal>
+
+      <ProductPhotoModal product={fotoPreview} onClose={() => setFotoPreview(null)} />
     </div>
   )
 }

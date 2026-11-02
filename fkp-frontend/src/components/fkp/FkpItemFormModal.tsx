@@ -203,7 +203,8 @@ export function FkpItemFormModal({
     // ── Opsi untuk select ─────────────────────────────────────────────────────
     const produkOptions = produkKatalog.map((p) => ({
         value: p.id,
-        label: `[${p.kode_produk}] ${p.nama_produk}`, // kode ikut dicari, sama dengan label item di daftar FKP
+        label: `${p.nama_produk}`, // kode ikut dicari, sama dengan label item di daftar FKP
+        // label: `[${p.kode_produk}] ${p.nama_produk}`, // kode ikut dicari, sama dengan label item di daftar FKP
     }))
 
     const kemasanOptions = [
@@ -321,7 +322,7 @@ export function FkpItemFormModal({
 
                 {/* ── Identifikasi Produk ─────────────────────────────── */}
                 <div className="space-y-3">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    <p className="text-xs font-semibold uppercase tracking-wide">
                         Identifikasi Produk
                     </p>
                     <Controller
@@ -630,7 +631,7 @@ export function FkpItemFormModal({
                     <div className="columns-2 gap-2 space-y-2">
                         {filesWithMeta.map((f, idx) => (
                             <div key={idx}
-                                className="break-inside-avoid border border-gray-200 rounded-xl overflow-hidden bg-white flex flex-col"
+                                className="break-inside-avoid rounded-xl overflow-hiddenflex flex-col"
                             >
                                 {/* Thumbnail — tinggi mengikuti rasio asli gambar */}
                                 <div className="relative group overflow-hidden">
@@ -650,21 +651,28 @@ export function FkpItemFormModal({
 
                                 {/* Metadata */}
                                 <div className="p-1.5 space-y-1">
-                                    <select
+                                    <SearchableSelect
+                                        aria-label={`Tipe foto ${idx + 1}`}
+                                        options={TIPE_FOTO_OPTIONS}
                                         value={f.tipe_dokumen}
-                                        onChange={(e) => updateMeta(idx, 'tipe_dokumen', e.target.value)}
-                                        className="w-full text-[10px] border border-gray-200 rounded-md px-1.5 py-1 bg-gray-50 text-gray-700 focus:outline-hidden focus:border-brand-400"
-                                    >
-                                        {TIPE_FOTO_OPTIONS.map((opt) => (
-                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                        ))}
-                                    </select>
-                                    <input
-                                        type="text"
+                                        onChange={(v) => {
+                                            if (v) updateMeta(idx, 'tipe_dokumen', v)
+                                        }}
+                                        searchable={false}
+                                        clearable={false}
+                                        size="xs"
+                                    />
+                                    <Textarea
                                         value={f.keterangan}
                                         onChange={(e) => updateMeta(idx, 'keterangan', e.target.value)}
-                                        placeholder="Ket. (exp / kode prod / ...)"
-                                        className="w-full min-h-16 text-[10px] border border-gray-200 rounded-md px-1.5 py-1 bg-white text-gray-700 placeholder-gray-300 focus:outline-hidden focus:border-brand-400"
+                                        placeholder={{
+                                            foto_keluhan: "Jelaskan kondisi kerusakan atau keluhan produk...",
+                                            foto_sample: "Jelaskan kondisi atau karakteristik sample...",
+                                            foto_expired: "Tuliskan tanggal expired yang tertera...",
+                                            dokumen_lainnya: "Jelaskan informasi atau tujuan dokumen ini...",
+                                        }[f.tipe_dokumen] ?? "Tambahkan keterangan foto..."}
+                                        rows={2}
+                                        className="w-full h-12 text-[10px] px-1.5 py-1 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-brand-400"
                                     />
                                 </div>
                             </div>

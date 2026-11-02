@@ -1,9 +1,7 @@
 // src/hooks/useBapkp.ts
 //
 // Mengikuti pola persis src/hooks/useFkp.ts (query keys) & useBeritaAcara.ts
-// (notifikasi error via @mantine/notifications, sukses ditangani di
-// halaman lewat react-hot-toast — konvensi campuran ini memang sudah ada
-// di codebase, bukan sesuatu yang baru diperkenalkan di sini).
+// (notifikasi memakai @mantine/notifications).
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { bapkpApi } from '@/api/bapkp'

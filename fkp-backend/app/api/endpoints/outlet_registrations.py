@@ -8,7 +8,7 @@ Outlet Registration Management Endpoints:
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -135,21 +135,20 @@ async def get_registration_detail(
     response_model=OutletApproveResponse,
     summary="Setujui pendaftaran outlet",
     description=(
-        "Mengubah status outlet dari `pending` → `aktif` "
-        "dan mengaktifkan akun user outlet tersebut. "
+        "Mengubah status outlet dari `pending` → `aktif`, lalu memberi tahu PIC "
+        "outlet lewat notifikasi di aplikasi dan email. "
         "Role yang diizinkan: lihat permission outlet_registration.approve di dashboard RBAC."
     ),
 )
 async def approve_outlet_registration(
     outlet_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
     payload: OutletApproveRequest = OutletApproveRequest(),
     db: AsyncSession = Depends(get_db),
     auth=Depends(get_current_user_with_role),
 ):
     user, kode_role = auth
 
-    # PERBAIKAN RBAC (Kategori B): sebelumnya cek tuple hardcode
-    # APPROVE_REJECT_ROLES. Sekarang via require_permission(), DB-driven.
     await require_permission(kode_role, "outlet_registration.approve", db)
 
     try:
@@ -159,6 +158,7 @@ async def approve_outlet_registration(
             session=db,
             requesting_user=user,
             kode_role=kode_role,
+            background_tasks=background_tasks,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

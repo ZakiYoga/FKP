@@ -1,0 +1,28 @@
+{% extends "_layout.html" %}
+{% from "_macros.html" import para, note, notice, button, fallback_link, detail_table, detail_row %}
+
+{% block preheader %}Akun {{ app_name }} untuk {{ nama_toko }} sudah aktif dan siap dipakai.{% endblock %}
+{% block heading %}Registrasi outlet disetujui{% endblock %}
+
+{% block content %}
+{% call para() %}Halo {{ nama_penerima }},{% endcall %}
+{% call para() %}Registrasi outlet Anda di {{ app_name }} telah diverifikasi{% if disetujui_oleh %} oleh {{ disetujui_oleh }}{% endif %}. Akun Anda sekarang aktif dan dapat dipakai untuk masuk ke aplikasi.{% endcall %}
+
+{% call detail_table() %}
+  {{ detail_row("Nama toko", nama_toko) }}
+  {{ detail_row("Kode outlet", kode_outlet, code=true) }}
+  {% if nama_distributor %}{{ detail_row("Distributor", nama_distributor) }}{% endif %}
+{% endcall %}
+
+{{ button(login_url, "Masuk ke aplikasi") }}
+
+{% if email_belum_terverifikasi %}
+{% call notice("Email belum terverifikasi.") %}        Email Anda belum terverifikasi, sehingga fitur lupa password belum bisa
+        dipakai. Buka tautan di email verifikasi sebelumnya, atau kirim ulang
+        dari menu Profil setelah masuk.
+        {% endcall %}
+{% endif %}
+
+{{ fallback_link(login_url) }}
+{% call note() %}Jika Anda tidak merasa mendaftarkan outlet ini, abaikan email ini atau hubungi administrator.{% endcall %}
+{% endblock %}

@@ -17,20 +17,31 @@ const SIZE_MAP = {
   xl: 'max-w-2xl',
 }
 
-export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalProps) {
+export function Modal({
+  isOpen,
+  onClose,
+  title,
+  children,
+  size = 'md',
+}: ModalProps) {
   // Tutup modal dengan Escape
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
+
     if (isOpen) document.addEventListener('keydown', handler)
+
     return () => document.removeEventListener('keydown', handler)
   }, [isOpen, onClose])
 
   // Lock scroll saat modal terbuka
   useEffect(() => {
     document.body.style.overflow = isOpen ? 'hidden' : ''
-    return () => { document.body.style.overflow = '' }
+
+    return () => {
+      document.body.style.overflow = ''
+    }
   }, [isOpen])
 
   if (!isOpen) return null
@@ -39,45 +50,75 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-xs animate-fade-in"
+        className="absolute inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm animate-fade-in"
         onClick={onClose}
+        aria-hidden="true"
       />
-      {/* Panel */}
+
+      {/* Modal Panel */}
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? 'modal-title' : undefined}
         className={cn(
-          'relative w-full bg-white rounded-2xl shadow-modal animate-slide-up max-h-[80vh] overflow-y-auto',
+          'relative flex max-h-[85vh] w-full flex-col overflow-hidden',
+          'rounded-2xl border border-gray-200/80 dark:border-gray-700/70',
+          'bg-white dark:bg-gray-900',
+          'shadow-xl shadow-black/10 dark:shadow-black/40',
+          'animate-slide-up',
           SIZE_MAP[size],
         )}
       >
         {/* Header */}
         <div
-          className={`flex items-center px-4 sm:px-6 py-4 border-gray-100 ${title ? 'border-b justify-between' : 'justify-end'
-            }`}
-        >
-          {title ? (
-            <div className="w-full flex items-center justify-between border-gray-100">
-              <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-              <button
-                type="button"
-                onClick={onClose}
-                className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={onClose}
-              className="absolute top-3 right-3 z-10 p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
+          className={cn(
+            'flex shrink-0 items-center px-4 py-4 sm:px-6',
+            'border-gray-100 dark:border-gray-800',
+            title
+              ? 'justify-between border-b'
+              : 'justify-end',
           )}
+        >
+          {title && (
+            <h2
+              id="modal-title"
+              className="text-lg font-semibold tracking-tight text-gray-900 dark:text-gray-100"
+            >
+              {title}
+            </h2>
+          )}
+
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Tutup modal"
+            className={cn(
+              'rounded-lg p-2 transition-colors duration-200',
+              'text-gray-400 hover:text-gray-700',
+              'hover:bg-gray-100',
+              'dark:text-gray-400 dark:hover:text-gray-100',
+              'dark:hover:bg-gray-800',
+              'focus-visible:outline-none focus-visible:ring-2',
+              'focus-visible:ring-blue-500 focus-visible:ring-offset-2',
+              'dark:focus-visible:ring-offset-gray-900',
+            )}
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
         {/* Content */}
-        <div className="sm:px-6 px-4 py-5">{children}</div>
+        <div
+          className={cn(
+            'overflow-y-auto px-4 py-5 sm:px-6',
+            'text-gray-700 dark:text-gray-300',
+            '[&_h1]:text-gray-900 dark:[&_h1]:text-gray-100',
+            '[&_h2]:text-gray-900 dark:[&_h2]:text-gray-100',
+            '[&_h3]:text-gray-800 dark:[&_h3]:text-gray-200',
+          )}
+        >
+          {children}
+        </div>
       </div>
     </div>
   )

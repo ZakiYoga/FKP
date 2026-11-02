@@ -1,6 +1,6 @@
 import api from '@/lib/axios'
 import type {
-  Distributor, Outlet, Product, Area, Provinsi,
+  Distributor, Outlet, Product, ProductClass, Area, Provinsi,
   DistributorDetail, DistributorSelfUpdate
 } from '@/types'
 import type { OutletCreate, OutletUpdate, OutletDetail, OutletSelfUpdate } from '@/types/outlet'
@@ -103,7 +103,7 @@ export const distributorApi = {
     kode_pos: string
     status: string
     kelurahan_id: number | null
-    npwp: string
+    npwp: string | null
   }>): Promise<Distributor> => {
     const res = await api.put<Distributor>(`/distributors/${id}`, data)
     return res.data
@@ -167,6 +167,7 @@ export const outletApi = {
 export interface ProductCreatePayload {
   kode_produk: string
   nama_produk: string
+  class: ProductClass
   kemasan: string[]
   berat_gr: number
   qty_per_kemasan?: number | null
@@ -175,13 +176,20 @@ export interface ProductCreatePayload {
 // qty_per_kemasan TIDAK ada di sini: isi hanya berubah lewat setKemasan().
 export interface ProductUpdatePayload {
   nama_produk?: string
+  class?: ProductClass
   berat_gr?: number
   is_active?: boolean
   foto_url?: string | null
 }
 
+export interface ProductListParams {
+  jenis_kemasan?: string
+  is_active?: boolean
+  class?: ProductClass
+}
+
 export const productApi = {
-  list: async (params?: { jenis_kemasan?: string; is_active?: boolean }): Promise<Product[]> => {
+  list: async (params?: ProductListParams): Promise<Product[]> => {
     const res = await api.get<Product[]>('/products/', { params })
     return res.data
   },
@@ -195,6 +203,14 @@ export const productApi = {
   },
   update: async (id: string, data: ProductUpdatePayload): Promise<Product> => {
     const res = await api.put<Product>(`/products/${id}`, data)
+    return res.data
+  },
+  uploadFoto: async (id: string, file: File): Promise<Product> => {
+    const form = new FormData()
+    form.append('file', file)
+    const res = await api.post<Product>(`/products/${id}/foto`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
     return res.data
   },
   // Kemasan + isi per kemasan diganti bersamaan (satu kesatuan).

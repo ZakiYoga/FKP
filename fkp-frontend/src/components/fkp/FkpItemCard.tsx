@@ -26,22 +26,21 @@ function FkpItemCard({ item, idx, canDelete, onDelete, attachments, products }: 
     : null
 
   return (
-    <div className="p-4 rounded-xl border border-gray-100 bg-white shadow-2xs space-y-3">
+    <div className="p-4 rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xs space-y-3">
       <div className="flex items-start justify-between gap-3">
-        <div className="flex w-full border-gray-100 items-center border-b pb-4 gap-3">
-          <div className="w-7 h-7 rounded-full bg-brand-100 text-brand-700 text-xs font-bold
-                                    flex items-center justify-center shrink-0 mt-0.5">{idx + 1}</div>
+        <div className="flex w-full border-gray-100 dark:border-gray-700 items-center border-b pb-4 gap-3">
+          <div className="w-7 h-7 rounded-full bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">{idx + 1}</div>
           <div>
-            <p className="text-sm font-semibold text-gray-800">{namaProduk}</p>
-            {produk && <p className="text-xs text-gray-400 font-mono">{produk.kode_produk}</p>}
-            <p className="text-xs text-gray-500 mt-0.5">
+            <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">{namaProduk}</p>
+            {produk && <p className="text-xs text-gray-400 dark:text-gray-500 font-mono">{produk.kode_produk}</p>}
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
               Jenis Keluhan : {JENIS_KELUHAN_LABEL[item.jenis_keluhan] ?? item.jenis_keluhan}
             </p>
           </div>
         </div>
         {canDelete && (
           <button type="button" onClick={onDelete}
-            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0">
+            className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors shrink-0">
             <Trash2 className="w-4 h-4" />
           </button>
         )}
@@ -55,26 +54,27 @@ function FkpItemCard({ item, idx, canDelete, onDelete, attachments, products }: 
       </dl>
 
       {item.deskripsi_keluhan && (
-        <div className="flex gap-1 border-b pb-4">
-          <div className="text-xs">
-            <h1 className="text-xs font-medium text-gray-800 mb-1">Deskripsi Keluhan : </h1>
+        <div className="flex gap-1 border-b border-gray-100 dark:border-gray-700 pb-4">
+          <div className="text-xs text-gray-600 dark:text-gray-300">
+            <h1 className="text-xs font-medium text-gray-800 dark:text-gray-100 mb-1">Deskripsi Keluhan : </h1>
             <p className="first-letter:uppercase">
               {item.deskripsi_keluhan}
             </p>
           </div>
         </div>
       )}
+
       {/* ── Rekomendasi APSM ──────────────────────────────── */}
       {(item.rekomendasi_penanganan_apsm || item.rekomendasi_kompensasi_apsm
         || item.catatan_apsm || item.persentase_disetujui_apsm != null) && (
-          <div className="mt-3 pt-3 border-t border-gray-100 space-y-1.5">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+          <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 space-y-1.5">
+            <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">
               Rekomendasi APSM
             </p>
             {item.rekomendasi_penanganan_apsm && (
               <div className="flex items-center gap-2 text-xs">
-                <span className="text-gray-500 w-28 shrink-0">Penanganan fisik</span>
-                <span className="font-medium text-gray-800">
+                <span className="text-gray-500 dark:text-gray-400 w-28 shrink-0">Penanganan fisik</span>
+                <span className="font-medium text-gray-800 dark:text-gray-100">
                   {REKOMENDASI_PENANGANAN_LABEL[item.rekomendasi_penanganan_apsm]
                     ?? item.rekomendasi_penanganan_apsm}
                 </span>
@@ -82,8 +82,8 @@ function FkpItemCard({ item, idx, canDelete, onDelete, attachments, products }: 
             )}
             {item.rekomendasi_kompensasi_apsm && (
               <div className="flex items-center gap-2 text-xs">
-                <span className="text-gray-500 w-28 shrink-0">Kompensasi</span>
-                <span className="font-medium text-gray-800">
+                <span className="text-gray-500 dark:text-gray-400 w-28 shrink-0">Kompensasi</span>
+                <span className="font-medium text-gray-800 dark:text-gray-100">
                   {REKOMENDASI_KOMPENSASI_LABEL[item.rekomendasi_kompensasi_apsm]
                     ?? item.rekomendasi_kompensasi_apsm}
                 </span>
@@ -91,12 +91,12 @@ function FkpItemCard({ item, idx, canDelete, onDelete, attachments, products }: 
             )}
             {item.persentase_disetujui_apsm != null && (
               <div className="flex items-center gap-2 text-xs">
-                <span className="text-gray-500 w-28 shrink-0">% Disetujui</span>
-                <span className="font-medium text-gray-800">{item.persentase_disetujui_apsm}%</span>
+                <span className="text-gray-500 dark:text-gray-400 w-28 shrink-0">% Disetujui</span>
+                <span className="font-medium text-gray-800 dark:text-gray-100">{item.persentase_disetujui_apsm}%</span>
               </div>
             )}
             {item.catatan_apsm && (
-              <p className="text-xs text-gray-500 bg-gray-50 rounded-sm px-2 py-1 mt-1">
+              <p className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded-sm px-2 py-1 mt-1">
                 {item.catatan_apsm}
               </p>
             )}
@@ -106,14 +106,14 @@ function FkpItemCard({ item, idx, canDelete, onDelete, attachments, products }: 
       {/* ── Rekomendasi Admin HO ──────────────────────────── */}
       {(item.rekomendasi_penanganan_admin_ho || item.rekomendasi_kompensasi_admin_ho
         || item.catatan_admin_ho || item.persentase_disetujui_admin_ho != null) && (
-          <div className="mt-3 pt-3 border-t border-gray-100 space-y-1.5">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+          <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 space-y-1.5">
+            <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">
               Rekomendasi Admin HO
             </p>
             {item.rekomendasi_penanganan_admin_ho && (
               <div className="flex items-center gap-2 text-xs">
-                <span className="text-gray-500 w-28 shrink-0">Penanganan fisik</span>
-                <span className="font-medium text-gray-800">
+                <span className="text-gray-500 dark:text-gray-400 w-28 shrink-0">Penanganan fisik</span>
+                <span className="font-medium text-gray-800 dark:text-gray-100">
                   {REKOMENDASI_PENANGANAN_LABEL[item.rekomendasi_penanganan_admin_ho]
                     ?? item.rekomendasi_penanganan_admin_ho}
                 </span>
@@ -121,8 +121,8 @@ function FkpItemCard({ item, idx, canDelete, onDelete, attachments, products }: 
             )}
             {item.rekomendasi_kompensasi_admin_ho && (
               <div className="flex items-center gap-2 text-xs">
-                <span className="text-gray-500 w-28 shrink-0">Kompensasi</span>
-                <span className="font-medium text-gray-800">
+                <span className="text-gray-500 dark:text-gray-400 w-28 shrink-0">Kompensasi</span>
+                <span className="font-medium text-gray-800 dark:text-gray-100">
                   {REKOMENDASI_KOMPENSASI_LABEL[item.rekomendasi_kompensasi_admin_ho]
                     ?? item.rekomendasi_kompensasi_admin_ho}
                 </span>
@@ -130,12 +130,12 @@ function FkpItemCard({ item, idx, canDelete, onDelete, attachments, products }: 
             )}
             {item.persentase_disetujui_admin_ho != null && (
               <div className="flex items-center gap-2 text-xs">
-                <span className="text-gray-500 w-28 shrink-0">% Disetujui</span>
-                <span className="font-medium text-gray-800">{item.persentase_disetujui_admin_ho}%</span>
+                <span className="text-gray-500 dark:text-gray-400 w-28 shrink-0">% Disetujui</span>
+                <span className="font-medium text-gray-800 dark:text-gray-100">{item.persentase_disetujui_admin_ho}%</span>
               </div>
             )}
             {item.catatan_admin_ho && (
-              <p className="text-xs text-gray-500 bg-gray-50 rounded-sm px-2 py-1 mt-1">
+              <p className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded-sm px-2 py-1 mt-1">
                 {item.catatan_admin_ho}
               </p>
             )}
@@ -144,8 +144,8 @@ function FkpItemCard({ item, idx, canDelete, onDelete, attachments, products }: 
 
       {/* ── Hasil QC ─────────────────────────────────────── */}
       {(item.status_item !== 'pending' || item.catatan_qc || item.alasan_penolakan) && (
-        <div className="mt-3 pt-3 border-t border-gray-100 space-y-1.5">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 space-y-1.5">
+          <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">
             Hasil Investigasi QC
           </p>
           <div className="flex items-center gap-2 text-xs">
@@ -153,18 +153,18 @@ function FkpItemCard({ item, idx, canDelete, onDelete, attachments, products }: 
               berubah otomatis saat approval terakhir, bukan diisi QC lagi) */}
             {item.persentase_disetujui_qc != null && (
               <div className="flex items-center gap-2 text-xs">
-                <span className="text-gray-500 w-28 shrink-0">% Rekomendasi QC</span>
-                <span className="font-medium text-gray-800">{item.persentase_disetujui_qc}%</span>
+                <span className="text-gray-500 dark:text-gray-400 w-28 shrink-0">% Rekomendasi QC</span>
+                <span className="font-medium text-gray-800 dark:text-gray-100">{item.persentase_disetujui_qc}%</span>
               </div>
             )}
           </div>
           {item.alasan_penolakan && (
-            <p className="text-xs text-red-600 bg-red-50 rounded-sm px-2 py-1">
+            <p className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-sm px-2 py-1">
               {item.alasan_penolakan}
             </p>
           )}
           {item.catatan_qc && (
-            <p className="text-xs text-gray-500 bg-gray-50 rounded-sm px-2 py-1">
+            <p className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded-sm px-2 py-1">
               {item.catatan_qc}
             </p>
           )}
@@ -179,7 +179,7 @@ function FkpItemCard({ item, idx, canDelete, onDelete, attachments, products }: 
       )}
 
       {item.status_item === 'ditolak' && item.alasan_penolakan && (
-        <p className="text-xs text-red-600 bg-red-50 rounded-sm px-2 py-1.5">
+        <p className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-sm px-2 py-1.5">
           ❌ Ditolak QC: {item.alasan_penolakan}
         </p>
       )}

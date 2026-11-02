@@ -1,0 +1,105 @@
+{#- Judul dan subjudul ditangkap dulu agar bisa dipakai di <title> maupun isi -#}
+{%- set _heading %}{% block heading %}{% endblock %}{% endset -%}
+{%- set _sub %}{% block subtitle %}{% endblock %}{% endset -%}
+<!DOCTYPE html>
+<html lang="id" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="x-apple-disable-message-reformatting">
+  <meta name="format-detection" content="telephone=no, address=no, email=no, date=no, url=no">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <title>{{ _heading|striptags|trim or app_name }}</title>
+  <!--[if mso]>
+  <noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+  <![endif]-->
+  <style>
+    /* Peningkatan saja: tampilan dasar sudah lengkap lewat inline style */
+    @media only screen and (max-width: 600px) {
+      .outer-pad { padding: 16px 8px !important; }
+      .card-pad  { padding: 24px 20px !important; }
+      .btn-wrap  { width: 100% !important; }
+      .btn-a     { display: block !important; text-align: center !important; }
+    }
+    @media (prefers-color-scheme: dark) {
+      .bg-body { background-color: #111827 !important; }
+      .bg-card { background-color: #1f2937 !important; border-color: #374151 !important; }
+      .rule    { border-color: #374151 !important; }
+      .t-head  { color: #f9fafb !important; }
+      .t-body  { color: #e5e7eb !important; }
+      .t-muted { color: #9ca3af !important; }
+      .t-link  { color: #93c5fd !important; }
+      .btn-td  { background-color: #60a5fa !important; }
+      .btn-a   { color: #0f172a !important; }
+      /* Opsional: hapus jika logo Anda sudah terbaca di latar gelap */
+      .logo-wrap { background-color: #ffffff !important; padding: 8px 12px !important; border-radius: 6px !important; }
+      /* QR wajib tetap putih agar bisa dipindai */
+      .qr-box  { background-color: #ffffff !important; border-color: #ffffff !important; }
+    }
+  </style>
+</head>
+<body class="bg-body" bgcolor="#f4f5f7" style="margin:0;padding:0;background-color:#f4f5f7;font-family:Segoe UI, Roboto, Helvetica, Arial, sans-serif;">
+
+  {# Preheader tersembunyi + pengisi agar teks isi tidak bocor ke pratinjau inbox #}
+  <div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;color:#f4f5f7;">
+    {% block preheader %}{% endblock %}{% for _ in range(40) %}&zwnj;&nbsp;{% endfor %}
+  </div>
+
+  <div role="article" aria-roledescription="email" lang="id" dir="ltr">
+    <table role="presentation" class="bg-body" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f4f5f7" style="background-color:#f4f5f7;">
+      <tr>
+        <td class="outer-pad" align="center" style="padding:24px 12px;">
+
+          {# Lebar 560: atribut width untuk Outlook, max-width untuk klien lain #}
+          <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:560px;">
+            <tr>
+              <td>
+                <table role="presentation" class="bg-card" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="background-color:#ffffff;border:1px solid #e5e7eb;border-radius:8px;">
+                  <tr>
+                    <td class="card-pad" style="padding:32px;font-family:Segoe UI, Roboto, Helvetica, Arial, sans-serif;font-size:16px;line-height:24px;color:#374151;">
+
+                      {# Logo di dalam kartu, seperti tampilan awal #}
+                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                        <tr>
+                          <td align="center" style="padding:0 0 24px;">
+                            <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0">
+                              <tr>
+                                <td class="logo-wrap" style="padding:0;">
+                                  <img src="{{ logo_url }}" alt="SaktiFood" width="140" class="t-head" style="display:block;width:140px;max-width:100%;height:auto;border:0;font-family:Segoe UI, Roboto, Helvetica, Arial, sans-serif;font-size:16px;font-weight:bold;color:#111827;">
+                                </td>
+                              </tr>
+                            </table>
+                            {% if _sub|trim %}
+                            <p class="t-muted" style="margin:8px 0 0;font-family:Segoe UI, Roboto, Helvetica, Arial, sans-serif;font-size:14px;line-height:20px;color:#4b5563;">{{ _sub|trim }}</p>
+                            {% endif %}
+                          </td>
+                        </tr>
+                      </table>
+
+                      <h1 class="t-head" style="margin:0 0 16px;font-family:Segoe UI, Roboto, Helvetica, Arial, sans-serif;font-size:20px;line-height:28px;font-weight:bold;color:#111827;">{{ _heading|trim }}</h1>
+
+                      {% block content %}{% endblock %}
+                      {% block after_content %}{% endblock %}
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            {# Footer #}
+            <tr>
+              <td class="t-muted" align="center" style="padding:20px 8px 0;font-family:Segoe UI, Roboto, Helvetica, Arial, sans-serif;font-size:12px;line-height:18px;color:#4b5563;">
+                Email ini dikirim otomatis oleh {{ app_name }}. Mohon tidak membalas email ini.
+                {% block footer_note %}{% endblock %}
+              </td>
+            </tr>
+          </table>
+
+        </td>
+      </tr>
+    </table>
+  </div>
+</body>
+</html>

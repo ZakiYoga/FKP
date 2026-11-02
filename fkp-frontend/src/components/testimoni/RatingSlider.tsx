@@ -47,7 +47,7 @@ export function RatingSlider({
           alt={cfg.label}
           style={{ width: 48, height: 48, objectFit: 'contain' }}
         />
-        <p className="text-[15px] font-medium text-gray-900 mt-1">
+        <p className="text-[15px] font-medium mt-1">
           Terima kasih atas penilaian Anda!
         </p>
         <p className="text-sm text-gray-400">

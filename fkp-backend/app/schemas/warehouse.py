@@ -116,3 +116,72 @@ class SuratJalanResponse(BaseModel):
     items: List[SuratJalanItemResponse] = []
 
     model_config = {"from_attributes": True}
+
+# ─── SURAT JALAN INBOX (halaman "Surat Jalan" warehouse — list lintas FKP) ───
+#
+# Dipakai GET /api/warehouse/surat-jalan, /summary, dan /pending-fkp
+# (warehouse_inbox_router). Hanya tambahan — schema di atas tidak berubah.
+
+class SuratJalanInboxItem(SuratJalanResponse):
+    nomor_fkp: str
+    fkp_status: str
+    distributor_nama: Optional[str] = None
+    outlet_nama: Optional[str] = None
+    jumlah_item: int = 0
+    total_qty: int = 0
+
+    model_config = {"from_attributes": False}
+
+
+class SuratJalanInboxPage(BaseModel):
+    """Bentuk sama dengan tipe frontend Paginated<T>."""
+    items: List[SuratJalanInboxItem]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int  # minimal 1, walau data kosong
+
+
+class SuratJalanSummary(BaseModel):
+    counts: dict[str, int]   # semua status SJ, default 0
+    total: int               # jumlah semua SJ
+    perlu_dibuat: int        # jumlah FKP di antrean "Perlu Dibuat"
+
+
+class PendingSjItem(BaseModel):
+    fkp_item_id: uuid.UUID
+    nama_produk: str
+    jenis_kemasan: Optional[str] = None
+    satuan_default: str
+    qty_keluhan: int
+    qty_disetujui: int
+    qty_terkirim: int
+    sisa_kuota: int
+
+
+class PenerimaDefault(BaseModel):
+    nama: Optional[str] = None
+    alamat: Optional[str] = None
+    telepon: Optional[str] = None
+
+
+class PendingSjFkp(BaseModel):
+    fkp_id: uuid.UUID
+    nomor_fkp: str
+    fkp_status: str
+    tanggal_diteruskan_ke_warehouse: Optional[datetime] = None
+    distributor_nama: Optional[str] = None
+    distributor_kode: Optional[str] = None
+    outlet_nama: Optional[str] = None
+    outlet_kode: Optional[str] = None
+    penerima_default: PenerimaDefault
+    items: List[PendingSjItem]
+    jumlah_sj_terbit: int = 0   # jumlah SJ yang sudah dibuat (semua status; menghabiskan kuota)
+
+
+class PendingSjPage(BaseModel):
+    items: List[PendingSjFkp]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int

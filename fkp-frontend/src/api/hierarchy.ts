@@ -1,22 +1,35 @@
 import api from '@/lib/axios'
-import type { UserBasicInfo, DistributorBasicInfo, RsmWithTeam } from '@/types/hierarchy'
+import type {
+  UserBasicInfo,
+  DistributorBasicInfo,
+  RsmWithTeam,
+  AreaBasicInfo,
+} from '@/types/hierarchy'
 
 export const hierarchyApi = {
   // ── Users by role (untuk dropdown RSM / APSM / SC/SPV) ──────────────────
-  usersByRole: async (kode_role: string): Promise<UserBasicInfo[]> => {
+  usersByRole: async (kode_role: string, opts?: { unassigned?: boolean }): Promise<UserBasicInfo[]> => {
     const res = await api.get<UserBasicInfo[]>('/hierarchy/users/by-role', {
-      params: { kode_role },
+      params: { kode_role, unassigned: opts?.unassigned || undefined },
     })
     return res.data
   },
 
   // ── Distributors (untuk modal assign SC/SPV → Distributor) ───────────────
-  distributors: async (): Promise<DistributorBasicInfo[]> => {
-    const res = await api.get<DistributorBasicInfo[]>('/hierarchy/distributors')
+  distributors: async (opts?: { unassigned?: boolean; areaId?: string }): Promise<DistributorBasicInfo[]> => {
+    const res = await api.get<DistributorBasicInfo[]>('/hierarchy/distributors', {
+      params: { unassigned: opts?.unassigned || undefined, area_id: opts?.areaId },
+    })
     return res.data
   },
 
-  // ── RSM team (sudah ada di useUsers, dipindah ke sini agar konsisten) ────
+  // ── Area aktif yang dipegang APSM (untuk modal assign SC/SPV → APSM) ─────
+  apsmAreas: async (apsmId: string): Promise<AreaBasicInfo[]> => {
+    const res = await api.get<AreaBasicInfo[]>(`/hierarchy/apsm/${apsmId}/areas`)
+    return res.data
+  },
+
+  // ── RSM team ─────────────────────────────────────────────────────────────
   getRsmTeam: async (rsmId: string): Promise<RsmWithTeam> => {
     const res = await api.get<RsmWithTeam>(`/hierarchy/rsm/${rsmId}/team`)
     return res.data
@@ -32,8 +45,8 @@ export const hierarchyApi = {
     return res.data
   },
 
-  // ── Assign / Remove APSM ↔ SC/SPV ────────────────────────────────────────
-  assignScSpvToApsm: async (data: { apsm_user_id: string; sc_spv_user_id: string }) => {
+  // ── Assign / Remove APSM ↔ SC/SPV (kini membawa area_id) ─────────────────
+  assignScSpvToApsm: async (data: { apsm_user_id: string; sc_spv_user_id: string; area_id: string }) => {
     const res = await api.post('/hierarchy/apsm/sc-spv', data)
     return res.data
   },

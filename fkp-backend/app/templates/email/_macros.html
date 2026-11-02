@@ -1,0 +1,72 @@
+{#
+  Komponen email bersama (satu sistem desain, tanpa warna dekoratif).
+  Impor: {% from "_macros.html" import para, note, notice, message, button, fallback_link, detail_table, detail_row %}
+  Semua nilai tetap di-escape autoescape Jinja; tidak ada |safe di sini.
+#}
+{# Font tanpa tanda kutip agar aman di atribut style #}
+{% set FONT = "Segoe UI, Roboto, Helvetica, Arial, sans-serif" %}
+
+{# Paragraf isi: {% call para() %}teks{% endcall %} #}
+{% macro para() -%}
+<p class="t-body" style="margin:0 0 16px;font-family:{{ FONT }};font-size:16px;line-height:24px;color:#374151;">{{ caller() }}</p>
+{%- endmacro %}
+
+{# Catatan kecil (sekunder) #}
+{% macro note() -%}
+<p class="t-muted" style="margin:0 0 12px;font-family:{{ FONT }};font-size:14px;line-height:20px;color:#4b5563;">{{ caller() }}</p>
+{%- endmacro %}
+
+{# Informasi penting: paragraf biasa dengan kalimat pembuka tebal #}
+{% macro notice(title="") -%}
+<p class="t-body" style="margin:0 0 16px;font-family:{{ FONT }};font-size:16px;line-height:24px;color:#374151;">{% if title %}<strong class="t-head" style="color:#111827;">{{ title }}</strong> {% endif %}{{ caller() }}</p>
+{%- endmacro %}
+
+{# Teks dari pengguna/reviewer (alasan, catatan). Tulis satu baris:
+   {% call message("Alasan penolakan") %}{{ alasan }}{% endcall %}
+   pre-line mempertahankan baris baru; nilai tetap di-escape. #}
+{% macro message(label="") -%}
+<p class="t-body" style="margin:0 0 16px;font-family:{{ FONT }};font-size:16px;line-height:24px;color:#374151;">{% if label %}<strong class="t-head" style="color:#111827;">{{ label }}</strong><br>{% endif %}<span style="white-space:pre-line;">{{ caller() }}</span></p>
+{%- endmacro %}
+
+{# Tombol: warna di <td>, mso-padding-alt untuk Outlook, tinggi 48px #}
+{% macro button(url, label, align="left") -%}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr>
+    <td align="{{ align }}" style="padding:8px 0 16px;">
+      <table role="presentation" class="btn-wrap" align="{{ align }}" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="btn-td" align="center" bgcolor="#1d4ed8" style="background-color:#1d4ed8;border-radius:6px;mso-padding-alt:14px 28px;">
+            <a href="{{ url }}" class="btn-a" target="_blank" style="display:inline-block;padding:14px 28px;font-family:{{ FONT }};font-size:16px;line-height:20px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:6px;">{{ label }}</a>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+{%- endmacro %}
+
+{# Tautan cadangan di bawah tombol #}
+{% macro fallback_link(url) -%}
+<p class="t-muted" style="margin:0 0 12px;font-family:{{ FONT }};font-size:14px;line-height:20px;color:#4b5563;">Jika tombol tidak berfungsi, salin tautan berikut ke browser Anda:<br>
+<a href="{{ url }}" class="t-link" style="color:#1d4ed8;text-decoration:underline;word-break:break-all;">{{ url }}</a></p>
+{%- endmacro %}
+
+{# Tabel rincian bergaris tipis: {% call detail_table() %}{{ detail_row("Label", nilai) }}{% endcall %} #}
+{% macro detail_table() -%}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr>
+    <td style="padding:8px 0 16px;">
+      <table role="presentation" class="rule" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #e5e7eb;">
+        {{ caller() }}
+      </table>
+    </td>
+  </tr>
+</table>
+{%- endmacro %}
+
+{% macro detail_row(label, value, code=false) -%}
+<tr>
+  <td class="rule t-muted" width="38%" valign="top" style="padding:12px 12px 12px 0;border-bottom:1px solid #e5e7eb;font-family:{{ FONT }};font-size:14px;line-height:20px;color:#4b5563;">{{ label }}</td>
+  <td class="rule t-head" valign="top" style="padding:12px 0;border-bottom:1px solid #e5e7eb;font-family:{{ FONT }};font-size:14px;line-height:20px;font-weight:bold;color:#111827;{% if code %}letter-spacing:1px;{% endif %}">{{ value }}</td>
+</tr>
+{%- endmacro %}

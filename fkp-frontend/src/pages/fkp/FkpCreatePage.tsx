@@ -253,26 +253,26 @@ export function FkpCreatePage() {
     }
 
     return (
-        <div className="mx-auto animate-fade-in">
+        <div className="mx-auto w-full min-w-0 animate-fade-in">
 
             {/* Page header */}
-            <div className="flex items-center gap-3 mb-6">
-                <button onClick={() => navigate('/fkp')} className="btn-ghost btn-sm p-2">
+            <div className="flex items-center gap-3 mb-4 sm:mb-6">
+                <button onClick={() => navigate('/fkp')} className="btn-ghost btn-sm p-2 shrink-0" aria-label="Kembali">
                     <ArrowLeft className="w-4 h-4" />
                 </button>
-                <div>
-                    <h1 className="text-xl font-bold text-gray-900">Buat FKP Baru</h1>
-                    <p className="text-sm text-gray-500">Isi identitas keluhan lalu tambahkan item produk</p>
+                <div className="min-w-0">
+                    <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">Buat FKP Baru</h1>
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Isi identitas keluhan lalu tambahkan item produk</p>
                 </div>
             </div>
 
             {/* Banner outlet belum terdaftar */}
             {outletBelumTerdaftar && (
-                <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl mb-6">
-                    <Info className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-                    <div>
-                        <p className="text-sm font-semibold text-amber-800">Outlet belum terdaftar di distributor</p>
-                        <p className="text-sm text-amber-700 mt-0.5">
+                <div className="flex items-start gap-3 p-3 sm:p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl mb-4 sm:mb-6">
+                    <Info className="w-5 h-5 text-amber-500 dark:text-amber-400 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                        <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">Outlet belum terdaftar di distributor</p>
+                        <p className="text-sm text-amber-700 dark:text-amber-300 mt-0.5">
                             Hubungi admin atau APSM untuk mendaftarkan outlet Anda.
                         </p>
                     </div>
@@ -280,15 +280,16 @@ export function FkpCreatePage() {
             )}
 
 
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-                <div className="grid md:grid-cols-2 gap-4">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6">
+                {/* 1 kolom di mobile/tablet, 2 kolom mulai lg (ruang sudah dikurangi sidebar) */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
                     {/* ── Section 1: Identitas FKP ─────────────────────── */}
-                    <div className="card">
-                        <div className="card-header">
-                            <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                    <div className="card min-w-0 dark:bg-gray-900 dark:border dark:border-gray-700">
+                        <div className="card-header dark:border-gray-700">
+                            <h2 className="font-semibold flex items-center gap-2">
                                 <span className="w-6 h-6 rounded-full bg-brand-600 text-white text-xs
-                                             flex items-center justify-center font-bold">1</span>
+                                             flex items-center justify-center font-bold shrink-0">1</span>
                                 Identitas FKP
                             </h2>
                         </div>
@@ -314,7 +315,7 @@ export function FkpCreatePage() {
                                         )}
                                     />
                                     {(isOutlet || isDistributor) && distributors.length === 1 && (
-                                        <p className="text-xs text-gray-400 mt-1">
+                                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                                             {isOutlet ? 'Outlet Anda terdaftar di distributor ini.' : 'Distributor Anda.'}
                                         </p>
                                     )}
@@ -349,7 +350,7 @@ export function FkpCreatePage() {
                                                     />
                                                 )}
                                             />
-                                            <p className="text-xs text-gray-400 mt-1">
+                                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                                                 {outlets.length === 1
                                                     ? 'Keluhan tercatat atas nama outlet Anda.'
                                                     : 'Anda terdaftar sebagai PIC di lebih dari satu outlet — pilih salah satu.'}
@@ -376,7 +377,7 @@ export function FkpCreatePage() {
                                                 )}
                                             />
                                             {outlets.length === 1 && watchOutlet === outlets[0].id && (
-                                                <p className="text-xs text-gray-400 mt-1">
+                                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                                                     Hanya ada satu outlet di distributor ini, otomatis dipilih.
                                                 </p>
                                             )}
@@ -396,26 +397,26 @@ export function FkpCreatePage() {
                             <div>
                                 {/* Lokasi Pembelian — Smart Selector */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Lokasi Pembelian <span className="text-red-500">*</span>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Lokasi Pembelian <span className="text-red-500 dark:text-red-400">*</span>
                                     </label>
 
-                                    {/* Segmented control */}
-                                    <div className="flex rounded-lg border border-gray-200 overflow-hidden mb-3">
-                                        {/* Segmented control — onClick cuma ganti mode, value diurus effect di atas */}
+                                    {/* Segmented control — bertumpuk di layar sangat kecil, berdampingan mulai sm */}
+                                    <div className="flex flex-col sm:flex-row rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden mb-3">
+                                        {/* onClick cuma ganti mode, value diurus effect di atas */}
                                         <button type="button" onClick={() => setLokasiMode('hierarki')}
-                                            className={`flex-1 py-2 text-sm transition-colors ${lokasiMode === 'hierarki'
-                                                ? 'bg-brand-600 text-white font-medium' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
+                                            className={`sm:flex-1 px-3 py-2 text-sm transition-colors ${lokasiMode === 'hierarki'
+                                                ? 'bg-brand-600 text-white font-medium' : 'bg-white text-gray-500 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'}`}>
                                             Dari distributor outlet
                                         </button>
                                         {/* <button type="button" onClick={() => setLokasiMode('online')}
-                                            className={`flex-1 py-2 text-sm border-l border-gray-200 transition-colors ${lokasiMode === 'online'
-                                                ? 'bg-brand-600 text-white font-medium' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
+                                            className={`sm:flex-1 px-3 py-2 text-sm border-t sm:border-t-0 sm:border-l border-gray-200 dark:border-gray-700 transition-colors ${lokasiMode === 'online'
+                                                ? 'bg-brand-600 text-white font-medium' : 'bg-white text-gray-500 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'}`}>
                                             Online / E-commerce
                                         </button> */}
                                         <button type="button" onClick={() => setLokasiMode('lain')}
-                                            className={`flex-1 py-2 text-sm border-l border-gray-200 transition-colors ${lokasiMode === 'lain'
-                                                ? 'bg-brand-600 text-white font-medium' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
+                                            className={`sm:flex-1 px-3 py-2 text-sm border-t sm:border-t-0 sm:border-l border-gray-200 dark:border-gray-700 transition-colors ${lokasiMode === 'lain'
+                                                ? 'bg-brand-600 text-white font-medium' : 'bg-white text-gray-500 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'}`}>
                                             Lokasi lain / Subdist
                                         </button>
                                     </div>
@@ -424,9 +425,9 @@ export function FkpCreatePage() {
                                     {lokasiMode === 'hierarki' && (
                                         <div className="space-y-2">
                                             {distributors.length === 1 ? (
-                                                <div className="flex items-center gap-3 p-3 rounded-xl border border-brand-400 bg-brand-50">
-                                                    <p className="text-sm font-medium text-gray-800">{distributors[0].nama_perusahaan}</p>
-                                                    <p className="text-xs text-gray-400 ml-auto">{distributors[0].kode_distributor}</p>
+                                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 p-3 rounded-xl border border-brand-400 bg-brand-50 dark:bg-brand-900/20">
+                                                    <p className="min-w-0 break-words text-sm font-medium text-gray-800 dark:text-gray-100">{distributors[0].nama_perusahaan}</p>
+                                                    <p className="text-xs text-gray-400 dark:text-gray-500 ml-auto">{distributors[0].kode_distributor}</p>
                                                 </div>
                                             ) : (
                                                 distributors.map((d) => {
@@ -435,21 +436,21 @@ export function FkpCreatePage() {
                                                     return (
                                                         <label key={d.id}
                                                             className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${isChecked
-                                                                ? 'border-brand-400 bg-brand-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                                                                ? 'border-brand-400 bg-brand-50 dark:bg-brand-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'}`}>
                                                             <input
                                                                 type="radio"
                                                                 name="lokasi_radio"
-                                                                className="accent-brand-600"
+                                                                className="accent-brand-600 shrink-0"
                                                                 checked={isChecked}
                                                                 onChange={() => setValue('lokasi_pembelian', value, { shouldValidate: true })}
                                                             />
-                                                            <div>
-                                                                <p className="text-sm font-medium text-gray-800">{d.nama_perusahaan}</p>
-                                                                <p className="text-xs text-gray-400">{d.kode_distributor}</p>
+                                                            <div className="min-w-0 flex-1">
+                                                                <p className="text-sm font-medium text-gray-800 dark:text-gray-100 break-words">{d.nama_perusahaan}</p>
+                                                                <p className="text-xs text-gray-400 dark:text-gray-500">{d.kode_distributor}</p>
                                                             </div>
                                                             {isChecked && (
-                                                                <span className="ml-auto text-xs bg-brand-100 text-brand-700 px-2 py-0.5 rounded-full">
-                                                                    ✓ Terisi otomatis
+                                                                <span className="shrink-0 whitespace-nowrap text-xs bg-brand-100 dark:bg-brand-900/50 text-brand-700 dark:text-brand-300 px-2 py-0.5 rounded-full">
+                                                                    ✓<span className="hidden sm:inline"> Terisi otomatis</span>
                                                                 </span>
                                                             )}
                                                         </label>
@@ -458,14 +459,14 @@ export function FkpCreatePage() {
                                             )}
                                             <input type="hidden" {...register('lokasi_pembelian')} />
                                             {errors.lokasi_pembelian && (
-                                                <p className="text-xs text-red-500 mt-1">{errors.lokasi_pembelian.message}</p>
+                                                <p className="text-xs text-red-500 dark:text-red-400 mt-1">{errors.lokasi_pembelian.message}</p>
                                             )}
                                         </div>
                                     )}
 
                                     {/* {lokasiMode === 'online' && (
                                         <div className="space-y-2">
-                                            <label className="flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors bg-brand-50 border-brand-400">
+                                            <label className="flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors bg-brand-50 dark:bg-brand-900/20 border-brand-400">
                                                 <input
                                                     type="radio"
                                                     name="lokasi_radio"
@@ -474,8 +475,8 @@ export function FkpCreatePage() {
                                                     onChange={() => { }}
                                                 />
                                                 <div>
-                                                    <p className="text-sm font-medium text-gray-800">Online / E-commerce</p>
-                                                    <p className="text-xs text-gray-400">Shopee, Tokopedia, Lazada, dll.</p>
+                                                    <p className="text-sm font-medium text-gray-800 dark:text-gray-100">Online / E-commerce</p>
+                                                    <p className="text-xs text-gray-400 dark:text-gray-500">Shopee, Tokopedia, Lazada, dll.</p>
                                                 </div>
                                             </label>
                                             <input type="hidden" {...register('lokasi_pembelian')} />
@@ -496,10 +497,10 @@ export function FkpCreatePage() {
 
                                     {/* Belum pilih mode */}
                                     {lokasiMode === null && errors.lokasi_pembelian && (
-                                        <p className="text-xs text-red-500 mt-1">{errors.lokasi_pembelian.message}</p>
+                                        <p className="text-xs text-red-500 dark:text-red-400 mt-1">{errors.lokasi_pembelian.message}</p>
                                     )}
 
-                                    <p className="text-xs text-gray-400 mt-1">
+                                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                                         Semua produk dalam 1 FKP diasumsikan dari lokasi yang sama.
                                     </p>
                                 </div>
@@ -508,22 +509,22 @@ export function FkpCreatePage() {
                     </div>
 
                     {/* ── Section 2: Item Produk ───────────────────────── */}
-                    <div className="card">
-                        <div className="card-header">
-                            <div className="flex items-center justify-between">
-                                <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                    <div className="card min-w-0 dark:bg-gray-900 dark:border dark:border-gray-700">
+                        <div className="card-header dark:border-gray-700">
+                            <div className="flex items-center justify-between gap-2">
+                                <h2 className="font-semibold flex items-center gap-2">
                                     <span className="w-6 h-6 rounded-full bg-brand-600 text-white text-xs
-                                                 flex items-center justify-center font-bold">2</span>
+                                                 flex items-center justify-center font-bold shrink-0">2</span>
                                     Item Produk
                                 </h2>
-                                <span className="text-xs text-gray-400">{items.length} item</span>
+                                <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">{items.length} item</span>
                             </div>
                         </div>
                         <div className="card-body space-y-3">
                             {items.length === 0 && (
-                                <div className="flex items-start gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
-                                    <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                                    <p className="text-xs text-amber-700">
+                                <div className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-950/40 rounded-lg border border-amber-200 dark:border-amber-800">
+                                    <AlertCircle className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0 mt-0.5" />
+                                    <p className="text-xs text-amber-700 dark:text-amber-300">
                                         Minimal 1 item produk wajib ditambahkan sebelum menyimpan FKP.
                                     </p>
                                 </div>
@@ -536,38 +537,50 @@ export function FkpCreatePage() {
                                     : ''
 
                                 return (
-                                    <div key={item._key}
-                                        className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 bg-gray-50">
-                                        <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 text-sm font-bold
-                                                    flex items-center justify-center shrink-0">
+                                    <div
+                                        key={item._key}
+                                        className="flex items-start gap-2 sm:gap-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800"
+                                    >
+                                        <div className="w-8 h-8 rounded-full bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 text-sm font-bold flex items-center justify-center shrink-0">
                                             {idx + 1}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-semibold text-gray-800 truncate">{item.namaLabel}</p>
-                                            <p className="text-xs text-gray-500 mt-0.5">
+                                            {/* break-words (bukan truncate): nama produk panjang turun ke baris berikutnya */}
+                                            <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 break-words">{item.namaLabel}</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 break-words">
                                                 {keluhan}
-                                                {qtyLabel && <> · <span className="font-medium">{qtyLabel}</span></>}
+                                                {qtyLabel && <> · <span className="font-medium text-gray-700 dark:text-gray-300">{qtyLabel}</span></>}
                                             </p>
                                             {item.files.length > 0 && (
-                                                <p className="text-xs text-brand-600 mt-1">
+                                                <p className="text-xs text-brand-600 dark:text-brand-400 mt-1">
                                                     📎 {item.files.length} foto terlampir
                                                 </p>
                                             )}
                                         </div>
-                                        <button type="button" onClick={() => openEditItemModal(item)}
-                                            className="p-1.5 text-gray-400 hover:text-brand-500 hover:bg-brand-50 rounded-lg transition-colors">
-                                            <Pencil className="w-4 h-4" />
-                                        </button>
-                                        <button type="button" onClick={() => removeItem(item._key)}
-                                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
+                                        <div className="flex items-center shrink-0">
+                                            <button
+                                                type="button"
+                                                onClick={() => openEditItemModal(item)}
+                                                aria-label="Edit item"
+                                                className="p-2 sm:p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:text-brand-400 dark:hover:bg-brand-900/30 rounded-lg transition-colors"
+                                            >
+                                                <Pencil className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => removeItem(item._key)}
+                                                aria-label="Hapus item"
+                                                className="p-2 sm:p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
                                     </div>
                                 )
                             })}
 
                             {campurKemasan && (
-                                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 space-y-1">
+                                <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg text-xs text-red-700 dark:text-red-300 space-y-1 break-words">
                                     <p>{campurKemasan.pesan}</p>
                                     <p><b>Item pcs:</b> {campurKemasan.itemPcs.join(', ')}</p>
                                     <p><b>Item zak/ball/karton:</b> {campurKemasan.itemNon.join(', ')}</p>
@@ -575,9 +588,7 @@ export function FkpCreatePage() {
                             )}
 
                             <button type="button" onClick={openAddItemModal} disabled={loadingProd}
-                                className="w-full border-2 border-dashed border-gray-200 rounded-xl py-4
-                                       flex items-center justify-center gap-2 text-gray-400 text-sm
-                                       hover:border-brand-400 hover:text-brand-500 hover:bg-brand-50 transition-all">
+                                className="w-full border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl py-4 flex items-center justify-center gap-2 text-gray-400 dark:text-gray-500 text-sm hover:border-brand-400 hover:text-brand-500 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-all">
                                 <Plus className="w-4 h-4" /> Tambah Item Produk
                             </button>
                         </div>
@@ -586,9 +597,9 @@ export function FkpCreatePage() {
                 </div>
 
                 {/* ── Section 3: Catatan ───────────────────────────── */}
-                <div className="card">
-                    <div className="card-header">
-                        <h2 className="font-semibold text-gray-900">Catatan Tambahan</h2>
+                <div className="card dark:bg-gray-900 dark:border dark:border-gray-700">
+                    <div className="card-header dark:border-gray-700">
+                        <h2 className="font-semibold text-gray-900 dark:text-gray-100">Catatan Tambahan</h2>
                     </div>
                     <div className="card-body">
                         <Textarea
@@ -600,16 +611,19 @@ export function FkpCreatePage() {
                 </div>
 
                 {/* ── Actions ─────────────────────────────────────── */}
-                <div className="flex flex-col md:flex-row items-center justify-between gap-3 pb-8">
+                {/* Mobile: tombol penuh lebar, aksi utama (Submit) di paling atas, Batal di paling bawah.
+                    Desktop (sm+): Batal di kiri, Simpan Draft + Submit di kanan. */}
+                <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 pb-8">
                     <button type="button" onClick={() => navigate('/fkp')}
-                        className="w-full md:w-fit btn-secondary" disabled={isCreating}>
+                        className="w-full sm:w-auto btn-secondary" disabled={isCreating}>
                         Batal
                     </button>
-                    <div className="flex flex-col w-full md:w-fit sm:flex-row items-center gap-2">
+                    <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
                         <button
                             type="submit"
                             onClick={() => setSubmitMode('draft')}
-                            disabled={isCreating || outletBelumTerdaftar || !lokasi_pembelian || items.length === 0 || !!campurKemasan} className="btn-secondary w-full md:w-fit">
+                            disabled={isCreating || outletBelumTerdaftar || !lokasi_pembelian || items.length === 0 || !!campurKemasan}
+                            className="btn-secondary w-full sm:w-auto">
                             {isCreating && submitMode === 'draft'
                                 ? <><Loader2 className="w-4 h-4 animate-spin" /> Menyimpan...</>
                                 : <><Package className="w-4 h-4" />Simpan Draft</>}
@@ -618,7 +632,7 @@ export function FkpCreatePage() {
                             type="submit"
                             onClick={() => setSubmitMode('submit')}
                             disabled={isCreating || outletBelumTerdaftar || !lokasi_pembelian || items.length === 0}
-                            className="btn-primary w-full md:w-fit">
+                            className="btn-primary w-full sm:w-auto">
                             {isCreating && submitMode === 'submit'
                                 ? <><Loader2 className="w-4 h-4 animate-spin" /> Mengajukan...</>
                                 : <><Send className="w-4 h-4" />Submit</>}

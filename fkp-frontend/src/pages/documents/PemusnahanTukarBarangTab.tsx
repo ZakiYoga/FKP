@@ -7,7 +7,7 @@
 // (dan bagian header/back-button dihapus karena sekarang jadi tanggung
 // jawab wrapper BaManualPage.tsx yang membungkus tab switcher).
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
     FileText, Plus, Trash2,
@@ -16,6 +16,7 @@ import {
 import { useGenerateBAManual } from '@/hooks/useBeritaAcara'
 import { useFkpList } from '@/hooks/useFkp'
 import { Input } from '@/components/ui/Input'
+import { SearchableSelect } from '@/components/ui/SearchableSelect'
 import type { BeritaAcaraItemManual, BeritaAcaraManualPayload } from '@/types'
 import api from '@/lib/axios'
 import toast from 'react-hot-toast'
@@ -29,8 +30,8 @@ const METODE_OPTIONS = [
     { value: 'lainnya', label: 'Lainnya (isi manual)' },
 ]
 
+// Tanpa option placeholder kosong: placeholder diurus lewat prop SearchableSelect.
 const TINDAK_OPTIONS = [
-    { value: '', label: '— Pilih tindak lanjut —' },
     { value: 'penukaran_barang', label: 'Penukaran Barang' },
     { value: 'potong_tagihan', label: 'Potong Tagihan' },
 ]
@@ -118,13 +119,29 @@ export function PemusnahanTukarBarangTab() {
         nomor: string; docId: string | null; urlDownload: string | null
     } | null>(null)
 
-    const { data: fkpList = [] } = useFkpList()
+    const { data: fkpList = [], isLoading: isFkpListLoading } = useFkpList()
     const { mutateAsync: generate, isPending } = useGenerateBAManual()
 
     const set = useCallback(
         (k: keyof BaForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
             setForm(p => ({ ...p, [k]: e.target.value })),
         [],
+    )
+
+    // Setter untuk SearchableSelect (nilai langsung string | null, bukan event)
+    const setField = useCallback(
+        (k: keyof BaForm) => (v: string | null) =>
+            setForm(p => ({ ...p, [k]: v ?? '' })),
+        [],
+    )
+
+    const fkpOptions = useMemo(
+        () =>
+            fkpList.map((f) => ({
+                value: f.id,
+                label: `${f.nomor_fkp} — ${f.distributor_info?.nama_perusahaan ?? ''}`,
+            })),
+        [fkpList],
     )
 
     // ── Item handlers ────────────────────────────────────────────────────────
@@ -227,7 +244,7 @@ export function PemusnahanTukarBarangTab() {
             {/* ── Seksi 1: Identitas Dokumen ── */}
             <div className="card">
                 <div className="card-header">
-                    <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                    <h2 className="font-semibold flex items-center gap-2">
                         <FileText className="w-4 h-4 text-brand-500" />
                         Identitas Dokumen
                     </h2>
@@ -241,21 +258,15 @@ export function PemusnahanTukarBarangTab() {
                             onChange={set('nomor_dokumen')}
                         />
                         <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">
-                                Tautkan ke FKP (opsional)
-                            </label>
-                            <select
-                                value={form.fkp_id}
-                                onChange={set('fkp_id')}
-                                className="input w-full text-sm"
-                            >
-                                <option value="">— Tidak dikaitkan ke FKP —</option>
-                                {fkpList.map((f) => (
-                                    <option key={f.id} value={f.id}>
-                                        {f.nomor_fkp} — {f.distributor_info?.nama_perusahaan ?? ''}
-                                    </option>
-                                ))}
-                            </select>
+                            <SearchableSelect
+                                label="Tautkan ke FKP (opsional)"
+                                placeholder="Cari FKP..."
+                                nothingFoundMessage="FKP tidak ditemukan"
+                                options={fkpOptions}
+                                value={form.fkp_id || null}
+                                onChange={setField('fkp_id')}
+                                loading={isFkpListLoading}
+                            />
                             <p className="text-xs text-gray-400 mt-1">
                                 Jika diisi, PDF akan tersimpan di dokumen FKP tersebut.
                             </p>
@@ -285,20 +296,14 @@ export function PemusnahanTukarBarangTab() {
                         />
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">
-                                Metode Pemusnahan
-                            </label>
-                            <select
-                                value={form.metode_pemusnahan}
-                                onChange={set('metode_pemusnahan')}
-                                className="input w-full text-sm"
-                            >
-                                {METODE_OPTIONS.map(o => (
-                                    <option key={o.value} value={o.value}>{o.label}</option>
-                                ))}
-                            </select>
-                        </div>
+                        <SearchableSelect
+                            label="Metode Pemusnahan"
+                            options={METODE_OPTIONS}
+                            value={form.metode_pemusnahan || null}
+                            onChange={setField('metode_pemusnahan')}
+                            searchable={false}
+                            clearable={false}
+                        />
                         {form.metode_pemusnahan === 'lainnya' && (
                             <Input
                                 label="Metode (isi manual)"
@@ -328,20 +333,14 @@ export function PemusnahanTukarBarangTab() {
                         value={form.dokumentasi_lampiran}
                         onChange={set('dokumentasi_lampiran')}
                     />
-                    <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
-                            Tindak Lanjut
-                        </label>
-                        <select
-                            value={form.tindak_lanjut}
-                            onChange={set('tindak_lanjut')}
-                            className="input w-full text-sm"
-                        >
-                            {TINDAK_OPTIONS.map(o => (
-                                <option key={o.value} value={o.value}>{o.label}</option>
-                            ))}
-                        </select>
-                    </div>
+                    <SearchableSelect
+                        label="Tindak Lanjut"
+                        placeholder="Pilih tindak lanjut"
+                        options={TINDAK_OPTIONS}
+                        value={form.tindak_lanjut || null}
+                        onChange={setField('tindak_lanjut')}
+                        searchable={false}
+                    />
                 </div>
             </div>
 

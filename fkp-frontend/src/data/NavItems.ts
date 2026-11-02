@@ -1,5 +1,5 @@
 import { NavItem } from "@/types/navItems";
-import { Bell, Building2, ClipboardList, FileText, FilePen, GitBranch, LayoutDashboard, MapPin, MessageSquareQuote, Package, PackageCheck, Route, Settings, Store, Users, Microscope, } from "lucide-react";
+import { Bell, Building2, ClipboardList, FileText, FilePen, GitBranch, LayoutDashboard, MapPin, MessageSquareQuote, Package, PackageCheck, Route, Settings, Store, Truck, Users, Microscope, } from "lucide-react";
 import { ROLE_PENANGAN_PCS } from "@/constants/fkpPcs";
 
 export const NAV_ITEMS: NavItem[] = [
@@ -28,6 +28,10 @@ export const NAV_ITEMS: NavItem[] = [
     {
         label: 'Lab QC', href: '/investigasi-qc', icon: Microscope,
         roles: ['superadmin', 'qc']
+    },
+    {
+        label: 'Surat Jalan', href: '/surat-jalan', icon: Truck,
+        roles: ['warehouse', 'admin_ho', 'rsm', 'direktur', 'superadmin']
     },
     {
         label: 'Pengguna', href: '/users', icon: Users,

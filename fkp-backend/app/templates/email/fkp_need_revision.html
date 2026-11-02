@@ -1,14 +1,20 @@
-{% extends "base.html" %}
+{% extends "base_fkp.html" %}
+{% from "_macros.html" import para, message, detail_table, detail_row %}
+
+{% block preheader %}FKP {{ nomor_fkp }} perlu diperbaiki sebelum dapat dilanjutkan.{% endblock %}
+{% block heading %}Keluhan perlu direvisi{% endblock %}
+
 {% block content %}
-<p>Halo, <strong>{{ nama_penerima }}</strong>,</p>
-<p>Keluhan FKP Anda memerlukan perbaikan sebelum dapat dilanjutkan ke tahap berikutnya.</p>
-<div class="box box-yellow">
-  <p><strong>Nomor FKP</strong> &nbsp; {{ nomor_fkp }}</p>
-  <p><strong>Status</strong> &nbsp;
-     <span class="badge b-yellow">Perlu Direvisi</span></p>
-  <p><strong>Direview oleh</strong> &nbsp; {{ direview_oleh }}</p>
-</div>
-<p><strong>Catatan dari Reviewer:</strong></p>
-<div class="box box-yellow" style="font-style:italic">{{ catatan_revisi }}</div>
-<p>Silakan login, perbaiki data yang diminta, lalu submit kembali FKP Anda.</p>
+{% call para() %}Halo {{ nama_penerima }},{% endcall %}
+{% call para() %}Keluhan FKP Anda memerlukan perbaikan sebelum dapat dilanjutkan ke tahap berikutnya.{% endcall %}
+
+{% call detail_table() %}
+  {{ detail_row("Nomor FKP", nomor_fkp) }}
+  {{ detail_row("Status", "Perlu direvisi") }}
+  {{ detail_row("Direview oleh", direview_oleh) }}
+{% endcall %}
+
+{% call message("Catatan dari reviewer") %}{{ catatan_revisi }}{% endcall %}
+
+{% call para() %}Silakan login, perbaiki data yang diminta, lalu ajukan kembali FKP Anda.{% endcall %}
 {% endblock %}

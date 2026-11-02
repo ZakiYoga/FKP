@@ -317,3 +317,112 @@
   &::-webkit-scrollbar-track { background: transparent; }
   &::-webkit-scrollbar-thumb { @apply bg-gray-200 rounded-full dark:bg-gray-700; }
 }
+
+
+/* ============================================================
+   HIERARKY PAGE
+   ============================================================ */
+
+/*
+ * Konektor peta hierarki (org chart).
+ * Warna garis mengikuti border bawaan Mantine, jadi otomatis cocok di light/dark mode.
+ *
+ * .org-children : baris horizontal (RSM -> APSM), garis siku dari induk ke tiap anak
+ * .org-stack    : daftar vertikal (APSM -> SC/SPV), garis batang di kiri + cabang pendek
+ */
+.org-chart {
+  --org-line: var(--mantine-color-default-border);
+  --org-gap: 24px; /* jarak vertikal antar level pada baris horizontal */
+  --org-stack-indent: 20px; /* geser kanan daftar vertikal */
+  --org-stub-top: 42px; /* tinggi cabang dari atas item (kira-kira tengah avatar) */
+}
+
+/* ── Baris horizontal ───────────────────────────────────────────── */
+.org-children {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  margin: 0;
+  padding: var(--org-gap) 0 0;
+  list-style: none;
+}
+
+/* garis turun dari induk ke garis bagi */
+.org-children::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  height: var(--org-gap);
+  border-left: 1px solid var(--org-line);
+}
+
+.org-child {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--org-gap) 12px 0;
+}
+
+/* garis bagi: ::before = separuh kiri, ::after = separuh kanan + garis turun ke anak */
+.org-child::before,
+.org-child::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 50%;
+  height: var(--org-gap);
+  border-top: 1px solid var(--org-line);
+}
+.org-child::before {
+  right: 50%;
+}
+.org-child::after {
+  left: 50%;
+  border-left: 1px solid var(--org-line);
+}
+
+.org-child:first-child::before {
+  display: none;
+}
+/* anak terakhir (termasuk anak tunggal): hanya garis turun, tanpa garis ke kanan */
+.org-child:last-child::after {
+  border-top: 0;
+}
+
+/* ── Daftar vertikal ────────────────────────────────────────────── */
+.org-stack {
+  margin: 0;
+  padding: 0 0 0 var(--org-stack-indent);
+  list-style: none;
+}
+
+.org-stack > li {
+  position: relative;
+  padding: 12px 0 0 var(--org-stack-indent);
+}
+
+/* batang vertikal */
+.org-stack > li::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-left: 1px solid var(--org-line);
+}
+.org-stack > li:last-child::before {
+  bottom: auto;
+  height: var(--org-stub-top);
+}
+
+/* cabang horizontal ke kartu */
+.org-stack > li::after {
+  content: '';
+  position: absolute;
+  top: var(--org-stub-top);
+  left: 0;
+  width: var(--org-stack-indent);
+  border-top: 1px solid var(--org-line);
+}

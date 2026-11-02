@@ -112,7 +112,7 @@ from app.api.endpoints import (
     products, fkp, outlets, wilayah,
     outlet_registrations, hierarchy, notifications,
     testimoni, public_tracking,
-    debug, rbac_admin, sample_router, warehouse_router,
+    debug, rbac_admin, sample_router, warehouse_router, warehouse_inbox_router,
     bapkp_router, sample_inbox_router,
 )
 
@@ -144,6 +144,7 @@ app.include_router(rbac_admin.router,               prefix="/api",              
 app.include_router(sample_router.router,            prefix="/api/fkp",                  tags=["Sample Shipment"])
 app.include_router(sample_inbox_router.router,      prefix="/api/samples",               tags=["Sample Inbox"])
 app.include_router(warehouse_router.router,         prefix="/api/fkp",                  tags=["Warehouse Surat Jalan"])
+app.include_router(warehouse_inbox_router.router,   prefix="/api/warehouse",            tags=["Warehouse Surat Jalan Inbox"])
 app.include_router(bapkp_router.router,             prefix="/api/fkp",                  tags=["BAPKP"])
 
 # ─── Health check ─────────────────────────────────────────────────────────────

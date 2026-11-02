@@ -1,0 +1,31 @@
+{% extends "_layout.html" %}
+{% from "_macros.html" import button, note, fallback_link %}
+
+{% block subtitle %}Sistem Formulir Keluhan Pelanggan{% endblock %}
+
+{# Bawaan; template anak menimpa dengan kalimat spesifik #}
+{% block preheader %}Pantau progres keluhan Anda lewat tautan di email ini.{% endblock %}
+
+{# Bagian pemantauan: judul dan teks bisa ditimpa template anak #}
+{% block after_content %}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr>
+    <td class="rule" align="center" style="padding:24px 0 0;border-top:1px solid #e5e7eb;">
+      <h2 class="t-head" style="margin:0 0 8px;font-family:Segoe UI, Roboto, Helvetica, Arial, sans-serif;font-size:16px;line-height:24px;font-weight:bold;color:#111827;">{% block track_title %}Pantau status keluhan{% endblock %}</h2>
+      {% call note() %}{% block track_text %}Pindai kode QR dengan kamera ponsel, atau buka status keluhan lewat tombol di bawah.{% endblock %}{% endcall %}
+
+      <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="qr-box" bgcolor="#ffffff" style="padding:12px;background-color:#ffffff;border:1px solid #e5e7eb;border-radius:8px;">
+            {# CID wajib tetap qr_tracking (lampiran inline di email_service.py) #}
+            <img src="cid:qr_tracking" width="160" height="160" alt="Kode QR untuk membuka halaman status keluhan" style="display:block;width:160px;height:160px;border:0;">
+          </td>
+        </tr>
+      </table>
+
+      {{ button(tracking_url, "Lihat status FKP", align="center") }}
+      {{ fallback_link(tracking_url) }}
+    </td>
+  </tr>
+</table>
+{% endblock %}

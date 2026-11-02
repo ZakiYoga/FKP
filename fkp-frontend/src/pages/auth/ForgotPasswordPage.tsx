@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -7,11 +7,11 @@ import { Link } from 'react-router-dom'
 import { CheckCircle2, ChevronLeft, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useForgotPassword } from '@/hooks/useAuthRecovery'
+import { useCooldown } from '@/hooks/useCooldown'
+import { AUTH_EMAIL_RESEND_COOLDOWN_SECONDS } from '@/lib/constants'
+import { resetPasswordCooldownKey, retryAfterSeconds } from '@/lib/cooldown'
 
-// Samakan dengan AUTH_EMAIL_RESEND_COOLDOWN_SECONDS di backend (config.py).
-// Backend diam-diam tidak mengirim ulang selama cooldown, jadi tombol
-// tidak boleh aktif lebih cepat dari ini.
-const RESEND_COOLDOWN_SECONDS = 60
+const EMAIL_PATTERN = /^\S+@\S+\.\S+$/
 
 const forgotPasswordSchema = z.object({
   email: z
@@ -28,7 +28,6 @@ type ForgotPasswordForm = z.infer<typeof forgotPasswordSchema>
 
 export function ForgotPasswordPage() {
   const [submittedEmail, setSubmittedEmail] = useState<string | null>(null)
-  const [cooldown, setCooldown] = useState(0)
   const reduceMotion = useReducedMotion()
   const forgotPassword = useForgotPassword()
 
@@ -36,17 +35,22 @@ export function ForgotPasswordPage() {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<ForgotPasswordForm>({
     resolver: zodResolver(forgotPasswordSchema),
   })
 
-  // Hitung mundur untuk tombol "Kirim ulang"
-  useEffect(() => {
-    if (cooldown <= 0) return
-    const id = window.setTimeout(() => setCooldown((c) => c - 1), 1000)
-    return () => window.clearTimeout(id)
-  }, [cooldown])
+  // Cooldown per alamat email. Di layar sukses kuncinya email yang sudah dikirim;
+  // di layar form kuncinya email yang sedang diketik. Dengan begitu "Gunakan email
+  // lain" lalu mengirim ke alamat YANG SAMA tetap tertahan, sedangkan alamat lain
+  // (mis. salah ketik yang dikoreksi) langsung boleh. Cooldown bertahan walau
+  // halaman dimuat ulang (sessionStorage), jadi tidak ada "sukses" palsu saat
+  // server diam-diam tidak mengirim ulang.
+  const typedEmail = (watch('email') ?? '').trim().toLowerCase()
+  const keyEmail = submittedEmail ?? (EMAIL_PATTERN.test(typedEmail) ? typedEmail : null)
+  const cooldownKey = keyEmail ? resetPasswordCooldownKey(keyEmail) : null
+  const cooldown = useCooldown(cooldownKey)
 
   // Animasi mengikuti pola Login; durasi/offset dinolkan jika prefers-reduced-motion aktif
   const offset = reduceMotion ? 0 : 16
@@ -74,24 +78,28 @@ export function ForgotPasswordPage() {
     try {
       await forgotPassword.mutateAsync(email)
       setSubmittedEmail(email)
-      setCooldown(RESEND_COOLDOWN_SECONDS)
-    } catch {
+      cooldown.start(AUTH_EMAIL_RESEND_COOLDOWN_SECONDS, resetPasswordCooldownKey(email))
+    } catch (err) {
       // Notifikasi error sudah ditampilkan oleh hook useForgotPassword.
+      // Jika server menolak karena terlalu sering (429), ikuti waktu tunggunya.
+      const retry = retryAfterSeconds(err)
+      if (retry) cooldown.start(retry, resetPasswordCooldownKey(email))
     }
   }
 
   const onSubmit = async (data: ForgotPasswordForm) => {
+    // Enter di kolom email juga lewat sini, jadi cooldown dicek di handler, bukan hanya di tombol.
+    if (cooldown.isCoolingDown) return
     await sendRequest(data.email)
   }
 
   const handleResend = async () => {
-    if (!submittedEmail || cooldown > 0) return
+    if (!submittedEmail || cooldown.isCoolingDown || forgotPassword.isPending) return
     await sendRequest(submittedEmail)
   }
 
   const handleUseAnotherEmail = () => {
     setSubmittedEmail(null)
-    setCooldown(0)
     reset()
   }
 
@@ -113,14 +121,14 @@ export function ForgotPasswordPage() {
             <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-5">
               <CheckCircle2 className="w-8 h-8 text-emerald-600" aria-hidden="true" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 tracking-tight mb-2">
+            <h2 className="text-2xl font-bold tracking-tight mb-2">
               Periksa email Anda
             </h2>
             <p className="text-gray-500 text-sm leading-relaxed mb-1">
               Jika alamat berikut terdaftar dan emailnya sudah terverifikasi, tautan untuk
               mengatur ulang password akan dikirim ke:
             </p>
-            <p className="text-sm font-semibold text-gray-900 break-all mb-6">{submittedEmail}</p>
+            <p className="text-sm font-semibold break-all mb-6">{submittedEmail}</p>
             <p className="text-xs text-gray-400 mb-6 leading-relaxed">
               Tautan berlaku singkat dan hanya bisa dipakai sekali. Tidak menerima email? Periksa
               folder spam. Jika email akun Anda belum pernah diverifikasi, hubungi administrator.
@@ -136,7 +144,7 @@ export function ForgotPasswordPage() {
               <button
                 type="button"
                 onClick={handleResend}
-                disabled={cooldown > 0 || forgotPassword.isPending}
+                disabled={cooldown.isCoolingDown || forgotPassword.isPending}
                 aria-busy={forgotPassword.isPending}
                 className="btn-secondary w-full btn-md"
               >
@@ -145,8 +153,8 @@ export function ForgotPasswordPage() {
                     <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
                     Mengirim ulang...
                   </>
-                ) : cooldown > 0 ? (
-                  `Kirim ulang (${cooldown} dtk)`
+                ) : cooldown.isCoolingDown ? (
+                  `Kirim ulang (${cooldown.remaining} dtk)`
                 ) : (
                   'Kirim ulang tautan'
                 )}
@@ -172,7 +180,7 @@ export function ForgotPasswordPage() {
           >
             {/* Header */}
             <motion.div variants={itemVariants} className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Lupa password?</h2>
+              <h2 className="text-2xl font-bold tracking-tight">Lupa password?</h2>
               <p className="text-gray-500 text-sm mt-1.5">
                 Masukkan email yang terdaftar dan kami akan membantu Anda mengatur ulang password.
               </p>
@@ -217,7 +225,7 @@ export function ForgotPasswordPage() {
               {/* Submit */}
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || cooldown.isCoolingDown}
                 aria-busy={isSubmitting}
                 className="btn-primary w-full btn-md lg:btn-lg"
               >
@@ -226,6 +234,8 @@ export function ForgotPasswordPage() {
                     <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
                     Memproses...
                   </>
+                ) : cooldown.isCoolingDown ? (
+                  `Coba lagi dalam ${cooldown.remaining} detik`
                 ) : (
                   'Kirim Link Reset'
                 )}

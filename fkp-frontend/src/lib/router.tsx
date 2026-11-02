@@ -8,7 +8,7 @@ import { PublicLayout } from '@/components/layout/PublicLayout'
 import { LoginPage } from '@/pages/auth/LoginPage'
 import { RegisterOutletPage } from '@/pages/auth/RegisterOutletPage'
 import { ChangePasswordPage } from '@/pages/auth/ChangePasswordPage'
-import { DashboardPage } from '@/pages/dashboard/DashboardPage'
+// import { DashboardPage } from '@/pages/dashboard/DashboardPage'
 import { FkpListPage } from '@/pages/fkp/FkpListPage'
 import { FkpCreatePage } from '@/pages/fkp/FkpCreatePage'
 import { FkpDetailPage } from '@/pages/fkp/FkpDetailPage'
@@ -33,6 +33,8 @@ import Profile from '@/pages/profile/Profile'
 import { ForgotPasswordPage } from '@/pages/auth/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage'
 import { VerifyEmailPage } from '@/pages/auth/VerifyEmailPage'
+import { DashboardPage } from '@/features/dashboard/DashboardPage'
+import { SuratJalanPage } from '@/pages/warehouse/SuratJalanPage'
 
 // AuthProvider dibungkus di root layout agar punya akses ke router context
 function RootLayout() {
@@ -91,6 +93,7 @@ export const router = createBrowserRouter([
             element: <AppLayout />,
             children: [
               // Dashboard
+              // { path: '/dashboard', element: <DashboardPage /> },
               { path: '/dashboard', element: <DashboardPage /> },
 
               // Profile
@@ -142,6 +145,14 @@ export const router = createBrowserRouter([
                 element: <ProtectedRoute allowedRoles={['admin_ho', 'superadmin', 'qc', 'rsm', 'direktur']} />,
                 children: [
                   { path: '/buat-berita-acara', element: <BaManualPage /> },
+                ],
+              },
+
+              // Surat Jalan (warehouse; admin_ho/rsm/direktur hanya melihat + admin_ho konfirmasi diterima)
+              {
+                element: <ProtectedRoute allowedRoles={['warehouse', 'admin_ho', 'rsm', 'direktur', 'superadmin']} />,
+                children: [
+                  { path: '/surat-jalan', element: <SuratJalanPage /> },
                 ],
               },
 

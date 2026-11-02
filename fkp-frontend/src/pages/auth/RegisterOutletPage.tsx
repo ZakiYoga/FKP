@@ -199,34 +199,34 @@ export function RegisterOutletPage() {
   if (isSuccess) {
     return (
       <motion.div
-        variants={containerVariants}
-        initial="initial"
-        animate="animate"
+        initial={{ opacity: 0, scale: 0.96 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.4 }}
         className="w-full text-center space-y-6 p-4 md:p-6 lg:max-w-xl xl:max-w-2xl"
       >
-        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-500/15">
-          <CheckCircle2 className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
+        <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-5">
+          <CheckCircle2 className="w-8 h-8 text-emerald-600" />
         </div>
-        <h2 className="mb-2 text-2xl font-bold text-gray-900 dark:text-gray-100">Pendaftaran Berhasil!</h2>
-        <p className="mb-6 text-justify align-middle text-sm text-gray-500 dark:text-gray-400">Lorem, ipsum dolor sit amet consectetur adipisicing elit. Eos minima a, numquam neque temporibus obcaecati eveniet sunt, beatae voluptatem at officiis atque dolorem? Eum possimus perspiciatis, quos fuga explicabo sunt.</p>
-        <div className="mb-6 rounded-xl border border-gray-100 bg-gray-50 px-5 py-4 text-center dark:border-gray-700 dark:bg-gray-800/60">
-          <p className="mb-1 text-xs text-gray-400">Kode Outlet Anda</p>
-          <p className="text-xl font-bold tracking-widest text-brand-700 dark:text-brand-300">OTL-129-1231-23</p>
+        <h2 className="text-2xl font-bold mb-2">Pendaftaran Berhasil!</h2>
+        <p className="text-gray-500 text-sm mb-6">{isSuccess.message}</p>
+        <div className="bg-gray-50 border border-gray-100 rounded-xl px-5 py-4 mb-6">
+          <p className="text-xs text-gray-400 mb-1">Kode Outlet Anda</p>
+          <p className="text-xl font-bold text-brand-700 tracking-widest">{isSuccess.kode_outlet}</p>
         </div>
-        <div className="mb-6 rounded-xl border border-gray-100 bg-gray-50 px-5 py-4 text-left dark:border-gray-700 dark:bg-gray-800/60">
-          <p className="mb-1 text-xs font-semibold text-gray-700 dark:text-gray-200">Verifikasi email Anda</p>
-          <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+        <div className="bg-gray-50 border border-gray-100 rounded-xl px-5 py-4 mb-6 text-left">
+          <p className="text-xs font-semibold text-gray-700 mb-1">Verifikasi email Anda</p>
+          <p className="text-xs text-gray-500 leading-relaxed">
             Kami mengirim email verifikasi ke{' '}
-            <span className="break-all font-medium text-gray-700 dark:text-gray-200">Lorem ipsum dolor,</span>. Klik tautan
+            <span className="font-medium text-gray-700 break-all">{isSuccess.email}</span>. Klik tautan
             di email tersebut agar fitur lupa password dapat dipakai. Tidak menerima email? Periksa folder
             spam atau{' '}
-            <Link to="/verify-email" className="font-medium text-brand-600 hover:underline dark:text-brand-400">
+            <Link to="/verify-email" className="text-brand-600 font-medium hover:underline">
               kirim ulang tautan verifikasi
             </Link>
             .
           </p>
         </div>
-        <p className="mb-8 text-xs leading-relaxed text-gray-400">
+        <p className="text-xs text-gray-400 mb-8 leading-relaxed">
           Simpan kode outlet di atas. Anda akan mendapat notifikasi setelah akun diverifikasi oleh distributor.
         </p>
         <Link to="/login" className="btn-primary w-full btn-lg inline-flex items-center justify-center gap-2">
@@ -249,7 +249,7 @@ export function RegisterOutletPage() {
         variants={itemVariants}
         className="mb-6"
       >
-        <h2 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Daftar Outlet</h2>
+        <h2 className="text-2xl font-bold tracking-tight dark:text-gray-100">Daftar Outlet</h2>
         <p className="mt-1.5 text-sm text-gray-500 dark:text-gray-400">
           Lengkapi data berikut untuk mendaftarkan outlet Anda.
         </p>

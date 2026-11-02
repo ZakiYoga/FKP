@@ -156,7 +156,7 @@ export function ResetPasswordPage() {
             <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-5">
               <XCircle className="w-8 h-8 text-red-600" aria-hidden="true" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 tracking-tight mb-2">
+            <h2 className="text-2xl font-bold tracking-tight mb-2">
               Tautan tidak valid
             </h2>
             <p className="text-gray-500 text-sm leading-relaxed mb-8">
@@ -187,7 +187,7 @@ export function ResetPasswordPage() {
             <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-5">
               <CheckCircle2 className="w-8 h-8 text-emerald-600" aria-hidden="true" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 tracking-tight mb-2">
+            <h2 className="text-2xl font-bold tracking-tight mb-2">
               Password berhasil diubah
             </h2>
             <p className="text-gray-500 text-sm leading-relaxed mb-8">
@@ -214,7 +214,7 @@ export function ResetPasswordPage() {
             className="space-y-6"
           >
             <motion.div variants={itemVariants} className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 tracking-tight">
+              <h2 className="text-2xl font-bold tracking-tight">
                 Buat password baru
               </h2>
               <p className="text-gray-500 text-sm mt-1.5">

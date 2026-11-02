@@ -235,14 +235,10 @@ export function SampleShipmentSection({ fkpId, fkpItems, fkpStatus, attachments 
   return (
     <div className="card">
       <div className="card-header flex items-center justify-between">
-        <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+        <h2 className="font-semibold flex items-center gap-2">
           <Truck className="w-4 h-4 text-brand-500" /> Daftar Sample Shipment ({samples.length})
         </h2>
-        {canCreate && (
-          <button className="btn-primary btn-sm" onClick={() => { setCreateForm(emptyCreateForm); setModal('create') }}>
-            <Plus className="w-3.5 h-3.5" />Buat Pengiriman Sample
-          </button>
-        )}
+
       </div>
       <div className="card-body space-y-4">
         {isLoading && <p className="text-sm text-gray-500">Memuat...</p>}

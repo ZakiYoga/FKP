@@ -4,7 +4,11 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-do
 import { CheckCircle2, Loader2, XCircle } from 'lucide-react'
 import { cn, getErrorMessage } from '@/lib/utils'
 import { useResendVerificationPublic, useVerifyEmail } from '@/hooks/useAuthRecovery'
+import { useCooldown } from '@/hooks/useCooldown'
+import { AUTH_EMAIL_RESEND_COOLDOWN_SECONDS } from '@/lib/constants'
+import { retryAfterSeconds, verifyEmailCooldownKey } from '@/lib/cooldown'
 import { useIsAuthenticated } from '@/store/authStore'
+import { Button } from '@mantine/core'
 
 const EMAIL_PATTERN = /^\S+@\S+\.\S+$/
 
@@ -21,6 +25,14 @@ export function VerifyEmailPage() {
 
     const [resendEmail, setResendEmail] = useState('')
     const [resendError, setResendError] = useState<string | null>(null)
+
+    // Backend diam-diam tidak mengirim ulang selama cooldown (dan membalas sama persis
+    // dengan kasus berhasil), jadi UI yang menahan tombolnya. Cooldown per alamat email,
+    // bertahan walau halaman dimuat ulang, dan sama dengan kunci di menu Profil.
+    const normalizedEmail = resendEmail.trim().toLowerCase()
+    const cooldown = useCooldown(
+        EMAIL_PATTERN.test(normalizedEmail) ? verifyEmailCooldownKey(normalizedEmail) : null,
+    )
 
     const isAuthenticated = useIsAuthenticated()
 
@@ -44,16 +56,21 @@ export function VerifyEmailPage() {
 
     const handleResend = async (e: FormEvent) => {
         e.preventDefault()
+        // Enter pada kolom email juga lewat sini, jadi cooldown dicek di handler, bukan hanya di tombol.
+        if (cooldown.isCoolingDown || resend.isPending) return
         setResendError(null)
-        const email = resendEmail.trim().toLowerCase()
-        if (!EMAIL_PATTERN.test(email)) {
+        if (!EMAIL_PATTERN.test(normalizedEmail)) {
             setResendError('Format email tidak valid')
             return
         }
         try {
-            await resend.mutateAsync(email)
-        } catch {
+            await resend.mutateAsync(normalizedEmail)
+            cooldown.start(AUTH_EMAIL_RESEND_COOLDOWN_SECONDS)
+        } catch (err) {
             // Notifikasi error sudah ditampilkan oleh hook useResendVerificationPublic.
+            // Jika server menolak karena terlalu sering (429), ikuti waktu tunggunya.
+            const retry = retryAfterSeconds(err)
+            if (retry) cooldown.start(retry)
         }
     }
 
@@ -80,7 +97,7 @@ export function VerifyEmailPage() {
                     <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-5">
                         <CheckCircle2 className="w-8 h-8 text-emerald-600" aria-hidden="true" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900 tracking-tight mb-2">
+                    <h2 className="text-2xl font-bold tracking-tight mb-2">
                         Email berhasil diverifikasi
                     </h2>
                     <p className="text-gray-500 text-sm leading-relaxed mb-8">
@@ -104,7 +121,7 @@ export function VerifyEmailPage() {
                                 <XCircle className="w-8 h-8 text-red-600" aria-hidden="true" />
                             </div>
                         )}
-                        <h2 className="text-2xl font-bold text-gray-900 tracking-tight mb-2">
+                        <h2 className="text-2xl font-bold tracking-tight mb-2">
                             {noToken ? 'Kirim ulang verifikasi email' : 'Verifikasi gagal'}
                         </h2>
                         <p className="text-gray-500 text-sm leading-relaxed mb-8">
@@ -124,7 +141,7 @@ export function VerifyEmailPage() {
                                 id="resend-email"
                                 type="email"
                                 autoComplete="email"
-                                placeholder="mail@saktipangan.co.id"
+                                placeholder="email@saktipangan.co.id"
                                 value={resendEmail}
                                 onChange={(e) => setResendEmail(e.target.value)}
                                 aria-invalid={resendError ? 'true' : 'false'}
@@ -132,21 +149,28 @@ export function VerifyEmailPage() {
                             />
                             {resendError && <p className="mt-1.5 text-xs text-red-600">{resendError}</p>}
                         </div>
-                        <button
+                        <Button
                             type="submit"
-                            disabled={resend.isPending}
+                            disabled={resend.isPending || cooldown.isCoolingDown}
                             aria-busy={resend.isPending}
-                            className="btn-secondary w-full btn-md"
+                            className="btn-primary w-full btn-lg"
                         >
                             {resend.isPending ? (
                                 <>
                                     <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
                                     Mengirim...
                                 </>
+                            ) : cooldown.isCoolingDown ? (
+                                `Kirim ulang dalam ${cooldown.remaining} detik`
                             ) : (
                                 'Kirim Ulang'
                             )}
-                        </button>
+                        </Button>
+                        {/* Teks statis (bukan hitung mundur) agar pembaca layar tidak mengumumkan tiap detik */}
+                        <p className="text-xs text-gray-500 leading-relaxed min-h-4" role="status">
+                            {cooldown.isCoolingDown &&
+                                'Jika email terdaftar dan belum terverifikasi, tautan baru sudah dikirim. Email dapat memerlukan beberapa menit; periksa juga folder spam.'}
+                        </p>
                     </form>
 
                     <div className="text-center">
@@ -155,8 +179,7 @@ export function VerifyEmailPage() {
                         </Link>
                     </div>
                 </motion.div>
-            )
-            }
-        </div >
+            )}
+        </div>
     )
 }

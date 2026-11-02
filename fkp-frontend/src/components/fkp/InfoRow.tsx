@@ -7,7 +7,7 @@ function InfoRow({ label, value, className, mono }: {
   return (
     <div>
       <dt className="text-xs font-medium text-gray-400">{label}</dt>
-      <dd className={`text-sm text-gray-900 mt-0.5 ${mono ? 'font-mono' : ''} ${className ?? ''}`}>
+      <dd className={`text-sm mt-0.5 ${mono ? 'font-mono' : ''} ${className ?? ''}`}>
         {value ?? '—'}
       </dd>
     </div>

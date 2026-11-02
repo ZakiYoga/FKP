@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { Input } from '@/components/ui/Input'
+import { SearchableSelect } from '@/components/ui/SearchableSelect'
 import { useFkpList } from '@/hooks/useFkp'
 import { useBapkpDraft, useBapkpDetail, useCreateBapkp, useUpdateBapkp } from '@/hooks/useBapkp'
 import { bapkpApi } from '@/api/bapkp'
@@ -108,6 +109,20 @@ export function BapkpTab() {
     const eligibleFkpList = useMemo(
         () => fkpList.filter((f) => (BAPKP_ELIGIBLE_STATUS as readonly string[]).includes(f.status)),
         [fkpList],
+    )
+
+    const fkpOptions = useMemo(
+        () =>
+            eligibleFkpList.map((f) => ({
+                value: f.id,
+                label: `${f.nomor_fkp} — ${f.distributor_info?.nama_perusahaan ?? ''} (${FKP_STATUS_LABEL[f.status]})`,
+            })),
+        [eligibleFkpList],
+    )
+
+    const kondisiOptions = useMemo(
+        () => KONDISI_SAMPLE_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+        [],
     )
 
     const {
@@ -237,25 +252,22 @@ export function BapkpTab() {
             {/* ── Pilih FKP ── */}
             <div className="card">
                 <div className="card-header">
-                    <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                    <h2 className="font-semibold flex items-center gap-2">
                         <ClipboardCheck className="w-4 h-4 text-brand-500" />
                         Pilih FKP yang Diperiksa
                     </h2>
                 </div>
                 <div className="card-body space-y-2">
-                    <select
-                        value={selectedFkpId}
-                        onChange={(e) => setSelectedFkpId(e.target.value)}
-                        className="input w-full text-sm"
+                    <SearchableSelect
+                        label="FKP"
+                        placeholder="Cari nomor FKP atau distributor..."
+                        nothingFoundMessage="FKP tidak ditemukan"
+                        options={fkpOptions}
+                        value={selectedFkpId || null}
+                        onChange={(v) => setSelectedFkpId(v ?? '')}
+                        loading={isFkpListLoading}
                         disabled={isFkpListLoading}
-                    >
-                        <option value="">— Pilih FKP —</option>
-                        {eligibleFkpList.map((f) => (
-                            <option key={f.id} value={f.id}>
-                                {f.nomor_fkp} — {f.distributor_info?.nama_perusahaan ?? ''} ({FKP_STATUS_LABEL[f.status]})
-                            </option>
-                        ))}
-                    </select>
+                    />
                     <p className="text-xs text-gray-400">
                         Hanya menampilkan FKP berstatus "Sedang Diinvestigasi QC" atau
                         "Investigasi Selesai" — BAPKP baru bisa dibuat pada tahap ini.
@@ -354,7 +366,7 @@ export function BapkpTab() {
                     {/* ── B. Identitas Pemeriksaan (diisi QC) ── */}
                     <div className="card">
                         <div className="card-header">
-                            <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                            <h2 className="font-semibold flex items-center gap-2">
                                 <FileText className="w-4 h-4 text-brand-500" />
                                 Identitas Pemeriksaan
                             </h2>
@@ -474,21 +486,14 @@ export function BapkpTab() {
                                             />
                                         </div>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                            <div>
-                                                <label className="block text-xs font-medium text-gray-600 mb-1">
-                                                    Kondisi Sample
-                                                </label>
-                                                <select
-                                                    value={form.kondisi_sample_select}
-                                                    onChange={(e) => setItemField(info.fkp_item_id, 'kondisi_sample_select', e.target.value)}
-                                                    className="input w-full text-sm"
-                                                >
-                                                    <option value="">— Pilih kondisi —</option>
-                                                    {KONDISI_SAMPLE_OPTIONS.map((o) => (
-                                                        <option key={o.value} value={o.value}>{o.label}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
+                                            <SearchableSelect
+                                                label="Kondisi Sample"
+                                                placeholder="Pilih kondisi"
+                                                options={kondisiOptions}
+                                                value={form.kondisi_sample_select || null}
+                                                onChange={(v) => setItemField(info.fkp_item_id, 'kondisi_sample_select', v ?? '')}
+                                                searchable={false}
+                                            />
                                             {form.kondisi_sample_select === 'lainnya' && (
                                                 <Input
                                                     label="Kondisi (isi manual)"

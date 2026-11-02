@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import toast from 'react-hot-toast'
+import { notifications } from '@mantine/notifications'
 import { notificationsApi } from '@/api/notifications'
 import { getErrorMessage } from '@/lib/utils'
 
@@ -74,7 +74,7 @@ export function useMarkRead() {
 
     onError: (_err, _ids, ctx) => {
       ctx?.prevList?.forEach(([key, data]) => qc.setQueryData(key, data))
-      toast.error('Gagal menandai notifikasi.')
+      notifications.show({ message: 'Gagal menandai notifikasi.', color: 'red' })
     },
 
     onSettled: () => {
@@ -89,9 +89,9 @@ export function useMarkAllRead() {
     mutationFn: notificationsApi.markAllRead,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: notifKeys.all })
-      toast.success('Semua notifikasi telah dibaca.')
+      notifications.show({ message: 'Semua notifikasi telah dibaca.', color: 'green' })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -100,6 +100,6 @@ export function useDeleteNotification() {
   return useMutation({
     mutationFn: (id: string) => notificationsApi.delete(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: notifKeys.all }),
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }

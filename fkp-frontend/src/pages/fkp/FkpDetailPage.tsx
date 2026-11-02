@@ -240,7 +240,7 @@ function QrTriggerCard({
   return (
     <div className="card">
       <div className="card-header">
-        <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+        <h2 className="font-semibold flex items-center gap-2">
           <QrCode className="w-4 h-4 text-brand-500" />
           QR Tracking
         </h2>
@@ -888,7 +888,7 @@ export function FkpDetailPage() {
           </button>
           <div className="flex flex-1 flex-col gap-y-2">
             <StatusBadge classname="flex w-fit flex-wrap sm:hidden rounded-md" status={fkp.status} jalur={fkp.jalur} pcsTahap={fkp.pcs_tahap} />            <p className="text-xs font-mono text-gray-400">{fkp.nomor_fkp}</p>
-            <h1 className="text-xl font-bold text-gray-900 mt-0.5">Detail FKP</h1>
+            <h1 className="text-xl font-bold mt-0.5">Detail FKP</h1>
           </div>
         </div>
         <div className="hidden sm:flex h-full flex-col items-end md:flex-row md:items-center gap-2 shrink-0">
@@ -943,7 +943,7 @@ export function FkpDetailPage() {
         <div className="lg:col-span-3 space-y-5 order-2 lg:order-1">
           <div className="card">
             <div className="card-header">
-              <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+              <h2 className="font-semibold flex items-center gap-2">
                 <Building2 className="w-4 h-4 text-brand-500" /> Asal Pengajuan
               </h2>
             </div>
@@ -977,7 +977,7 @@ export function FkpDetailPage() {
           {/* Info FKP */}
           <div className="card">
             <div className="card-header">
-              <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+              <h2 className="font-semibold flex items-center gap-2">
                 <FileText className="w-4 h-4 text-brand-500" /> Info FKP
               </h2>
             </div>
@@ -1006,7 +1006,7 @@ export function FkpDetailPage() {
           <div className="card">
             <div className="card-header">
               <div className="flex items-center justify-between">
-                <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                <h2 className="font-semibold flex items-center gap-2">
                   <Package className="w-4 h-4 text-brand-500" /> Item Produk ({fkp.items.length})
                 </h2>
               </div>
@@ -1058,7 +1058,7 @@ export function FkpDetailPage() {
             <div className="card border-l-4 border-l-emerald-400">
               <div className="card-header">
                 <div className="flex items-center justify-between">
-                  <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                  <h2 className="font-semibold flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Resolusi yang Diusulkan
                     {resolusiTerkunci && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full
@@ -1141,7 +1141,7 @@ export function FkpDetailPage() {
           {tipeResolusiAktif === 'tukar_barang' && ['accepted', 'in_process', 'closed'].includes(fkp.status) && (
             <div className="card">
               <div className="card-header">
-                <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                <h2 className="font-semibold flex items-center gap-2">
                   <Truck className="w-4 h-4 text-brand-500" /> Surat Jalan (Barang Pengganti) ({suratJalanList.length})
                 </h2>
               </div>
@@ -1222,7 +1222,7 @@ export function FkpDetailPage() {
           {fkp.attachments.filter((a) => !a.fkp_item_id && !a.sample_shipment_id).length > 0 && (
             <div className="card">
               <div className="card-header">
-                <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                <h2 className="font-semibold flex items-center gap-2">
                   <Paperclip className="w-4 h-4 text-brand-500" />
                   Dokumen / Foto Lampiran ({fkp.attachments.filter((a) => !a.fkp_item_id && !a.sample_shipment_id).length})
                 </h2>
@@ -1537,7 +1537,7 @@ export function FkpDetailPage() {
                     {fkp.resolution?.metode_penanganan_fisik === 'dimusnahkan' && (
                       <div className="card">
                         <div className="card-header">
-                          <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                          <h2 className="font-semibold flex items-center gap-2">
                             <FileText className="w-4 h-4 text-brand-500" /> Berita Acara Pemusnahan
                           </h2>
                         </div>
@@ -1720,7 +1720,7 @@ export function FkpDetailPage() {
           {/* Riwayat Status */}
           <div className="card">
             <div className="card-header">
-              <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+              <h2 className="font-semibold flex items-center gap-2">
                 <Clock className="w-4 h-4 text-brand-500" /> Riwayat Status
               </h2>
             </div>

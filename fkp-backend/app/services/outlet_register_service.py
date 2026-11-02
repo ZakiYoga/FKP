@@ -51,6 +51,8 @@ from app.schemas.outlet_register import (
     OutletRejectResponse,
 )
 from app.services.account_security_service import request_email_verification
+from app.services.email_service import kirim_email_outlet_disetujui
+from app.services.notification_service import TipeNotifikasi, notify_user
 from app.services.authz_helpers import (
     is_superadmin,
     has_global_access,
@@ -79,8 +81,15 @@ async def _generate_kode_outlet(session: AsyncSession) -> str:
     seq = str(len(existing) + 1).zfill(4)
     return f"{prefix}{seq}"
 
-async def _get_outlet_or_404(outlet_id: uuid.UUID, session: AsyncSession) -> Outlet:
-    result = await session.execute(select(Outlet).where(Outlet.id == outlet_id))
+async def _get_outlet_or_404(
+    outlet_id: uuid.UUID, session: AsyncSession, *, for_update: bool = False
+) -> Outlet:
+    query = select(Outlet).where(Outlet.id == outlet_id)
+    if for_update:
+        # Kunci baris selama transaksi berjalan: dua permintaan approve bersamaan
+        # tidak bisa sama-sama lolos cek status 'pending'.
+        query = query.with_for_update()
+    result = await session.execute(query)
     outlet = result.scalar_one_or_none()
     if not outlet:
         raise ValueError(f"Outlet dengan ID '{outlet_id}' tidak ditemukan")
@@ -263,12 +272,97 @@ async def list_pending_registrations(
  
 # ─── APPROVE REGISTRASI ──────────────────────────────────────────────────────
  
+async def _kirim_notifikasi_outlet_disetujui(
+    session: AsyncSession,
+    background_tasks: BackgroundTasks | None,
+    *,
+    pic_user_id: uuid.UUID | None,
+    nama_toko: str,
+    kode_outlet: str,
+    distributor_id: uuid.UUID,
+    kode_role: str,
+) -> None:
+    """
+    Beritahu PIC outlet bahwa registrasinya disetujui: notifikasi di aplikasi + email.
+
+    Dipanggil SETELAH approval ter-commit dan bersifat best-effort: kegagalan di
+    sini hanya dicatat di log dan TIDAK membatalkan approval. Nilai untuk email
+    diambil ke variabel biasa sebelum dijadwalkan, karena task background tidak
+    boleh memakai sesi DB.
+    """
+    if pic_user_id is None:
+        return  # outlet tanpa PIC (dibuat manual): tidak ada penerima
+
+    # 1. Kumpulkan data penerima dan pihak penyetuju
+    try:
+        pic = await session.get(User, pic_user_id)
+        if pic is None or not pic.is_active:
+            return  # akun dinonaktifkan administratif: jangan dikabari "sudah bisa masuk"
+        to_email = pic.email
+        nama_penerima = pic.full_name
+        # Status akun (bukan status outlet): sumbernya User.email_verified_at
+        email_belum_terverifikasi = pic.email_verified_at is None
+
+        nama_distributor = (
+            await session.execute(
+                select(Distributor.nama_perusahaan).where(Distributor.id == distributor_id)
+            )
+        ).scalar_one_or_none()
+        nama_role = (
+            await session.execute(
+                select(Role.nama_role).where(Role.kode_role == kode_role)
+            )
+        ).scalar_one_or_none()
+    except Exception:
+        await session.rollback()
+        logger.exception("Gagal menyiapkan notifikasi outlet disetujui (%s)", kode_outlet)
+        return
+
+    # Label pihak penyetuju: distributor memakai nama perusahaannya, peran lain
+    # (Admin HO, SC/SPV, APSM, Super Admin) memakai nama perannya. Tanpa nama pribadi.
+    if kode_role == "distributor" and nama_distributor:
+        disetujui_oleh = f"Distributor {nama_distributor}"
+    else:
+        disetujui_oleh = nama_role  # None bila peran tidak ditemukan: kalimat "oleh ..." disembunyikan
+
+    # 2. Notifikasi di aplikasi (infrastruktur yang sama dengan notifikasi FKP).
+    #    fkp_id=None: kolom Notification.fkp_id nullable. Judul memuat kode outlet
+    #    supaya dedup 5 menit di _buat_notif tidak menelan persetujuan outlet lain
+    #    milik user yang sama.
+    try:
+        oleh = f" oleh {disetujui_oleh}" if disetujui_oleh else ""
+        await notify_user(
+            session,
+            pic_user_id,
+            None,
+            judul=f"Registrasi Outlet Disetujui: {kode_outlet}",
+            pesan=(
+                f"Registrasi outlet '{nama_toko}' ({kode_outlet}) telah disetujui{oleh}. "
+                f"Akun Anda sekarang dapat dipakai untuk masuk ke aplikasi."
+            ),
+            tipe=TipeNotifikasi.STATUS_CHANGE,
+        )
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        logger.exception("Gagal membuat notifikasi in-app untuk outlet %s", kode_outlet)
+
+    # 3. Email (dijadwalkan di background, tidak menahan respons API)
+    if background_tasks is not None:
+        background_tasks.add_task(
+            kirim_email_outlet_disetujui,
+            to_email, nama_penerima, nama_toko, kode_outlet,
+            nama_distributor, disetujui_oleh, email_belum_terverifikasi,
+        )
+
+ 
 async def approve_registration(
     outlet_id: uuid.UUID,
     payload: OutletApproveRequest,
     session: AsyncSession,
     requesting_user: User,
     kode_role: str,
+    background_tasks: BackgroundTasks | None = None,
 ) -> OutletApproveResponse:
     """
     Setujui registrasi outlet pending.
@@ -277,9 +371,11 @@ async def approve_registration(
       registrasi dan tidak merepresentasikan status approval outlet.
       Login untuk role outlet digerbang oleh status outlet itu sendiri
       (lihat auth_service.login()), bukan oleh User.is_active.
+    - Setelah approval ter-commit, PIC outlet diberi tahu lewat notifikasi di
+      aplikasi dan email (best-effort, lihat _kirim_notifikasi_outlet_disetujui).
     """
-    outlet = await _get_outlet_or_404(outlet_id, session)
- 
+    outlet = await _get_outlet_or_404(outlet_id, session, for_update=True)
+
     if outlet.status != "pending":
         raise ValueError(
             f"Outlet tidak dalam status 'pending' (status saat ini: '{outlet.status}'). "
@@ -293,9 +389,6 @@ async def approve_registration(
         raise PermissionError(f"Role '{kode_role}' tidak berhak menyetujui registrasi outlet.")
 
     # [FIX #4] Validasi scope untuk distributor, sc_spv, DAN apsm.
-    # Sebelumnya hanya distributor yang divalidasi; sc_spv & apsm bisa approve
-    # outlet milik distributor mana pun. Sekarang semua role non-global wajib
-    # lolos assert_distributor_in_scope().
     if not superadmin and kode_role in ("distributor", "sc_spv", "apsm"):
         try:
             await assert_distributor_in_scope(
@@ -308,8 +401,7 @@ async def approve_registration(
         except PermissionError:
             raise PermissionError("Anda tidak berhak menyetujui outlet di luar scope Anda.")
 
-    # Aktifkan outlet. User pemiliknya TIDAK disentuh — is_active-nya
-    # sudah True sejak awal dan tetap True di sini.
+    # Aktifkan outlet. User pemiliknya TIDAK disentuh.
     outlet.status = "aktif"
     outlet.updated_at = datetime.now(timezone.utc)
     session.add(outlet)
@@ -317,8 +409,7 @@ async def approve_registration(
     await session.commit()
     await session.refresh(outlet)
 
-    # Ambil is_active user saat ini untuk response (murni informatif,
-    # bukan hasil perubahan oleh fungsi ini).
+    # Ambil is_active user saat ini untuk response (murni informatif).
     user_is_active = True
     if outlet.pic_user_id:
         user_result = await session.execute(
@@ -328,7 +419,9 @@ async def approve_registration(
         if user_is_active is None:
             user_is_active = True
 
-    return OutletApproveResponse(
+    # Susun response SEBELUM hook notifikasi: bila notifikasi gagal dan sesi
+    # di-rollback, objek ORM ter-expire dan tidak boleh diakses lagi.
+    response = OutletApproveResponse(
         message=f"Registrasi outlet '{outlet.nama_toko}' telah disetujui.",
         outlet_id=outlet.id,
         user_id=outlet.pic_user_id,
@@ -336,6 +429,19 @@ async def approve_registration(
         status=outlet.status,
         user_is_active=user_is_active,
     )
+
+    # Approval sudah tersimpan; notifikasi tidak boleh menggagalkannya.
+    await _kirim_notifikasi_outlet_disetujui(
+        session,
+        background_tasks,
+        pic_user_id=outlet.pic_user_id,
+        nama_toko=outlet.nama_toko,
+        kode_outlet=outlet.kode_outlet,
+        distributor_id=outlet.distributor_id,
+        kode_role=kode_role,
+    )
+
+    return response
  
  
 # ─── REJECT REGISTRASI ───────────────────────────────────────────────────────

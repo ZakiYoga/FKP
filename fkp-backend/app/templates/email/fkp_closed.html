@@ -1,12 +1,21 @@
-{% extends "base.html" %}
+{% extends "base_fkp.html" %}
+{% from "_macros.html" import para, detail_table, detail_row %}
+
+{% block preheader %}FKP {{ nomor_fkp }} telah selesai diproses.{% endblock %}
+{% block heading %}Keluhan selesai diproses{% endblock %}
+
 {% block content %}
-<p>Halo, <strong>{{ nama_penerima }}</strong>,</p>
-<p>Keluhan produk Anda telah <strong>selesai diproses</strong>. Terima kasih atas kesabaran Anda.</p>
-<div class="box box-green">
-  <p><strong>Nomor FKP</strong> &nbsp; {{ nomor_fkp }}</p>
-  <p><strong>Status</strong> &nbsp;
-     <span class="badge b-green">Selesai / Ditutup</span></p>
-  <p><strong>Resolusi</strong> &nbsp; {{ tipe_resolusi_label }}</p>
-</div>
-<p>Seluruh proses penanganan keluhan telah selesai. Lihat riwayat lengkap via link di bawah.</p>
+{% call para() %}Halo {{ nama_penerima }},{% endcall %}
+{% call para() %}Keluhan produk Anda telah selesai diproses. Terima kasih atas kesabaran Anda.{% endcall %}
+
+{% call detail_table() %}
+  {{ detail_row("Nomor FKP", nomor_fkp) }}
+  {{ detail_row("Status", "Selesai") }}
+  {{ detail_row("Resolusi", tipe_resolusi_label) }}
+{% endcall %}
+
+{% call para() %}Seluruh proses penanganan keluhan telah selesai. Riwayat lengkap dapat dilihat lewat tombol di bawah ini.{% endcall %}
 {% endblock %}
+
+{% block track_title %}Riwayat keluhan{% endblock %}
+{% block track_text %}Pindai kode QR dengan kamera ponsel, atau buka riwayat lengkap penanganan lewat tombol di bawah.{% endblock %}

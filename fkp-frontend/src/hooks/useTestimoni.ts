@@ -1,6 +1,6 @@
 // hooks/useTestimoni.ts
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import toast from 'react-hot-toast'
+import { notifications } from '@mantine/notifications'
 import { testimoniApi } from '@/api/testimoni'
 import type { TestimoniCreatePayload, TestimoniUpdatePayload } from '@/types/testimoni'
 import { getErrorMessage } from '@/lib/utils'
@@ -52,9 +52,9 @@ export function useCreateTestimoni(fkpId: string) {
       // Invalidate query lain yang menampilkan agregat
       queryClient.invalidateQueries({ queryKey: testimoniKeys.byFkp(fkpId) })
       queryClient.invalidateQueries({ queryKey: testimoniKeys.ringkasan(fkpId) })
-      toast.success('Terima kasih! Testimoni Anda berhasil disimpan.')
+      notifications.show({ message: 'Terima kasih! Testimoni Anda berhasil disimpan.', color: 'green' })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -68,9 +68,9 @@ export function useUpdateTestimoni(fkpId: string, testimoniId: string) {
       queryClient.setQueryData(testimoniKeys.milikSaya(fkpId), result)
       queryClient.invalidateQueries({ queryKey: testimoniKeys.byFkp(fkpId) })
       queryClient.invalidateQueries({ queryKey: testimoniKeys.ringkasan(fkpId) })
-      toast.success('Testimoni berhasil diperbarui.')
+      notifications.show({ message: 'Testimoni berhasil diperbarui.', color: 'green' })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -83,9 +83,9 @@ export function useDeleteTestimoni(fkpId: string) {
       queryClient.setQueryData(testimoniKeys.milikSaya(fkpId), null)
       queryClient.invalidateQueries({ queryKey: testimoniKeys.byFkp(fkpId) })
       queryClient.invalidateQueries({ queryKey: testimoniKeys.ringkasan(fkpId) })
-      toast.success('Testimoni dihapus.')
+      notifications.show({ message: 'Testimoni dihapus.', color: 'green' })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 

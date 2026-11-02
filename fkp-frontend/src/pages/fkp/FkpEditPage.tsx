@@ -462,7 +462,7 @@ export function FkpEditPage() {
         {/* ── Section 1: Header ───────────────────────────────────── */}
         <div className="card">
           <div className="card-header">
-            <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+            <h2 className="font-semibold flex items-center gap-2">
               <span className="w-6 h-6 rounded-full bg-brand-600 text-white text-xs
                                flex items-center justify-center font-bold">1</span>
               Identitas FKP
@@ -516,7 +516,7 @@ export function FkpEditPage() {
         <div className="card">
           <div className="card-header">
             <div className="flex items-center justify-between">
-              <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+              <h2 className="font-semibold flex items-center gap-2">
                 <span className="w-6 h-6 rounded-full bg-brand-600 text-white text-xs
                                  flex items-center justify-center font-bold">2</span>
                 Item Produk
@@ -669,7 +669,7 @@ export function FkpEditPage() {
         {/* Tidak berubah dari versi sebelumnya — foto umum tetap immediate */}
         <div className="card">
           <div className="card-header flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+            <h2 className="font-semibold  flex items-center gap-2">
               <span className="w-6 h-6 rounded-full bg-brand-600 text-white text-xs
                        flex items-center justify-center font-bold">3</span>
               Dokumen / Foto Lampiran

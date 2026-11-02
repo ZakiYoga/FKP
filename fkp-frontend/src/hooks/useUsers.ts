@@ -1,5 +1,5 @@
 import { useMutation, keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
-import toast from 'react-hot-toast'
+import { notifications } from '@mantine/notifications'
 import { usersApi, hierarchyApi, type UserListParams } from '@/api/users'
 import { getErrorMessage } from '@/lib/utils'
 import { refreshMe } from '@/hooks/useProfile'
@@ -30,8 +30,8 @@ export function useCreateUser() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: usersApi.create,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); toast.success('User berhasil dibuat.') },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); notifications.show({ message: 'User berhasil dibuat.', color: 'green' }) },
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -43,9 +43,9 @@ export function useUpdateUser(id: string) {
       qc.invalidateQueries({ queryKey: ['users'] })
       // UserDetail tidak membawa objek role, jadi untuk akun sendiri wajib refetch.
       if (useAuthStore.getState().user?.id === id) void refreshMe(qc)
-      toast.success('User berhasil diupdate.')
+      notifications.show({ message: 'User berhasil diupdate.', color: 'green' })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -53,8 +53,8 @@ export function useDeactivateUser() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: usersApi.deactivate,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); toast.success('User dinonaktifkan.') },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); notifications.show({ message: 'User dinonaktifkan.', color: 'green' }) },
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -65,9 +65,9 @@ export function useResetUserPassword() {
       usersApi.resetPassword(id, data),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['users'] })
-      toast.success(res.message)
+      notifications.show({ message: res.message, color: 'green' })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -84,8 +84,8 @@ export function useAssignApsmToRsm() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: hierarchyApi.assignApsmToRsm,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['hierarchy'] }); toast.success('APSM berhasil di-assign ke RSM.') },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['hierarchy'] }); notifications.show({ message: 'APSM berhasil di-assign ke RSM.', color: 'green' }) },
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -93,8 +93,8 @@ export function useAssignScSpvToApsm() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: hierarchyApi.assignScSpvToApsm,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['hierarchy'] }); toast.success('SC/SPV berhasil di-assign ke APSM.') },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['hierarchy'] }); notifications.show({ message: 'SC/SPV berhasil di-assign ke APSM.', color: 'green' }) },
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -102,8 +102,8 @@ export function useAssignDistToScSpv() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: hierarchyApi.assignDistToScSpv,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['hierarchy'] }); toast.success('Distributor berhasil di-assign ke SC/SPV.') },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['hierarchy'] }); notifications.show({ message: 'Distributor berhasil di-assign ke SC/SPV.', color: 'green' }) },
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -112,8 +112,8 @@ export function useRemoveApsmFromRsm() {
   return useMutation({
     mutationFn: ({ rsmId, apsmId }: { rsmId: string; apsmId: string }) =>
       hierarchyApi.removeApsmFromRsm(rsmId, apsmId),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['hierarchy'] }); toast.success('APSM dilepas dari RSM.') },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['hierarchy'] }); notifications.show({ message: 'APSM dilepas dari RSM.', color: 'green' }) },
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -122,8 +122,8 @@ export function useRemoveScSpvFromApsm() {
   return useMutation({
     mutationFn: ({ apsmId, scId }: { apsmId: string; scId: string }) =>
       hierarchyApi.removeScSpvFromApsm(apsmId, scId),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['hierarchy'] }); toast.success('SC/SPV dilepas dari APSM.') },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['hierarchy'] }); notifications.show({ message: 'SC/SPV dilepas dari APSM.', color: 'green' }) },
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -132,7 +132,7 @@ export function useRemoveDistFromScSpv() {
   return useMutation({
     mutationFn: ({ scId, distId }: { scId: string; distId: string }) =>
       hierarchyApi.removeDistFromScSpv(scId, distId),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['hierarchy'] }); toast.success('Distributor dilepas dari SC/SPV.') },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['hierarchy'] }); notifications.show({ message: 'Distributor dilepas dari SC/SPV.', color: 'green' }) },
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }

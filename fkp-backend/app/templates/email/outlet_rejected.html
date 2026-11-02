@@ -1,0 +1,23 @@
+{% extends "_layout.html" %}
+{% from "_macros.html" import para, note, message, detail_table, detail_row %}
+
+{% block preheader %}Registrasi outlet {{ nama_toko }} belum dapat disetujui.{% endblock %}
+{% block heading %}Registrasi outlet belum dapat disetujui{% endblock %}
+
+{% block content %}
+{% call para() %}Halo {{ nama_penerima }},{% endcall %}
+{% call para() %}Mohon maaf, registrasi outlet Anda di {{ app_name }} belum dapat disetujui{% if ditolak_oleh %} oleh {{ ditolak_oleh }}{% endif %}. Akun Anda belum dapat dipakai untuk masuk ke aplikasi.{% endcall %}
+
+{% call detail_table() %}
+  {{ detail_row("Nama toko", nama_toko) }}
+  {{ detail_row("Kode outlet", kode_outlet, code=true) }}
+  {% if nama_distributor %}{{ detail_row("Distributor", nama_distributor) }}{% endif %}
+{% endcall %}
+
+{% if alasan_penolakan %}
+{% call message("Alasan penolakan") %}{{ alasan_penolakan }}{% endcall %}
+{% endif %}
+
+{% call para() %}Jika data registrasi sudah benar atau Anda ingin menanyakan lebih lanjut, silakan hubungi distributor atau administrator {{ app_name }}.{% endcall %}
+{% call note() %}Jika Anda tidak merasa mendaftarkan outlet ini, abaikan email ini atau hubungi administrator.{% endcall %}
+{% endblock %}

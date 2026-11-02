@@ -1,8 +1,8 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Paginated } from '@/types/pagination'
 import type { Distributor, Outlet } from '@/types'
-import toast from 'react-hot-toast'
-import { areaApi, distributorApi, outletApi, productApi } from '@/api/masterdata'
+import { notifications } from '@mantine/notifications'
+import { areaApi, distributorApi, outletApi, productApi, ProductCreatePayload, ProductListParams } from '@/api/masterdata'
 import { getErrorMessage } from '@/lib/utils'
 import api from '@/lib/axios'
 import type { OutletSelfUpdate } from '@/types/outlet'
@@ -39,9 +39,9 @@ export function useCreateArea() {
     mutationFn: areaApi.create,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['areas'] })
-      toast.success('Area berhasil ditambahkan.')
+      notifications.show({ message: 'Area berhasil ditambahkan.', color: 'green' })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -51,9 +51,9 @@ export function useUpdateArea(id: string) {
     mutationFn: (data: Parameters<typeof areaApi.update>[1]) => areaApi.update(id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['areas'] })
-      toast.success('Area berhasil diupdate.')
+      notifications.show({ message: 'Area berhasil diupdate.', color: 'green' })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -95,9 +95,9 @@ export function useCreateDistributor() {
     mutationFn: distributorApi.create,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['distributors'] })
-      toast.success('Distributor berhasil ditambahkan.')
+      notifications.show({ message: 'Distributor berhasil ditambahkan.', color: 'green' })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -108,9 +108,9 @@ export function useUpdateDistributor(id: string) {
       distributorApi.update(id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['distributors'] })
-      toast.success('Distributor berhasil diupdate.')
+      notifications.show({ message: 'Distributor berhasil diupdate.', color: 'green' })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -120,9 +120,9 @@ export function useActivateOutlet() {
     mutationFn: outletApi.activate,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['outlets'] })
-      toast.success('Outlet diaktifkan kembali.')
+      notifications.show({ message: 'Outlet diaktifkan kembali.', color: 'green' })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -132,9 +132,9 @@ export function useDeactivateDistributor() {
     mutationFn: distributorApi.deactivate,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['distributors'] })
-      toast.success('Distributor dinonaktifkan.')
+      notifications.show({ message: 'Distributor dinonaktifkan.', color: 'green' })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -144,9 +144,9 @@ export function useActivateDistributor() {
     mutationFn: (id: string) => api.post(`/distributors/${id}/activate`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['distributors'] })
-      toast.success('Distributor diaktifkan kembali.')
+      notifications.show({ message: 'Distributor diaktifkan kembali.', color: 'green' })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -189,9 +189,9 @@ export function useCreateOutlet() {
     mutationFn: outletApi.create,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['outlets'] })
-      toast.success('Outlet berhasil ditambahkan.')
+      notifications.show({ message: 'Outlet berhasil ditambahkan.', color: 'green' })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -201,9 +201,9 @@ export function useUpdateOutlet(id: string) {
     mutationFn: (data: Parameters<typeof outletApi.update>[1]) => outletApi.update(id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['outlets'] })
-      toast.success('Outlet berhasil diupdate.')
+      notifications.show({ message: 'Outlet berhasil diupdate.', color: 'green' })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -213,9 +213,9 @@ export function useDeactivateOutlet() {
     mutationFn: outletApi.deactivate,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['outlets'] })
-      toast.success('Outlet dinonaktifkan.')
+      notifications.show({ message: 'Outlet dinonaktifkan.', color: 'green' })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -225,9 +225,9 @@ export function useApproveOutlet() {
     mutationFn: outletApi.approve,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['outlets'] })
-      toast.success('Pendaftaran outlet disetujui.')
+      notifications.show({ message: 'Pendaftaran outlet disetujui.', color: 'green' })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -237,9 +237,9 @@ export function useRejectOutlet() {
     mutationFn: outletApi.reject,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['outlets'] })
-      toast.success('Pendaftaran outlet ditolak.')
+      notifications.show({ message: 'Pendaftaran outlet ditolak.', color: 'green' })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -267,9 +267,9 @@ export function useUpdateMyDistributor() {
       distributorApi.updateMine(id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['distributors'] })
-      toast.success('Data distributor berhasil diperbarui.')
+      notifications.show({ message: 'Data distributor berhasil diperbarui.', color: 'green' })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -279,15 +279,15 @@ export function useUpdateMyOutlet() {
     mutationFn: ({ id, data }: { id: string; data: OutletSelfUpdate }) =>
       outletApi.updateMine(id, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['outlets'] })
-      toast.success('Data outlet berhasil diperbarui.')
+      notifications.show({ message: 'Data outlet berhasil diperbarui.', color: 'green' })
+      return qc.invalidateQueries({ queryKey: ['outlets'] }) // return agar mutateAsync menunggu refetch
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
 // ─── PRODUCT ──────────────────────────────────────────────────────────────────
-export function useProducts(params?: { jenis_kemasan?: string; is_active?: boolean }) {
+export function useProducts(params?: ProductListParams) {
   return useQuery({
     queryKey: ['products', params],
     queryFn: () => productApi.list(params),
@@ -306,12 +306,27 @@ export function useProductDetail(id: string | undefined) {
 export function useCreateProduct() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: productApi.create,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['products'] })
-      toast.success('Produk berhasil ditambahkan.')
+    mutationFn: async ({ data, foto }: { data: ProductCreatePayload; foto?: File | null }) => {
+      const produk = await productApi.create(data)
+      if (!foto) return { produk, fotoError: null as string | null }
+      try {
+        return { produk: await productApi.uploadFoto(produk.id, foto), fotoError: null }
+      } catch (e) {
+        return { produk, fotoError: getErrorMessage(e) }
+      }
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onSuccess: ({ fotoError }) => {
+      qc.invalidateQueries({ queryKey: ['products'] })
+      notifications.show({ message: 'Produk berhasil ditambahkan.', color: 'green' })
+      if (fotoError) {
+        notifications.show({
+          message: `Produk tersimpan, tetapi foto gagal diunggah: ${fotoError}. Unggah ulang lewat Edit.`,
+          color: 'yellow',
+          autoClose: false,
+        })
+      }
+    },
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
@@ -322,27 +337,30 @@ export function useUpdateProduct() {
       productApi.update(id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['products'] })
-      toast.success('Produk berhasil diupdate.')
+      notifications.show({ message: 'Produk berhasil diupdate.', color: 'green' })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
 export function useSetProductKemasan() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, kemasan }: { id: string; kemasan: string[] }) =>
-      productApi.setKemasan(id, kemasan),
+    mutationFn: ({ id, kemasan, qty_per_kemasan }: {
+      id: string
+      kemasan: string[]
+      qty_per_kemasan?: number | null
+    }) => productApi.setKemasan(id, kemasan, qty_per_kemasan),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['products'] })
-      toast.success('Kemasan produk berhasil diupdate.')
+      notifications.show({ message: 'Kemasan produk berhasil diupdate.', color: 'green' })
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => notifications.show({ message: getErrorMessage(e), color: 'red' }),
   })
 }
 
 // Alur edit dari modal: PUT data dasar, lalu PUT kemasan hanya bila `kemasan` diberikan.
-// Satu toast sukses; daftar produk selalu di-refetch (onSettled) walau langkah kedua gagal.
+// Satu notifikasi sukses; daftar produk selalu di-refetch (onSettled) walau langkah kedua gagal.
 export function useSaveProduct() {
   const qc = useQueryClient()
   return useMutation({
@@ -351,24 +369,28 @@ export function useSaveProduct() {
       data,
       kemasan,
       qty_per_kemasan,
+      foto,
     }: {
       id: string
-      data: Parameters<typeof productApi.update>[1]
+      data: Parameters<typeof productApi.update>[1]   // foto_url: null = hapus foto
       kemasan?: string[]
       qty_per_kemasan?: number | null
+      foto?: File | null
     }) => {
-      // 1) data dasar; 2) kemasan + isi per kemasan (satu kesatuan), hanya bila dikirim
-      const produk = await productApi.update(id, data)
-      return kemasan ? productApi.setKemasan(id, kemasan, qty_per_kemasan) : produk
+      // 1) data dasar; 2) kemasan + isi (satu kesatuan) bila dikirim; 3) foto baru bila dipilih
+      let hasil = await productApi.update(id, data)
+      if (kemasan) hasil = await productApi.setKemasan(id, kemasan, qty_per_kemasan)
+      if (foto) hasil = await productApi.uploadFoto(id, foto)
+      return hasil
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['products'] })
-      toast.success('Produk berhasil diupdate.')
+      notifications.show({ message: 'Produk berhasil diupdate.', color: 'green' })
     },
     onError: (e) => {
       // Langkah 1 bisa sudah tersimpan walau langkah 2 gagal: segarkan daftar.
       qc.invalidateQueries({ queryKey: ['products'] })
-      toast.error(getErrorMessage(e))
+      notifications.show({ message: getErrorMessage(e), color: 'red' })
     },
   })
 }

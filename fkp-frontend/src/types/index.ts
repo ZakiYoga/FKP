@@ -290,10 +290,20 @@ export interface DistributorSelfUpdate {
 
 // ─── PRODUCT ──────────────────────────────────────────────────────────────────
 
+export const PRODUCT_CLASS_OPTIONS = ['fighting', 'general', 'premium'] as const
+export type ProductClass = (typeof PRODUCT_CLASS_OPTIONS)[number]
+
+export const PRODUCT_CLASS_LABEL: Record<ProductClass, string> = {
+  fighting: 'Fighting',
+  general: 'General',
+  premium: 'Premium',
+}
+
 export interface Product {
   id: string
   kode_produk: string
   nama_produk: string
+  class: ProductClass
   /** @deprecated Kemasan utama saja. Untuk UI baru pakai `kemasan_tersedia`. */
   jenis_kemasan: JenisKemasan
   /** Semua kemasan produk (dari backend, sudah terurut). */
@@ -834,4 +844,65 @@ export interface InvoiceResponse {
 
 export interface ProsesFinancePayload {
   catatan?: string | null
+}
+ 
+// ─── SURAT JALAN INBOX (halaman /surat-jalan) ───────────────────────────────
+ 
+export interface SuratJalanInboxItem extends WarehouseSuratJalan {
+  nomor_fkp: string
+  fkp_status: FkpStatusKey
+  distributor_nama: string | null
+  outlet_nama: string | null
+  jumlah_item: number
+  total_qty: number
+}
+ 
+export interface SuratJalanSummary {
+  counts: Record<SuratJalanStatusKey, number>
+  total: number
+  perlu_dibuat: number
+}
+ 
+export interface PendingSjItem {
+  fkp_item_id: string
+  nama_produk: string
+  jenis_kemasan: string | null
+  satuan_default: string
+  qty_keluhan: number
+  qty_disetujui: number
+  qty_terkirim: number
+  sisa_kuota: number
+}
+ 
+export interface PendingSjFkp {
+  fkp_id: string
+  nomor_fkp: string
+  fkp_status: FkpStatusKey
+  tanggal_diteruskan_ke_warehouse: string | null
+  distributor_nama: string | null
+  distributor_kode: string | null
+  outlet_nama: string | null
+  outlet_kode: string | null
+  penerima_default: {
+    nama: string | null
+    alamat: string | null
+    telepon: string | null
+  }
+  items: PendingSjItem[]
+  jumlah_sj_terbit: number
+}
+ 
+export interface SuratJalanInboxParams {
+  page?: number
+  page_size?: number
+  status?: string
+  search?: string
+  tanggal_dari?: string
+  tanggal_sampai?: string
+}
+ 
+export interface PendingSjParams {
+  page?: number
+  page_size?: number
+  search?: string
 }

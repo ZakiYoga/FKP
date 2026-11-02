@@ -7,7 +7,7 @@ export function NotFoundPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="text-center max-w-md">
         <p className="text-8xl font-black text-gray-200 leading-none">404</p>
-        <h1 className="text-2xl font-bold text-gray-900 mt-4">Halaman Tidak Ditemukan</h1>
+        <h1 className="text-2xl font-bold mt-4">Halaman Tidak Ditemukan</h1>
         <p className="text-gray-500 mt-2">
           Halaman yang kamu cari tidak ada atau sudah dipindahkan.
         </p>
@@ -30,7 +30,7 @@ export function ForbiddenPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="text-center max-w-md">
         <p className="text-8xl font-black text-red-100 leading-none">403</p>
-        <h1 className="text-2xl font-bold text-gray-900 mt-4">Akses Ditolak</h1>
+        <h1 className="text-2xl font-bold mt-4">Akses Ditolak</h1>
         <p className="text-gray-500 mt-2">
           Kamu tidak memiliki izin untuk mengakses halaman ini.
         </p>

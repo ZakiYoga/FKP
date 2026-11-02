@@ -5,18 +5,18 @@ import { formatDateTime } from '@/lib/utils'
 import type { StepState, TrackingPhase, TrackingStep } from '@/types/trackFkp'
 
 const STYLE: Record<StepState, { circle: string; title: string; badge: string }> = {
-    done:     { circle: 'bg-emerald-500 border-emerald-500', title: 'text-gray-800', badge: '' },
-    current:  { circle: 'bg-amber-500 border-amber-500 shadow-md', title: 'text-amber-700', badge: 'bg-amber-100 text-amber-700' },
-    rejected: { circle: 'bg-red-500 border-red-500', title: 'text-red-700', badge: 'bg-red-100 text-red-700' },
-    pending:  { circle: 'bg-white border-gray-200', title: 'text-gray-400', badge: '' },
+    done:     { circle: 'bg-emerald-500 border-emerald-500 dark:border-emerald-600', title: 'text-gray-800', badge: '' },
+    current:  { circle: 'bg-amber-500 border-amber-500 shadow-md dark:border-amber-600', title: 'text-amber-700', badge: 'bg-amber-100 text-amber-700' },
+    rejected: { circle: 'bg-red-500 dark:border-red-600', title: 'text-red-700', badge: 'bg-red-100 text-red-700' },
+    pending:  { circle: 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600', title: 'text-gray-400', badge: '' },
 }
 
 function StateIcon({ state, small = false }: { state: StepState; small?: boolean }) {
     const size = small ? 'w-2.5 h-2.5' : 'w-4 h-4'
     if (state === 'done') return <CheckCircle2 className={`${size} text-white`} />
-    if (state === 'current') return <Clock className={`${size} text-white animate-pulse`} />
+    if (state === 'current') return <Clock className={`${size}  text-white animate-pulse`} />
     if (state === 'rejected') return <XCircle className={`${size} text-white`} />
-    return <div className={`${small ? 'w-1 h-1' : 'w-2 h-2'} rounded-full bg-gray-300`} />
+    return <div className={`${small ? 'w-1 h-1' : 'w-2 h-2'} rounded-full bg-gray-300 dark:bg-gray-500`} />
 }
 
 function timeText(state: StepState, ts: string | null) {
@@ -59,7 +59,7 @@ function PhaseItem({ phase, isLast }: { phase: TrackingPhase; isLast: boolean })
                     <StateIcon state={phase.state} />
                 </div>
                 {!isLast && (
-                    <div className={`w-0.5 flex-1 mt-1 min-h-8 ${phase.state === 'done' ? 'bg-emerald-300' : 'bg-gray-200'}`} />
+                    <div className={`w-0.5 flex-1 mt-1 min-h-8 ${phase.state === 'done' ? 'bg-emerald-300' : 'bg-gray-200 dark:bg-gray-500'}`} />
                 )}
             </div>
 
@@ -92,7 +92,7 @@ function PhaseItem({ phase, isLast }: { phase: TrackingPhase; isLast: boolean })
                 </button>
 
                 {expandable && open && (
-                    <ol className="mt-3 ml-1 space-y-3 border-l border-gray-100 pl-4">
+                    <ol className="mt-3 ml-1 space-y-3 border-l border-gray-100 dark:border-gray-400 pl-4">
                         {phase.steps.map(step => <StepRow key={step.key} step={step} />)}
                     </ol>
                 )}

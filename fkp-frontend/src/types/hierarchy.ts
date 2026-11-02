@@ -1,8 +1,21 @@
+export interface AreaBasicInfo {
+  id: string
+  kode_area: string
+  nama_area: string
+}
+
+export interface ScSpvWithDistributors {
+  sc_spv: UserBasicInfo
+  area?: AreaBasicInfo | null
+  distributors: DistributorBasicInfo[]
+}
+
 export interface UserBasicInfo {
   id: string
   nama: string
   email: string
   no_telepon?: string | null
+  avatar_path: string | null
 }
 
 export interface DistributorBasicInfo {

@@ -34,6 +34,12 @@ export function WilayahPicker({ initial, onChange = noop, viewOnly = false, read
   const [kab, setKab] = useState<string | null>(initial ? String(initial.kabupaten_kota.id) : null)
   const [kec, setKec] = useState<string | null>(initial ? String(initial.kecamatan.id) : null)
   const [kel, setKel] = useState<string | null>(initial ? String(initial.kelurahan.id) : null)
+
+  const vProv = viewOnly ? (initial ? String(initial.provinsi.id) : null) : prov
+  const vKab = viewOnly ? (initial ? String(initial.kabupaten_kota.id) : null) : kab
+  const vKec = viewOnly ? (initial ? String(initial.kecamatan.id) : null) : kec
+  const vKel = viewOnly ? (initial ? String(initial.kelurahan.id) : null) : kel
+
   const [q, setQ] = useState('')
   const [dq] = useDebouncedValue(q, 300)
 
@@ -88,13 +94,13 @@ export function WilayahPicker({ initial, onChange = noop, viewOnly = false, read
           />
         </div>
       )}
-      <SearchableSelect {...common} label="Provinsi" options={optProv} value={prov}
+      <SearchableSelect {...common} label="Provinsi" options={optProv} value={vProv}
         onChange={pickProv} loading={live && provQ.isLoading} readOnly={lock} />
-      <SearchableSelect {...common} label="Kabupaten/Kota" options={optKab} value={kab}
+      <SearchableSelect {...common} label="Kabupaten/Kota" options={optKab} value={vKab}
         onChange={pickKab} loading={live && kabQ.isLoading} readOnly={lock || !prov} />
-      <SearchableSelect {...common} label="Kecamatan" options={optKec} value={kec}
+      <SearchableSelect {...common} label="Kecamatan" options={optKec} value={vKec}
         onChange={pickKec} loading={live && kecQ.isLoading} readOnly={lock || !kab} />
-      <SearchableSelect {...common} label="Kelurahan" options={optKel} value={kel}
+      <SearchableSelect {...common} label="Kelurahan" options={optKel} value={vKel}
         onChange={pickKel} loading={live && kelQ.isLoading} readOnly={lock || !kec} error={error} />
     </>
   )

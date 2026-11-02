@@ -39,13 +39,13 @@ function ApproveModal({
   const [catatan, setCatatan] = useState('')
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-modal w-full max-w-md p-6 animate-slide-up">
+      <div className="rounded-2xl shadow-modal w-full max-w-md p-6 animate-slide-up">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
             <CheckCircle className="w-5 h-5 text-emerald-600" />
           </div>
           <div>
-            <h3 className="font-semibold text-gray-900">Setujui Pendaftaran</h3>
+            <h3 className="font-semibold">Setujui Pendaftaran</h3>
             <p className="text-sm text-gray-500">{item.nama_toko}</p>
           </div>
         </div>

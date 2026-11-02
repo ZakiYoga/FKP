@@ -4,10 +4,27 @@ import type {
   SuratJalanCreatePayload,
   SuratJalanUpdatePayload,
   SuratJalanShipPayload,
+  SuratJalanInboxItem,
+  SuratJalanSummary,
+  PendingSjFkp,
+  SuratJalanInboxParams,
+  PendingSjParams,
 } from '@/types'
+import { Paginated } from '@/types/pagination'
 
-// Semua endpoint di-mount di bawah /api/fkp/{fkp_id}/warehouse/surat-jalan/...
-// (lihat api/endpoints/warehouse_router.py).
+// Buang param undefined / null / string kosong supaya tidak ikut terkirim sebagai query string.
+function cleanParams(params: object): Record<string, string | number> {
+  const out: Record<string, string | number> = {}
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value === 'number') out[key] = value
+    else if (typeof value === 'string' && value !== '') out[key] = value
+  }
+  return out
+}
+
+// Endpoint per-FKP di-mount di bawah /api/fkp/{fkp_id}/warehouse/surat-jalan/...
+// (lihat api/endpoints/warehouse_router.py). Endpoint list lintas FKP (halaman
+// "Surat Jalan") di bawah /api/warehouse/surat-jalan (warehouse_inbox_router.py).
 export const warehouseApi = {
   // ── List & Detail ──────────────────────────────────────────────────────
   list: async (fkpId: string): Promise<WarehouseSuratJalan[]> => {
@@ -21,7 +38,7 @@ export const warehouseApi = {
   },
 
   // ── Create ──────────────────────────────────────────────────────────────
-  // Aktor: warehouse, admin_ho, superadmin.
+  // Aktor: warehouse, superadmin.
   // Guard BE: FKP.status === in_process ATAU accepted+resolusi tukar_barang —
   // lihat catatan penting di bawah.
   //
@@ -75,4 +92,25 @@ export const warehouseApi = {
   // dipakai langsung tanpa modifikasi.
   pdfPath: (fkpId: string, sjId: string): string =>
     `/api/fkp/${fkpId}/warehouse/surat-jalan/${sjId}/pdf`,
+
+  // ── Inbox lintas FKP (halaman "Surat Jalan") ───────────────────────────
+  // Permission BE: warehouse.surat_jalan.view_all (warehouse, admin_ho, rsm, direktur).
+  listInbox: async (params: SuratJalanInboxParams): Promise<Paginated<SuratJalanInboxItem>> => {
+    const res = await api.get<Paginated<SuratJalanInboxItem>>('/warehouse/surat-jalan', {
+      params: cleanParams(params),
+    })
+    return res.data
+  },
+
+  summary: async (): Promise<SuratJalanSummary> => {
+    const res = await api.get<SuratJalanSummary>('/warehouse/surat-jalan/summary')
+    return res.data
+  },
+
+  pendingFkp: async (params: PendingSjParams): Promise<Paginated<PendingSjFkp>> => {
+    const res = await api.get<Paginated<PendingSjFkp>>('/warehouse/surat-jalan/pending-fkp', {
+      params: cleanParams(params),
+    })
+    return res.data
+  },
 }
