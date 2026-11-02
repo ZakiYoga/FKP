@@ -11,17 +11,23 @@ Independen dari FkpStatus — hanya dipakai sebagai GATE agar qc_investigasi()
 tidak bisa dijalankan selama masih ada sample yang belum selesai diperiksa
 (lihat all_samples_examined_or_cancelled(), dipakai ulang di Phase 4).
 """
+import math
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import List, Optional
 
 from fastapi import HTTPException
 from sqlmodel import select, func
+from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.fkp import FkpComplaint, FkpItem, FkpStatus, SampleStatus
+from app.models.distributor import Distributor
+from app.models.fkp import FkpAttachment, FkpComplaint, FkpItem, FkpStatus, SampleStatus
+from app.models.outlet import Outlet
+from app.models.product import ProductCatalog
 from app.models.sample import SampleShipment, SampleStatusLog
 from app.models.user import User
+from app.schemas.sample import SampleInboxItem, SampleResponse
 from app.services.permission_service import require_permission
 from app.services.fkp_service import _get_or_404, _check_ownership, OWNERSHIP_SCOPED_ROLES
 from app.services.notification_service import _buat_notif, _get_users_by_role, notify_roles, notify_user, TipeNotifikasi
@@ -400,3 +406,210 @@ async def cancel_sample(
     await db.commit()
     await db.refresh(sample)
     return sample
+
+
+# ─── SAMPLE MASUK (list global lintas FKP) ──────────────────────────────────
+#
+# Endpoint: GET /api/samples dan GET /api/samples/summary (sample_inbox_router).
+# Permission: sample.view_all (warehouse, qc, admin_ho; superadmin bypass).
+# Scope data: global, tanpa filter area/distributor — sama dengan prinsip
+# fkp_service._ROLE_GLOBAL_ACCESS untuk role yang lolos permission ini.
+
+def _escape_like(value: str) -> str:
+    """Escape wildcard LIKE (\\, %, _) agar input user dianggap teks biasa."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _parse_status_filter(status: Optional[str]) -> List[str]:
+    """'a,b' -> ['a','b']. Nilai tak dikenal -> 400. Kosong/None -> []."""
+    if not status:
+        return []
+    values: List[str] = []
+    for raw in status.split(","):
+        v = raw.strip()
+        if v and v not in values:
+            values.append(v)
+    invalid = [v for v in values if v not in SampleStatus.ALL]
+    if invalid:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Status sample tidak valid: {', '.join(invalid)}. "
+                f"Status yang diizinkan: {', '.join(SampleStatus.ALL)}."
+            ),
+        )
+    return values
+
+
+def _apply_inbox_joins(stmt, *, with_sender: bool):
+    """
+    Join eksplisit untuk query Sample Masuk. Distributor INNER (FK wajib),
+    Outlet OUTER (FkpComplaint.outlet_id nullable), User OUTER.
+    SampleShipment punya banyak FK ke users.id, jadi onclause User WAJIB
+    eksplisit (User.id == SampleShipment.sender_id).
+    """
+    stmt = (
+        stmt.select_from(SampleShipment)
+        .join(FkpComplaint, FkpComplaint.id == SampleShipment.fkp_id)
+        .join(FkpItem, FkpItem.id == SampleShipment.fkp_item_id)
+        .join(ProductCatalog, ProductCatalog.id == FkpItem.product_id)
+        .join(Distributor, Distributor.id == FkpComplaint.distributor_id)
+        .outerjoin(Outlet, Outlet.id == FkpComplaint.outlet_id)
+    )
+    if with_sender:
+        stmt = stmt.outerjoin(User, User.id == SampleShipment.sender_id)
+    return stmt
+
+
+def _apply_inbox_filters(
+    stmt,
+    *,
+    statuses: List[str],
+    search: Optional[str],
+    tanggal_dari: Optional[date],
+    tanggal_sampai: Optional[date],
+):
+    if statuses:
+        stmt = stmt.where(SampleShipment.status.in_(statuses))
+
+    term = (search or "").strip()
+    if term:
+        pattern = f"%{_escape_like(term)}%"
+        stmt = stmt.where(
+            or_(
+                FkpComplaint.nomor_fkp.ilike(pattern, escape="\\"),
+                ProductCatalog.nama_produk.ilike(pattern, escape="\\"),
+                SampleShipment.nomor_resi.ilike(pattern, escape="\\"),
+                SampleShipment.nomor_tanda_terima.ilike(pattern, escape="\\"),
+                Distributor.nama_perusahaan.ilike(pattern, escape="\\"),
+                Outlet.nama_toko.ilike(pattern, escape="\\"),
+            )
+        )
+
+    # tanggal_kirim bertipe date; kedua batas inklusif.
+    if tanggal_dari:
+        stmt = stmt.where(SampleShipment.tanggal_kirim >= tanggal_dari)
+    if tanggal_sampai:
+        stmt = stmt.where(SampleShipment.tanggal_kirim <= tanggal_sampai)
+    return stmt
+
+
+async def list_samples_inbox(
+    user: User,
+    kode_role: str,
+    db: AsyncSession,
+    *,
+    page: int = 1,
+    page_size: int = 20,
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+    tanggal_dari: Optional[date] = None,
+    tanggal_sampai: Optional[date] = None,
+) -> dict:
+    """
+    List sample lintas FKP, berpaginasi. Satu query data (tanpa N+1) + satu
+    COUNT dengan join dan filter yang sama.
+    """
+    await require_permission(kode_role, "sample.view_all", db)
+
+    statuses = _parse_status_filter(status)
+    if tanggal_dari and tanggal_sampai and tanggal_dari > tanggal_sampai:
+        raise HTTPException(
+            status_code=400,
+            detail="tanggal_dari tidak boleh lebih besar dari tanggal_sampai.",
+        )
+
+    # jumlah_dokumen: correlated scalar subquery (bukan query per baris).
+    jumlah_dokumen = (
+        select(func.count(FkpAttachment.id))
+        .where(FkpAttachment.sample_shipment_id == SampleShipment.id)
+        .correlate(SampleShipment)
+        .scalar_subquery()
+    )
+
+    # ── COUNT ──────────────────────────────────────────────────────────────
+    count_stmt = _apply_inbox_filters(
+        _apply_inbox_joins(select(func.count(SampleShipment.id)), with_sender=False),
+        statuses=statuses, search=search,
+        tanggal_dari=tanggal_dari, tanggal_sampai=tanggal_sampai,
+    )
+    total = (await db.execute(count_stmt)).scalar_one()
+
+    # ── DATA ───────────────────────────────────────────────────────────────
+    data_stmt = _apply_inbox_filters(
+        _apply_inbox_joins(
+            select(
+                SampleShipment,
+                FkpComplaint.nomor_fkp,
+                FkpComplaint.status,
+                ProductCatalog.nama_produk,
+                FkpItem.jenis_kemasan,
+                FkpItem.qty,
+                Distributor.nama_perusahaan,
+                Distributor.kode_distributor,
+                Outlet.nama_toko,
+                Outlet.kode_outlet,
+                User.first_name,
+                User.last_name,
+                jumlah_dokumen,
+            ),
+            with_sender=True,
+        ),
+        statuses=statuses, search=search,
+        tanggal_dari=tanggal_dari, tanggal_sampai=tanggal_sampai,
+    ).order_by(SampleShipment.created_at.desc(), SampleShipment.id.desc())
+    data_stmt = data_stmt.offset((page - 1) * page_size).limit(page_size)
+
+    rows = (await db.execute(data_stmt)).all()
+
+    items: List[SampleInboxItem] = []
+    for (
+        sample, nomor_fkp, fkp_status, nama_produk, jenis_kemasan, qty_item,
+        dist_nama, dist_kode, outlet_nama, outlet_kode,
+        first_name, last_name, n_dokumen,
+    ) in rows:
+        # User.full_name hanya @property Python (bukan kolom) -> gabung di sini.
+        pengirim_nama = None
+        if first_name is not None:
+            pengirim_nama = f"{first_name} {last_name or ''}".strip()
+
+        base = SampleResponse.model_validate(sample).model_dump()
+        items.append(SampleInboxItem(
+            **base,
+            nomor_fkp=nomor_fkp,
+            fkp_status=fkp_status,
+            nama_produk=nama_produk,
+            jenis_kemasan=jenis_kemasan,
+            qty_item_keluhan=qty_item or 0,
+            distributor_nama=dist_nama,
+            distributor_kode=dist_kode,
+            outlet_nama=outlet_nama,
+            outlet_kode=outlet_kode,
+            pengirim_nama=pengirim_nama,
+            jumlah_dokumen=n_dokumen or 0,
+        ))
+
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": max(1, math.ceil(total / page_size)),
+    }
+
+
+async def get_samples_summary(user: User, kode_role: str, db: AsyncSession) -> dict:
+    """Jumlah sample per status (GROUP BY). `counts` memuat semua status, default 0."""
+    await require_permission(kode_role, "sample.view_all", db)
+
+    rows = (
+        await db.execute(
+            select(SampleShipment.status, func.count(SampleShipment.id))
+            .group_by(SampleShipment.status)
+        )
+    ).all()
+
+    counts = {s: 0 for s in SampleStatus.ALL}
+    for st, n in rows:
+        counts[st] = counts.get(st, 0) + n
+    return {"counts": counts, "total": sum(counts.values())}

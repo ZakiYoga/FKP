@@ -22,7 +22,8 @@ File upload:
 
 Modul yang terdaftar: Auth, Users, Roles, Areas, Distributors, Outlets,
 Products, Hierarchy, FKP, Notifications, Outlet Registrations, Testimoni,
-Public Tracking, RBAC Admin, Sample Shipment, Warehouse Surat Jalan, BAPKP.
+Public Tracking, RBAC Admin, Sample Shipment, Sample Inbox, Warehouse Surat Jalan,
+BAPKP.
 Router Debug serta dokumentasi API (/docs, /redoc, /openapi.json) hanya aktif
 bila settings.APP_ENV bernilai "development" atau "local". Bila APP_ENV tidak
 diset atau bernilai lain, dianggap production dan semuanya dimatikan
@@ -112,7 +113,7 @@ from app.api.endpoints import (
     outlet_registrations, hierarchy, notifications,
     testimoni, public_tracking,
     debug, rbac_admin, sample_router, warehouse_router,
-    bapkp_router,
+    bapkp_router, sample_inbox_router,
 )
 
 # Fail-closed: router Debug hanya dipasang bila APP_ENV eksplisit development/local.
@@ -141,6 +142,7 @@ app.include_router(testimoni.router_admin,          prefix="/api/testimoni",    
 app.include_router(public_tracking.router,          prefix="/api/public/fkp",           tags=["Public Tracking"])
 app.include_router(rbac_admin.router,               prefix="/api",                      tags=["RBAC Admin"])
 app.include_router(sample_router.router,            prefix="/api/fkp",                  tags=["Sample Shipment"])
+app.include_router(sample_inbox_router.router,      prefix="/api/samples",               tags=["Sample Inbox"])
 app.include_router(warehouse_router.router,         prefix="/api/fkp",                  tags=["Warehouse Surat Jalan"])
 app.include_router(bapkp_router.router,             prefix="/api/fkp",                  tags=["BAPKP"])
 

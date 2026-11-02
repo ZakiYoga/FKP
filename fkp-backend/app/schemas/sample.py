@@ -113,3 +113,43 @@ class SampleStatusLogResponse(BaseModel):
     changed_at: datetime
 
     model_config = {"from_attributes": True}
+
+# ─── SAMPLE MASUK (list global lintas FKP) ───────────────────────────────────
+#
+# Dipakai halaman "Sample Masuk" (GET /api/samples). Hanya role internal HO
+# (permission sample.view_all), jadi hasil_pemeriksaan boleh ikut dikembalikan.
+# Dibangun eksplisit dari baris hasil join (bukan dari ORM object), maka
+# from_attributes dimatikan.
+
+class SampleInboxItem(SampleResponse):
+    nomor_fkp: str
+    fkp_status: str
+    nama_produk: str
+    jenis_kemasan: Optional[str] = None
+    qty_item_keluhan: int
+    distributor_nama: Optional[str] = None
+    distributor_kode: Optional[str] = None
+    outlet_nama: Optional[str] = None
+    outlet_kode: Optional[str] = None
+    pengirim_nama: Optional[str] = None
+    jumlah_dokumen: int = 0
+
+    model_config = {"from_attributes": False}
+
+
+class SampleInboxPage(BaseModel):
+    """Bentuk sama dengan tipe frontend Paginated<T>."""
+    items: list[SampleInboxItem]
+    total: int          # total baris yang cocok filter (bukan hanya halaman ini)
+    page: int           # halaman aktif, mulai dari 1
+    page_size: int
+    total_pages: int    # minimal 1, walau data kosong
+
+
+class SampleStatusSummary(BaseModel):
+    """
+    Jumlah sample per status. `counts` selalu memuat semua status (default 0).
+    Contoh: {"counts": {"shipped": 2, "delivered": 5, ...}, "total": 36}
+    """
+    counts: dict[str, int]
+    total: int
