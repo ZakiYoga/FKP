@@ -18,139 +18,187 @@
 /* Light mode — default */
 :root,
 [data-mantine-color-scheme='light'] {
-  --mantine-color-body: #f9fafb; /* gray-50  */
-  --mantine-color-text: #111827; /* gray-900 */
+  --mantine-color-body: #f9fafb;
+  --mantine-color-text: #111827;
 }
 
-/* Dark mode */
+/* Dark mode — harus SETELAH light */
 [data-mantine-color-scheme='dark'] {
-  --mantine-color-body: #00081a; /* gray-950 */
-  --mantine-color-text: #f9fafb; /* gray-50  */
-
-  /* Brand — lebih terang di dark agar kontras */
-  --mantine-color-brand-0: #1e1b4b;
-  --mantine-color-brand-1: #312e81;
-  --mantine-color-brand-2: #3730a3;
-  --mantine-color-brand-3: #4338ca;
-  --mantine-color-brand-4: #4f46e5;
-  --mantine-color-brand-5: #6366f1;
-  --mantine-color-brand-6: #818cf8; /* ← primary di dark */
-  --mantine-color-brand-7: #a5b4fc;
-  --mantine-color-brand-8: #c7d2fe;
-  --mantine-color-brand-9: #e0e7ff;
-
-  /* Primary filled button, badge, avatar */
-  --mantine-primary-color-filled:       var(--mantine-color-brand-5);
-  --mantine-primary-color-filled-hover: var(--mantine-color-brand-4);
-  --mantine-primary-color-light:        rgba(99, 102, 241, 0.15);
-  --mantine-primary-color-light-hover:  rgba(99, 102, 241, 0.2);
-  --mantine-primary-color-light-color:  var(--mantine-color-brand-4);
+  --mantine-color-body: #00081a;
+  --mantine-color-text: #f9fafb;
 }
 
 /* ============================================================
    THEME TOKENS
    ============================================================ */
+
+@theme inline {
+  --color-brand-50: var(--mantine-color-brand-0);
+  --color-brand-100: var(--mantine-color-brand-1);
+  --color-brand-200: var(--mantine-color-brand-2);
+  --color-brand-300: var(--mantine-color-brand-3);
+  --color-brand-400: var(--mantine-color-brand-4);
+  --color-brand-500: var(--mantine-color-brand-5);
+  --color-brand-600: var(--mantine-color-brand-6);
+  --color-brand-700: var(--mantine-color-brand-7);
+  --color-brand-800: var(--mantine-color-brand-8);
+  --color-brand-900: var(--mantine-color-brand-9);
+
+  --color-secondary-50: var(--mantine-color-secondary-0);
+  --color-secondary-100: var(--mantine-color-secondary-1);
+  --color-secondary-200: var(--mantine-color-secondary-2);
+  --color-secondary-300: var(--mantine-color-secondary-3);
+  --color-secondary-400: var(--mantine-color-secondary-4);
+  --color-secondary-500: var(--mantine-color-secondary-5);
+  --color-secondary-600: var(--mantine-color-secondary-6);
+  --color-secondary-700: var(--mantine-color-secondary-7);
+  --color-secondary-800: var(--mantine-color-secondary-8);
+  --color-secondary-900: var(--mantine-color-secondary-9);
+
+  --color-focus: var(--mantine-color-brand-4);
+
+  /* Mengikuti shade aktif Mantine (light = 500, dark = 400) */
+  --color-primary: var(--mantine-primary-color-filled);
+  --color-primary-hover: var(--mantine-primary-color-filled-hover);
+}
+
 @theme {
-  /* ── Brand — Indigo ───────────────────────────────────── */
-  --color-brand-50:  #eef2ff;
-  --color-brand-100: #e0e7ff;
-  --color-brand-200: #c7d2fe;
-  --color-brand-300: #a5b4fc;
-  --color-brand-400: #818cf8;
-  --color-brand-500: #6366f1;
-  --color-brand-600: #4f46e5;
-  --color-brand-700: #4338ca;
-  --color-brand-800: #3730a3;
-  --color-brand-900: #312e81;
-  --color-brand-950: #1e1b4b;
 
   /* ── Status ───────────────────────────────────────────── */
-  --color-status-draft:            #94a3b8;
-  --color-status-submitted:        #3b82f6;
-  --color-status-apsm_review:      #7c3aed;
-  --color-status-in_review:        #d97706;
-  --color-status-need_revision:    #dc2626;
-  --color-status-investigation:    #ea580c;
-  --color-status-investigated:     #0891b2;
-  --color-status-rsm_review:       #7c3aed;
-  --color-status-direktur_review:  #9333ea;
-  --color-status-accepted:         #059669;
-  --color-status-rejected:         #dc2626;
-  --color-status-resolved:         #16a34a;
-  --color-status-closed:           #475569;
+  --color-status-draft: #94a3b8;
+  --color-status-submitted: #3b82f6;
+  --color-status-apsm_review: #7c3aed;
+  --color-status-in_review: #d97706;
+  --color-status-need_revision: #dc2626;
+  --color-status-investigation: #ea580c;
+  --color-status-investigated: #0891b2;
+  --color-status-rsm_review: #7c3aed;
+  --color-status-direktur_review: #9333ea;
+  --color-status-accepted: #059669;
+  --color-status-rejected: #dc2626;
+  --color-status-resolved: #16a34a;
+  --color-status-closed: #475569;
 
   /* ── Prioritas ────────────────────────────────────────── */
   --color-prioritas-top_urgent: #dc2626;
-  --color-prioritas-urgent:     #ea580c;
-  --color-prioritas-reguler:    #16a34a;
-  --color-prioritas-low:        #2563eb;
+  --color-prioritas-urgent: #ea580c;
+  --color-prioritas-reguler: #16a34a;
+  --color-prioritas-low: #2563eb;
 
   /* ── Typography ───────────────────────────────────────── */
   --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
   /* ── Shadows ──────────────────────────────────────────── */
-  --shadow-card:       0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06);
+  --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06);
   --shadow-card-hover: 0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.08);
-  --shadow-modal:      0 20px 25px -5px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --shadow-modal: 0 20px 25px -5px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.1);
 
   /* ── Animations ───────────────────────────────────────── */
-  --animate-fade-in:   fadeIn 0.2s ease-out;
-  --animate-slide-up:  slideUp 0.3s ease-out;
+  --animate-fade-in: fadeIn 0.2s ease-out;
+  --animate-slide-up: slideUp 0.3s ease-out;
   --animate-spin-slow: spin 2s linear infinite;
 
-  --animate-hide:               hide 150ms cubic-bezier(0.16, 1, 0.3, 1);
-  --animate-slide-down-and-fade:  slideDownAndFade  150ms cubic-bezier(0.16, 1, 0.3, 1);
-  --animate-slide-left-and-fade:  slideLeftAndFade  150ms cubic-bezier(0.16, 1, 0.3, 1);
-  --animate-slide-up-and-fade:    slideUpAndFade    150ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-hide: hide 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-slide-down-and-fade: slideDownAndFade 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-slide-left-and-fade: slideLeftAndFade 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-slide-up-and-fade: slideUpAndFade 150ms cubic-bezier(0.16, 1, 0.3, 1);
   --animate-slide-right-and-fade: slideRightAndFade 150ms cubic-bezier(0.16, 1, 0.3, 1);
 
   /* ── Keyframes ────────────────────────────────────────── */
   @keyframes fadeIn {
-    from { opacity: 0; }
-    to   { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
   }
 
   @keyframes slideUp {
-    from { opacity: 0; transform: translateY(8px); }
-    to   { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   @keyframes hide {
-    from { opacity: 1; }
-    to   { opacity: 0; }
+    from {
+      opacity: 1;
+    }
+
+    to {
+      opacity: 0;
+    }
   }
 
   @keyframes slideDownAndFade {
-    from { opacity: 0; transform: translateY(-6px); }
-    to   { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   @keyframes slideLeftAndFade {
-    from { opacity: 0; transform: translateX(6px); }
-    to   { opacity: 1; transform: translateX(0); }
+    from {
+      opacity: 0;
+      transform: translateX(6px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
   }
 
   @keyframes slideUpAndFade {
-    from { opacity: 0; transform: translateY(6px); }
-    to   { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   @keyframes slideRightAndFade {
-    from { opacity: 0; transform: translateX(-6px); }
-    to   { opacity: 1; transform: translateX(0); }
+    from {
+      opacity: 0;
+      transform: translateX(-6px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
   }
 }
 
 :root {
-  --control-radius: 0.5rem;   /* radius button + input + select */
-  --control-h: 2.5rem;        /* tinggi default button + input */
+  --control-radius: 0.5rem;
+  /* radius button + input + select */
+  --control-h: 2.5rem;
+  /* tinggi default button + input */
 }
 
 /* ============================================================
    BASE STYLES
    ============================================================ */
 @layer base {
+
   /* Border color default Tailwind v4 compatibility */
   *,
   ::after,
@@ -160,17 +208,25 @@
     border-color: var(--color-gray-200, currentcolor);
   }
 
+  :focus-visible {
+    outline-color: var(--mantine-color-brand-4);
+  }
+
   * {
     @apply border-gray-200 dark:border-gray-700;
   }
 
   body {
-    @apply bg-gray-50 text-gray-900 antialiased
-           dark:bg-gray-950 dark:text-gray-100;
+    @apply bg-gray-50 text-gray-900 antialiased dark:bg-gray-950 dark:text-gray-100;
     font-family: var(--font-sans);
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     @apply font-semibold tracking-tight;
   }
 
@@ -179,37 +235,35 @@
   }
 }
 
+@layer components {
+
+  .mantine-focus-auto:focus-visible,
+  .mantine-focus-always:focus {
+    outline: 2px solid var(--mantine-color-brand-4);
+    outline-offset: 2px;
+  }
+}
+
 /* ============================================================
    UTILITIES — Input
    ============================================================ */
 @utility input-base {
-  @apply w-full border border-gray-300 bg-white
-         text-sm text-gray-900 placeholder-gray-400
-         transition-all duration-150
-         focus:border-brand-500 focus:outline-hidden focus:ring-2 focus:ring-brand-500/20
-         disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500
-         dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100
-         dark:placeholder-gray-500
-         dark:focus:border-brand-400 dark:focus:ring-brand-400/20
-         dark:disabled:bg-gray-800 dark:disabled:text-gray-600;
+  @apply w-full border border-gray-300 bg-white text-sm text-gray-900 placeholder-gray-400 transition-all duration-150 focus:border-focus focus:outline-hidden focus:ring-2 focus:ring-focus/25 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-500 dark:focus:border-focus dark:focus:ring-focus/30 dark:disabled:bg-gray-800 dark:disabled:text-gray-600;
   min-height: var(--control-h);
   padding: 0.5rem 0.875rem;
   border-radius: var(--control-radius);
 }
 
 @utility input-error {
-  @apply border-red-400 focus:border-red-500 focus:ring-red-500/20
-         dark:border-red-500 dark:focus:border-red-400 dark:focus:ring-red-400/20;
+  @apply border-red-500! focus:border-red-500! focus:ring-red-500/25!
+         dark:border-red-400! dark:focus:border-red-400! dark:focus:ring-red-400/30!;
 }
 
 /* ============================================================
    UTILITIES — Button
    ============================================================ */
 @utility btn {
-  @apply inline-flex items-center justify-center gap-2 font-semibold
-         transition-all duration-150
-         focus:outline-hidden focus:ring-2 focus:ring-offset-2
-         disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 hover:cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950 disabled:cursor-not-allowed disabled:opacity-50;
   min-height: var(--btn-h, var(--control-h));
   padding-inline: var(--btn-px, 1rem);
   font-size: var(--btn-fs, 0.875rem);
@@ -218,61 +272,57 @@
 }
 
 @utility btn-primary {
-  @apply btn bg-brand-600 text-white border-brand-600
-         hover:bg-brand-700 hover:border-brand-700
-         active:bg-brand-800 focus:ring-brand-500
-         dark:bg-brand-500 dark:border-brand-500
-         dark:hover:bg-brand-600 dark:active:bg-brand-700;
+  @apply btn bg-primary text-white border-transparent hover:bg-primary-hover active:brightness-90;
 }
-
-@utility btn-sm { --btn-h: 2rem;   --btn-px: 0.75rem; --btn-fs: 0.75rem; }
-@utility btn-md { --btn-h: 2.5rem; --btn-px: 1rem;    --btn-fs: 0.875rem; }
-@utility btn-lg { --btn-h: 3rem;   --btn-px: 1.5rem;  --btn-fs: 1rem; }
 
 @utility btn-secondary {
-  @apply btn bg-white text-gray-700 border border-gray-300
-         hover:bg-gray-50 active:bg-gray-100 focus:ring-gray-400
-         dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700
-         dark:hover:bg-gray-700 dark:active:bg-gray-600;
+  @apply btn bg-secondary-500 text-brand-800 border-secondary-500 hover:bg-secondary-600 hover:border-secondary-600 active:bg-secondary-700 active:border-secondary-700 dark:bg-secondary-500 dark:text-brand-900 dark:hover:bg-secondary-400;
 }
 
-@utility btn-danger {
-  @apply btn bg-red-600 text-white
-         hover:bg-red-700 active:bg-red-800 focus:ring-red-500
-         dark:bg-red-500 dark:hover:bg-red-600;
-}
-
-@utility btn-warning {
-  @apply btn bg-amber-500 text-white
-         hover:bg-amber-600 active:bg-amber-700 focus:ring-amber-500
-         dark:bg-amber-400 dark:hover:bg-amber-500;
-}
-
-@utility btn-ghost {
-  @apply btn bg-transparent text-gray-600
-         hover:bg-gray-100 active:bg-gray-200 focus:ring-gray-400
-         dark:text-gray-400 dark:hover:bg-gray-800 dark:active:bg-gray-700;
+@utility btn-outline {
+  @apply btn bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-focus active:bg-gray-100 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-700 dark:hover:border-focus;
 }
 
 @utility btn-sm {
-  @apply px-3 py-1.5 text-xs;
+  --btn-h: 2rem;
+  --btn-px: 0.75rem;
+  --btn-fs: 0.75rem;
+}
+
+@utility btn-md {
+  --btn-h: 2.5rem;
+  --btn-px: 1rem;
+  --btn-fs: 0.875rem;
 }
 
 @utility btn-lg {
-  @apply px-6 py-3 text-base;
+  --btn-h: 3rem;
+  --btn-px: 1.5rem;
+  --btn-fs: 1rem;
+}
+
+
+@utility btn-danger {
+  @apply btn bg-red-600 text-white hover:bg-red-700 active:bg-red-800 dark:bg-red-500 dark:hover:bg-red-600;
+}
+
+@utility btn-warning {
+  @apply btn bg-amber-500 text-white hover:bg-amber-600 active:bg-amber-700 dark:bg-amber-400 dark:hover:bg-amber-500;
+}
+
+@utility btn-ghost {
+  @apply btn bg-transparent text-gray-600 hover:bg-gray-100 active:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-800 dark:active:bg-gray-700;
 }
 
 /* ============================================================
    UTILITIES — Card
    ============================================================ */
 @utility card {
-  @apply rounded-xl bg-white shadow-card border border-gray-100
-         dark:bg-gray-900 dark:border-gray-800;
+  @apply rounded-xl bg-white shadow-card border border-gray-100 dark:bg-gray-900 dark:border-gray-800;
 }
 
 @utility card-header {
-  @apply px-6 py-4 border-b border-gray-100
-         dark:border-gray-800;
+  @apply px-6 py-4 border-b border-gray-100 dark:border-gray-800;
 }
 
 @utility card-body {
@@ -283,16 +333,14 @@
    UTILITIES — Badge
    ============================================================ */
 @utility badge {
-  @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5
-         text-xs font-semibold;
+  @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold;
 }
 
 /* ============================================================
    UTILITIES — Label
    ============================================================ */
 @utility label {
-  @apply block text-sm font-medium text-gray-700 mb-1.5
-         dark:text-gray-300;
+  @apply block text-sm font-medium text-gray-700 mb-1.5 dark:text-gray-300;
 }
 
 @utility label-required {
@@ -313,11 +361,23 @@
   scrollbar-width: thin;
   scrollbar-color: #e2e8f0 transparent;
 
-  &::-webkit-scrollbar       { width: 6px; }
-  &::-webkit-scrollbar-track { background: transparent; }
-  &::-webkit-scrollbar-thumb { @apply bg-gray-200 rounded-full dark:bg-gray-700; }
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    @apply bg-gray-200 rounded-full dark:bg-gray-700;
+  }
 }
 
+.mantine-Input-input:focus:not([data-error]) {
+  border-color: var(--mantine-color-brand-4);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mantine-color-brand-4) 20%, transparent);
+}
 
 /* ============================================================
    HIERARKY PAGE
@@ -332,9 +392,12 @@
  */
 .org-chart {
   --org-line: var(--mantine-color-default-border);
-  --org-gap: 24px; /* jarak vertikal antar level pada baris horizontal */
-  --org-stack-indent: 20px; /* geser kanan daftar vertikal */
-  --org-stub-top: 42px; /* tinggi cabang dari atas item (kira-kira tengah avatar) */
+  --org-gap: 24px;
+  /* jarak vertikal antar level pada baris horizontal */
+  --org-stack-indent: 20px;
+  /* geser kanan daftar vertikal */
+  --org-stub-top: 42px;
+  /* tinggi cabang dari atas item (kira-kira tengah avatar) */
 }
 
 /* ── Baris horizontal ───────────────────────────────────────────── */
@@ -375,9 +438,11 @@
   height: var(--org-gap);
   border-top: 1px solid var(--org-line);
 }
+
 .org-child::before {
   right: 50%;
 }
+
 .org-child::after {
   left: 50%;
   border-left: 1px solid var(--org-line);
@@ -386,6 +451,7 @@
 .org-child:first-child::before {
   display: none;
 }
+
 /* anak terakhir (termasuk anak tunggal): hanya garis turun, tanpa garis ke kanan */
 .org-child:last-child::after {
   border-top: 0;
@@ -398,13 +464,13 @@
   list-style: none;
 }
 
-.org-stack > li {
+.org-stack>li {
   position: relative;
   padding: 12px 0 0 var(--org-stack-indent);
 }
 
 /* batang vertikal */
-.org-stack > li::before {
+.org-stack>li::before {
   content: '';
   position: absolute;
   top: 0;
@@ -412,13 +478,14 @@
   left: 0;
   border-left: 1px solid var(--org-line);
 }
-.org-stack > li:last-child::before {
+
+.org-stack>li:last-child::before {
   bottom: auto;
   height: var(--org-stub-top);
 }
 
 /* cabang horizontal ke kartu */
-.org-stack > li::after {
+.org-stack>li::after {
   content: '';
   position: absolute;
   top: var(--org-stub-top);

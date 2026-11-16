@@ -53,11 +53,16 @@ export interface SearchableSelectProps<TOption extends SearchableSelectOption = 
 // kelas Tailwind tetap menang walau CSS Mantine tidak dibungkus @layer.
 const CLASS_NAMES = {
   label: 'mb-1 font-semibold text-gray-700 dark:text-gray-400',
-  // Target berupa <button multiline>, jadi nama terpilih yang panjang turun ke baris berikutnya.
+  // bagian yang sama untuk semua state (tanpa warna border/ring)
   input:
-    'border-gray-300 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 placeholder:text-gray-400 ' +
-    'focus:border-brand-400! dark:border-[var(--mantine-color-gray-7)] focus:ring-2 focus:ring-brand-500/20 ' +
+    'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 placeholder:text-gray-400 ' +
     'text-left whitespace-normal! break-words! leading-snug',
+  inputNormal:
+    'border-gray-300 dark:border-[var(--mantine-color-gray-7)] ' +
+    'focus:border-focus! focus:ring-2 focus:ring-focus/25',
+  inputError:
+    'border-red-500! dark:border-red-400! ' +
+    'focus:border-red-500! focus:ring-2 focus:ring-red-500/25 dark:focus:ring-red-400/30',
   searchInput:
     'border-gray-300 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 placeholder:text-gray-400 ' +
     'focus:border-brand-400! dark:border-[var(--mantine-color-gray-7)]',
@@ -193,7 +198,10 @@ export function SearchableSelect<TOption extends SearchableSelectOption = Search
           id={id}
           aria-label={ariaLabel}
           className={cn(className)}
-          classNames={{ label: CLASS_NAMES.label, input: CLASS_NAMES.input }}
+          classNames={{
+            label: CLASS_NAMES.label,
+            input: cn(CLASS_NAMES.input, error ? CLASS_NAMES.inputError : CLASS_NAMES.inputNormal),
+          }}
           component="button"
           type="button"
           // multiline: tinggi input menyesuaikan isi, teks panjang turun ke baris berikutnya.

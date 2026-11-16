@@ -1,28 +1,44 @@
 // src/theme.ts
-import { createTheme, Button, Input, Select, rem } from '@mantine/core'
+import { createTheme, Button, Input, Select, rem, Modal, Card } from '@mantine/core'
 import type { MantineColorsTuple } from '@mantine/core'
 
 /**
- * Sinkron dengan src/index.css:
- * - brand      -> @theme --color-brand-50..900 (Mantine indeks 0..9)
- * - radius     -> --control-radius (0.5rem = 8px = radius "md" Mantine)
- * - tinggi     -> btn-sm / btn-md / btn-lg dan --control-h (2.5rem = 40px)
- * - font       -> --font-sans / --font-mono
+ * SUMBER TUNGGAL warna brand/secondary. Ganti warna cukup di tuple di bawah.
+ * src/index.css membaca lewat var(--mantine-color-brand-*) (@theme inline).
+ * - radius -> --control-radius (0.5rem = 8px = radius "md" Mantine)
+ * - tinggi -> btn-sm / btn-md / btn-lg dan --control-h (2.5rem = 40px)
+ * - font   -> --font-sans / --font-mono
  */
 
-// Indigo, sama persis dengan --color-brand-50 s/d --color-brand-900
+// Brand — indeks 0..9 = brand-50..900 (500 = #1C4D8D di indeks 5)
 const brand: MantineColorsTuple = [
-  '#eef2ff', // 0 = brand-50
-  '#e0e7ff', // 1 = brand-100
-  '#c7d2fe', // 2 = brand-200
-  '#a5b4fc', // 3 = brand-300
-  '#818cf8', // 4 = brand-400
-  '#6366f1', // 5 = brand-500
-  '#4f46e5', // 6 = brand-600 (primary light)
-  '#4338ca', // 7 = brand-700 (hover)
-  '#3730a3', // 8 = brand-800
-  '#312e81', // 9 = brand-900
+  '#F1F6FB', // 0 = 50
+  '#E1ECF7', // 1 = 100
+  '#C3D9EE', // 2 = 200
+  '#94BADF', // 3 = 300
+  '#4988C4', // 4 = 400
+  '#1C4D8D', // 5 = 500
+  '#174079', // 6 = 600
+  '#133463', // 7 = 700
+  '#0F2854', // 8 = 800
+  '#0B1E40', // 9 = 900
 ]
+
+// Secondary — 500 = #BDE8F5 di indeks 5
+const secondary: MantineColorsTuple = [
+  '#F9FDFE', // 0 = 50
+  '#F2FBFD', // 1 = 100
+  '#E9F7FC', // 2 = 200
+  '#DDF3FA', // 3 = 300
+  '#D0EEF8', // 4 = 400
+  '#BDE8F5', // 5 = 500
+  '#8FD0E6', // 6 = 600
+  '#5FB5D3', // 7 = 700
+  '#3A93B5', // 8 = 800
+  '#276F8B', // 9 = 900
+]
+
+const FOCUS_COLOR = 'var(--mantine-color-brand-4)'
 
 // Ukuran kontrol, sama dengan btn-sm/md/lg di index.css
 const CONTROL = {
@@ -41,10 +57,11 @@ const getSize = (size: unknown): ControlSize =>
 export const theme = createTheme({
   // ===== Warna =====
   primaryColor: 'brand',
-  colors: { brand },
-  primaryShade: { light: 6, dark: 5 },
-  black: '#141b2b', // gray-900
+  colors: { brand, secondary },
+  primaryShade: { light: 5, dark: 4 },
+  black: '#0B1E40',
   white: '#ffffff',
+  focusRing: 'auto',
 
   // ===== Radius (md = 8px = rounded-lg Tailwind) =====
   defaultRadius: 'md',
@@ -101,7 +118,7 @@ export const theme = createTheme({
             '--input-height': s.height,
             '--input-fz': s.fz,
             '--input-bd': 'var(--mantine-color-default-border)',
-            '--input-bd-focus': 'var(--mantine-color-brand-6)',
+            '--input-bd-focus': FOCUS_COLOR,
           },
         }
       },
@@ -132,6 +149,39 @@ export const theme = createTheme({
         required: { color: 'var(--mantine-color-red-6)' },
         description: { fontSize: rem(12), marginBottom: rem(6) },
         error: { fontSize: rem(12), marginTop: rem(4) },
+      },
+    }),
+
+    // ===== Card =====
+    Card: Card.extend({
+      defaultProps: {
+        padding: 'lg',
+        radius: 'md',
+        withBorder: true,
+        shadow: 'xs',
+      },
+      styles: {
+        root: {
+          backgroundColor: 'light-dark(var(--mantine-color-white), var(--mantine-color-dark-6))',
+          borderColor: 'var(--mantine-color-default-border)',
+          transition: 'box-shadow 150ms ease, transform 150ms ease',
+        },
+        section: {
+          borderColor: 'var(--mantine-color-default-border)',
+        },
+      },
+    }),
+
+    // ===== Modal (opsional, supaya seragam dengan Card) =====
+    Modal: Modal.extend({
+      defaultProps: {
+        centered: false,
+        radius: 'md',
+        overlayProps: { backgroundOpacity: 0.55, blur: 3 },
+      },
+      styles: {
+        title: { fontWeight: 700, fontSize: rem(18) },
+        header: { borderBottom: '1px solid var(--mantine-color-default-border)' },
       },
     }),
   },
